@@ -176,9 +176,9 @@ export default () => {
   // Page Design Rndering (화면 디자인)
   return (
     <Container>
-      <LogoImg src={`${process.env.PUBLIC_URL}/Sonac_Title.png`} />
+      <LogoImg src={`${process.env.PUBLIC_URL}/LOOP_LOGO.png`} />
       <Form>
-        <Title>새로운 컨텐츠를 만나보세요</Title>
+        <Title>음악으로 소통하는 공간</Title>
         <SubTitle>이메일*</SubTitle>
         <Input
           name="email"
