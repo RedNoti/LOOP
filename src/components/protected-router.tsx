@@ -12,7 +12,7 @@ export default ({ children }: Props) => {
 
   // 1-A. O - User가 로그인을 한 경우
   if (user) {
-    //  ㄴ 접근하려는 페이지 그대로 보여줌
+    //  ㄴ 접근하려는 페이지 그대로 보여줌1
     return <>{children}</>;
   }
   // 1-B. X - User가 로그인을 하지 않은 경우
