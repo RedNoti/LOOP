@@ -1,6 +1,3 @@
-// 불러온 게시글을 화면에 예쁘게 보여줍니다.
-// - 불러온 게시글 정보(property)를 받아와야합니다.
-// - 불러온 게시글 정보(property)가 어떤 타입인지 알아야합니다.
 import styled from "styled-components";
 import { IPost } from "../types/post-type";
 import { auth, firestore } from "../firebaseConfig";
@@ -9,12 +6,20 @@ import Item from "./Post-ItemMenu";
 import { deleteDoc, doc } from "firebase/firestore";
 
 const Container = styled.div`
+  width: 100%;
+  max-width: 600px; /* 최대 너비 */
+  margin-left: 0; /* 왼쪽 고정 */
+  margin-right: 0; /* 오른쪽 고정 */
   border: 1px solid #353535;
   padding: 10px 15px;
+  border-radius: 30px;
+  height: auto; /* 높이를 내용에 맞게 자동으로 조정 */
 `;
 const Wrapper = styled.div`
   display: flex;
   gap: 5px;
+  align-items: flex-start; /* 세로 정렬을 맞추기 위해 flex-start 사용 */
+  height: 100%; /* Wrapper의 높이를 100%로 맞추기 */
 `;
 const ProfileArea = styled.div``;
 const ProfileImg = styled.img`
@@ -49,13 +54,11 @@ const CreateTime = styled.div`
   font-size: 10px;
   color: #575757;
 `;
-
 const Footer = styled.div`
   display: flex;
   gap: 8px;
   margin: 10px 0px;
 `;
-
 const Topbar = styled.div`
   display: flex;
   justify-content: space-between;
@@ -65,37 +68,28 @@ const DeleteBtn = styled.button`
   font-size: 10px;
 `;
 
-// 기본 프로필 이미지
 const defaultProfileImg =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
 
 export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
-  //로그인 유저 정보
   const user = auth.currentUser;
-  // Logic
+  
   const onDelete = async () => {
     const isOK = window.confirm("삭제하시겠습니까?");
 
     try {
       if (isOK) {
-        // Firebase로부터 해당 게시글 삭제
-        // 1. 내가 작성한 게시글인가?
-        // ㄴ 내가 작성하지 않은 게시글 -> 삭제하면 안됨
         if (user?.uid !== userId) {
           return;
         }
-        // 2. 특정 게시글 ID를 통해 Firebase에서 doc 삭제
-        // ㄴ 특정 ID 값의 doc를 collection안에서 찾는다.
         const removeDoc = await doc(firestore, "posts", id);
-        // ㄴ 찾은 doc를 collection 안에서 삭제한다
         await deleteDoc(removeDoc);
       }
     } catch (e) {
-      console.error("post delecr error : ", e);
+      console.error("post delete error : ", e);
     }
   };
 
-  // Page Design
   return (
     <Container>
       <Wrapper>
@@ -110,7 +104,6 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
                 <UserEmail>{auth.currentUser.email}</UserEmail>
               )}
             </UserInfo>
-            {/*내가 작성한 게시글에서만 나타남*/}
             {user?.uid === userId && (
               <DeleteBtn onClick={onDelete}>delete</DeleteBtn>
             )}

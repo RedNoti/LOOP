@@ -9,7 +9,7 @@ import EmailSignUpButton from "../components/EmailSignUpButton";
 import GoogleSignUpButton from "../components/GoogleSignUpButton";
 
 const Container = styled.div`
-  background-color: #004cb7;
+  background-color: #4682B4;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   align-items: center;
