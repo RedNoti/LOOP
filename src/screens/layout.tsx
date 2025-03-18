@@ -4,32 +4,36 @@ import { auth } from "../firebaseConfig";
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: 1fr 5fr;
-  gap: 30px;
+  grid-template-columns: 1fr 4fr; /* 두 번째 칸(메인 콘텐츠 영역) 크기 줄임 */
+  gap: 15px; /* 간격 줄임 */
   width: 100%;
-  padding: 20px;
+  padding: 10px 15px; /* 좌우 패딩 줄임 */
 `;
+
 const Navigator = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 12px; /* 간격 줄임 */
 `;
+
 const MenuItem = styled.div`
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 35px; /* 크기 줄임 */
+  height: 35px; /* 크기 줄임 */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+
   svg {
-    width: 40px;
-    height: 40px;
+    width: 35px; /* 크기 줄임 */
+    height: 35px; /* 크기 줄임 */
     fill: white;
   }
 `;
+
 const BottomMenu = styled.div`
   display: flex;
   flex-direction: column-reverse;
@@ -53,7 +57,7 @@ export default () => {
     }
   };
 
-  // Page Design Redering
+  // Page Design Rendering
   return (
     <Container>
       <Navigator>
