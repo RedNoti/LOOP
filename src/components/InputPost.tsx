@@ -114,6 +114,15 @@ export default () => {
       };
       const path = collection(firestore, "posts");
       await addDoc(path, myPost);
+      
+      // Clear the post content and reset the textarea height
+      setPost("");
+      if (textAreaRef && textAreaRef.current) {
+        textAreaRef.current.style.height = "auto";
+      }
+      
+      // Optionally clear the file as well
+      setFile(undefined);
     } catch (e) {
       console.warn(e);
     } finally {
