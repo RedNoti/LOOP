@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { auth } from '../firebaseConfig';
 
 
 // 프로필 데이터 구조를 정의하는 인터페이스
@@ -393,35 +394,40 @@ const ProfileEditor: React.FC = () => {
     }
   };
 
-  // useEffect 훅을 사용하여 컴포넌트 마운트 및 리사이즈 시 모바일 대응 스타일 적용
   React.useEffect(() => {
-    // 모바일 디바이스에서 작동하는 미디어 쿼리 처리 함수
+    // 기존 모바일 대응 useEffect 유지하면서 아래 추가
+    const user = auth.currentUser;
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        email: user.email || '',
+        photoUrl: user.photoURL || prev.photoUrl,
+        name: user.displayName || prev.name
+      }));
+    }
+  
+    // 모바일 대응 resize 핸들러
     const handleResize = () => {
-      if (window.innerWidth <= 600) {  // 화면 너비가 600px 이하일 때 (모바일 환경으로 판단)
-        // 모바일 스타일을 적용하는 로직
-        const actionsElement = document.querySelector('[data-mobile-actions]');  // data-mobile-actions 속성을 가진 요소 선택
+      if (window.innerWidth <= 600) {
+        const actionsElement = document.querySelector('[data-mobile-actions]');
         if (actionsElement) {
-          const actionsStyle = actionsElement as HTMLElement;  // HTMLElement로 타입 캐스팅
-          // 모바일 환경에서의 버튼 영역 스타일 적용
+          const actionsStyle = actionsElement as HTMLElement;
           Object.assign(actionsStyle.style, {
-            position: 'fixed',           // 고정 위치
-            bottom: '0',                 // 화면 하단에 고정
-            left: '0',                   // 왼쪽 가장자리
-            right: '0',                  // 오른쪽 가장자리
-            padding: '12px 16px',        // 패딩
-            backgroundColor: 'white',    // 배경색
-            boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.12)',  // 상단에 그림자 효과
-            margin: '0'                  // 마진 제거
+            position: 'fixed',
+            bottom: '0',
+            left: '0',
+            right: '0',
+            padding: '12px 16px',
+            backgroundColor: 'white',
+            boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.12)',
+            margin: '0'
           });
         }
       }
     };
-
-    // 초기 로드 및 리사이즈 이벤트에 대한 핸들러
+  
     handleResize();
     window.addEventListener('resize', handleResize);
-
-    // 컴포넌트 언마운트 시 이벤트 리스너 제거
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
