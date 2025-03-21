@@ -1,6 +1,6 @@
 // src/components/ProfileFunction.tsx
 import { useState, useRef, useEffect } from "react";
-import { auth } from "../firebaseConfig";
+import { auth, onAuthStateChanged } from "../firebaseConfig";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
@@ -90,7 +90,13 @@ export const useProfileFunctions = () => {
   };
 
   useEffect(() => {
-    loadProfileFromFirestore();
+    const unsubscribe = onAuthStateChanged(auth, (user: any) => {
+      if (user) {
+        loadProfileFromFirestore();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   return {
