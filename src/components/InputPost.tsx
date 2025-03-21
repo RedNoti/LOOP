@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import styled from "styled-components";
-import { auth, firestore } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 import { addDoc, collection } from "firebase/firestore";
 
 const Form = styled.form`
@@ -112,15 +112,15 @@ export default () => {
         createdAt: Date.now(),
         post: post,
       };
-      const path = collection(firestore, "posts");
+      const path = collection(db, "posts");
       await addDoc(path, myPost);
-      
+
       // Clear the post content and reset the textarea height
       setPost("");
       if (textAreaRef && textAreaRef.current) {
         textAreaRef.current.style.height = "auto";
       }
-      
+
       // Optionally clear the file as well
       setFile(undefined);
     } catch (e) {

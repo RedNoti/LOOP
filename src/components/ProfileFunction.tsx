@@ -1,6 +1,8 @@
 // src/components/ProfileFunction.tsx
 import { useState, useRef, useEffect } from "react";
 import { auth } from "../firebaseConfig";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
 // 프로필 데이터 인터페이스
 export interface ProfileData {
@@ -39,10 +41,18 @@ export const useProfileFunctions = () => {
     setProfile((prev) => ({ ...prev, [name]: value }));
   };
 
+  const saveProfileToFirestore = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      await setDoc(doc(db, "profiles", user.uid), profile);
+    }
+  };
+
   const togglePreview = () => setShowPreview((prev) => !prev);
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("프로필 업데이트:", profile);
+    await saveProfileToFirestore();
     setIsSubmitted(true);
   };
 
@@ -69,16 +79,18 @@ export const useProfileFunctions = () => {
     }
   };
 
-  useEffect(() => {
+  const loadProfileFromFirestore = async () => {
     const user = auth.currentUser;
     if (user) {
-      setProfile((prev) => ({
-        ...prev,
-        email: user.email || "",
-        photoUrl: user.photoURL || prev.photoUrl,
-        name: user.displayName || prev.name,
-      }));
+      const docSnap = await getDoc(doc(db, "profiles", user.uid));
+      if (docSnap.exists()) {
+        setProfile(docSnap.data() as ProfileData);
+      }
     }
+  };
+
+  useEffect(() => {
+    loadProfileFromFirestore();
   }, []);
 
   return {
@@ -105,5 +117,6 @@ export const useProfileFunctions = () => {
     handleBackToEdit,
     handleUploadButtonClick,
     handleFileChange,
+    saveProfileToFirestore,
   };
 };

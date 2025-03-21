@@ -10,7 +10,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { firestore } from "../firebaseConfig";
+import { db } from "../firebaseConfig";
 import Post from "./Post";
 
 const Container = styled.div``;
@@ -22,7 +22,7 @@ export default () => {
   // 서버에서 게시글 받아오기
   const fetchPosts = async () => {
     // 1. Firebase에 필요한 게시글 받아오기 쿼리(Query)
-    const path = collection(firestore, "posts");
+    const path = collection(db, "posts");
     const condition = orderBy("createdAt", "desc");
     const postsQuery = query(path, condition);
     // 2. 쿼리에 맞는 Doc'들' 가져오기(Firebase와 소통)
@@ -55,7 +55,7 @@ export default () => {
     // realtime 으로 서버에서 최신 게시글 갱신
     const fetchPostsRealtime = async () => {
       // 2. SERVER DB에서 최신게시글 가져올 Query
-      const path = collection(firestore, "posts");
+      const path = collection(db, "posts");
       const condition = orderBy("createdAt", "desc");
       const postsQuery = query(path, condition);
       // 5. 최신 게시글 상태를 Listener에 구독(연결/연동)

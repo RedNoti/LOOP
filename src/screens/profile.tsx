@@ -51,7 +51,6 @@ const ProfileEditor = () => {
       justifyContent: "center", // 컨텐츠를 중앙에 배치
       padding: "40px 20px", // 상하 40px, 좌우 20px 패딩
       fontFamily: '"Roboto", Arial, sans-serif', // 폰트 패밀리 설정
-      backgroundColor: "#f8f9fa", // 배경색 - 연한 회색
       color: "#202124", // 텍스트 색상 - 거의 검정색
       minHeight: "100vh", // 최소 높이를 뷰포트 높이로 설정
     },

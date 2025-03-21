@@ -22,4 +22,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 //파이어 베이스 DB 정보
-export const firestore = getFirestore(app);
+export const db = getFirestore(app);

@@ -1,9 +1,17 @@
 import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { IPost } from "../types/post-type";
-import { auth, firestore } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 import moment from "moment";
-import { deleteDoc, doc, updateDoc, increment, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  updateDoc,
+  increment,
+  arrayUnion,
+  arrayRemove,
+  getDoc,
+} from "firebase/firestore";
 
 const Container = styled.div`
   width: 100%;
@@ -124,9 +132,9 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
     // 컴포넌트가 마운트 될 때 좋아요 상태를 확인
     const checkLikeStatus = async () => {
       try {
-        const docRef = doc(firestore, "posts", id);  // Firestore에서 특정 문서 참조 생성
-        const docSnap = await getDoc(docRef);  // getDoc으로 문서 스냅샷 가져오기
-        
+        const docRef = doc(db, "posts", id); // Firestore에서 특정 문서 참조 생성
+        const docSnap = await getDoc(docRef); // getDoc으로 문서 스냅샷 가져오기
+
         if (docSnap.exists()) {
           const data = docSnap.data();
           setLikes(data.likeCount || 0);
@@ -147,7 +155,7 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
 
   // 좋아요 클릭 시
   const onLike = async () => {
-    const docRef = doc(firestore, "posts", id);
+    const docRef = doc(db, "posts", id);
     if (hasLiked) {
       // 좋아요 취소
       await updateDoc(docRef, {
@@ -168,7 +176,7 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
 
   // 댓글 수정 시
   const onEdit = async () => {
-    const docRef = doc(firestore, "posts", id);
+    const docRef = doc(db, "posts", id);
     try {
       await updateDoc(docRef, {
         post: editedPost, // 수정된 게시글 내용으로 업데이트
@@ -184,7 +192,7 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
     const isOK = window.confirm("댓글을 삭제하시겠습니까?");
     try {
       if (isOK) {
-        const removeDoc = await doc(firestore, "posts", id);
+        const removeDoc = await doc(db, "posts", id);
         await deleteDoc(removeDoc);
       }
     } catch (e) {
