@@ -48,11 +48,15 @@ const ProfileEditor = () => {
     container: {
       display: "flex",
       flexDirection: "column",
-      justifyContent: "center", // 컨텐츠를 중앙에 배치
-      padding: "40px 20px", // 상하 40px, 좌우 20px 패딩
-      fontFamily: '"Roboto", Arial, sans-serif', // 폰트 패밀리 설정
-      color: "#202124", // 텍스트 색상 - 거의 검정색
-      minHeight: "100vh", // 최소 높이를 뷰포트 높이로 설정
+      justifyContent: "center",
+      padding: "40px 20px",
+      fontFamily: '"Roboto", Arial, sans-serif',
+      color: "#202124",
+
+      width: "100%", // ✅ 이 줄 추가
+      boxSizing: "border-box", // ✅ 이 줄도 추가
+      height: "100vh",
+      overflowY: "auto",
     },
     contentWrapper: {
       display: "flex",
@@ -335,7 +339,6 @@ const ProfileEditor = () => {
   };
 
   React.useEffect(() => {
-    // 기존 모바일 대응 useEffect 유지하면서 아래 추가
     const user = auth.currentUser;
     if (user) {
       setProfile((prev) => ({
@@ -345,6 +348,11 @@ const ProfileEditor = () => {
         name: user.displayName || prev.name,
       }));
     }
+
+    // ✅ 페이지 진입 시 최상단으로 스크롤
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
 
     // 모바일 대응 resize 핸들러
     const handleResize = () => {
