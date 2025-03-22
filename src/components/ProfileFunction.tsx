@@ -60,7 +60,7 @@ export const useProfileFunctions = () => {
 
   const handleUploadButtonClick = () => fileInputRef.current?.click();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
@@ -74,8 +74,25 @@ export const useProfileFunctions = () => {
         return;
       }
 
-      const imageUrl = URL.createObjectURL(file);
-      setProfile((prev) => ({ ...prev, photoUrl: imageUrl }));
+      // 서버에 파일 업로드
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("https://sonaccloud.kro.kr/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        const relativePath = data.path; // 예: "image/12.png"
+
+        const imageUrl = `https://sonacstudio.kro.kr/${relativePath}`;
+        setProfile((prev) => ({ ...prev, photoUrl: imageUrl }));
+      } catch (err) {
+        console.error("이미지 업로드 실패", err);
+        alert("이미지 업로드에 실패했습니다.");
+      }
     }
   };
 
