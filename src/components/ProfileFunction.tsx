@@ -74,20 +74,21 @@ export const useProfileFunctions = () => {
         return;
       }
 
-      // 서버에 파일 업로드
       const formData = new FormData();
       formData.append("file", file);
 
       try {
-        const res = await fetch("https://sonaccloud.kro.kr/upload", {
+        const res = await fetch("http://uploadloop.kro.kr:4000/upload", {
           method: "POST",
           body: formData,
         });
 
-        const data = await res.json();
-        const relativePath = data.path; // 예: "image/12.png"
+        if (!res.ok) {
+          throw new Error("업로드 실패");
+        }
 
-        const imageUrl = `https://sonacstudio.kro.kr/${relativePath}`;
+        const data = await res.json();
+        const imageUrl = `http://uploadloop.kro.kr:4000/${data.path}`;
         setProfile((prev) => ({ ...prev, photoUrl: imageUrl }));
       } catch (err) {
         console.error("이미지 업로드 실패", err);
