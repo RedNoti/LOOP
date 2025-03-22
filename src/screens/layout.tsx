@@ -10,12 +10,18 @@ const Container = styled.div`
   height: 100dvh;
   padding: 8px 10px;
   box-sizing: border-box;
-  grid-template-columns: 60px minmax(0, 1fr) minmax(250px, 30%);
 
   @media (max-width: 768px) {
     grid-template-columns: 50px 1fr;
     padding: 4px 6px;
   }
+`;
+
+const MainContent = styled.div`
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+  height: 100%;
 `;
 
 const Navigator = styled.div`
@@ -105,8 +111,8 @@ export default () => {
           </MenuItem>
         </Link>
 
+        {/* 로그아웃 */}
         <BottomMenu>
-          {/* 로그아웃 메뉴 */}
           <MenuItem onClick={signOut}>
             <svg
               className="w-6 h-6 text-gray-800 dark:text-white"
@@ -129,7 +135,9 @@ export default () => {
         </BottomMenu>
       </Navigator>
 
-      <Outlet />
+      <MainContent>
+        <Outlet />
+      </MainContent>
     </Container>
   );
 };

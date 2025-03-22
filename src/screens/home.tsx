@@ -6,20 +6,35 @@ import YouTubeMusicPlayer from "./music";
 
 const Container = styled.div`
   display: flex;
-  align-items: flex-start;
+  flex-direction: row;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  gap: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+  }
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  height: 100%;
+  width: 100%; /* 추가해보면 좋음 */
 `;
 
 const MusicPlayerWrapper = styled.div`
-  width: 320px;
-  height: 100dvh;
+  width: 30%;
+  max-width: 400px;
+  min-width: 300px;
+  height: 100%;
   background-color: #111827;
   padding: 1rem;
   box-sizing: border-box;
   overflow-y: auto;
-
-  @media (max-height: 600px) {
-    height: 100vh;
-  }
 
   @media (max-width: 768px) {
     width: 100%;
@@ -29,11 +44,6 @@ const MusicPlayerWrapper = styled.div`
     left: 0;
     z-index: 100;
   }
-`;
-
-const ContentArea = styled.div`
-  flex: 1;
-  padding: 2rem;
 `;
 
 export default () => {

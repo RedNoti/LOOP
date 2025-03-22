@@ -9,7 +9,6 @@ const Form = styled.form`
   border: 1px solid #353535;
   padding: 20px 10px;
   width: 100%;
-  max-width: 600px; /* 최대 너비 */
   margin-left: 0; /* 왼쪽 고정 */
   margin-right: 0; /* 오른쪽 고정 */
   border-radius: 30px;

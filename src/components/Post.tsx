@@ -15,7 +15,6 @@ import {
 
 const Container = styled.div`
   width: 100%;
-  max-width: 600px;
   margin-left: 0;
   margin-right: 0;
   border: 1px solid #353535;
