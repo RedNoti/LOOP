@@ -27,8 +27,7 @@ const ContentArea = styled.div`
 `;
 
 const MusicPlayerWrapper = styled.div`
-  width: 30%;
-  max-width: 400px;
+  width: 50%;
   min-width: 300px;
   height: 100%;
   background-color: #111827;
