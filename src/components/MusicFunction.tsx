@@ -1,73 +1,67 @@
-import { useState, useEffect, useRef } from "react";
-
-interface VideoItem {
-  id: string;
-  title: string;
-  thumbnail: string;
-}
+import { useEffect, useRef, useState } from "react";
 
 export const useMusicPlayer = () => {
-  const [playlist, setPlaylist] = useState<VideoItem[]>([]);
-  const [videoIndex, setVideoIndex] = useState(0);
+  const [playlists, setPlaylists] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(50);
-  const [isLoading, setIsLoading] = useState(true);
-  const playerRef = useRef<any>(null);
-  const playerReadyRef = useRef<boolean>(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [likedVideos, setLikedVideos] = useState<any[]>([]);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  // 인기 음악 비디오 불러오기
-  useEffect(() => {
-    const fetchMusicVideos = async () => {
-      try {
-        setIsLoading(true);
-        const API_KEY = "AIzaSyBNWPwKZ26XlK0O5JCqooZFoAk2FScx2fE"; // ← 여기에 본인의 YouTube API Key 넣기
-        const MUSIC_CATEGORY_ID = "10";
-        const response = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=${MUSIC_CATEGORY_ID}&maxResults=20&key=${API_KEY}`
-        );
-        const data = await response.json();
-        if (data.items && data.items.length > 0) {
-          const videos = data.items.map((item: any) => ({
-            id: item.id,
-            title: item.snippet.title,
-            thumbnail: item.snippet.thumbnails.high.url,
-          }));
-          const shuffled = [...videos].sort(() => Math.random() - 0.5);
-          setPlaylist(shuffled);
+  const playerRef = useRef<any>(null);
+  const playerReadyRef = useRef(false);
+
+  console.log("🎧 videos:", videos);
+  console.log("▶️ currentVideoId:", currentVideoId);
+  console.log("🧠 isLoading:", isLoading);
+
+  const fetchPlaylistVideos = async (playlistId: string) => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlistId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      } catch {
-        setPlaylist([
-          {
-            id: "dQw4w9WgXcQ",
-            title: "Rick Astley - Never Gonna Give You Up",
-            thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
-          },
-          {
-            id: "9bZkp7q19f0",
-            title: "PSY - Gangnam Style",
-            thumbnail: "https://img.youtube.com/vi/9bZkp7q19f0/hqdefault.jpg",
-          },
-        ]);
-      } finally {
-        setIsLoading(false);
+      );
+      const data = await response.json();
+      if (data.items) {
+        setVideos(data.items);
+        setCurrentIndex(0);
+        setCurrentVideoId(data.items[0]?.snippet?.resourceId?.videoId || null);
+      }
+    } catch (err) {
+      console.error("영상 목록 불러오기 실패:", err);
+    }
+  };
+
+  const playPlaylist = (playlistId: string) => {
+    fetchPlaylistVideos(playlistId);
+  };
+
+  useEffect(() => {
+    const tryLoadFirstPlaylist = async () => {
+      if (playlists.length > 0 && videos.length === 0) {
+        await fetchPlaylistVideos(playlists[0].id);
       }
     };
-
-    fetchMusicVideos();
-  }, []);
-
-  // 곡 전환 시 비디오 로딩
-  useEffect(() => {
-    if (playerReadyRef.current && playerRef.current && playlist.length > 0) {
-      playerRef.current.loadVideoById(playlist[videoIndex].id);
-    }
-  }, [videoIndex, playlist]);
+    tryLoadFirstPlaylist();
+  }, [playlists]);
 
   const onReady = (event: any) => {
     playerRef.current = event.target;
     playerReadyRef.current = true;
     playerRef.current.setVolume(volume);
-    playerRef.current.playVideo();
+    if (currentVideoId) {
+      playerRef.current.loadVideoById(currentVideoId);
+    }
     setIsPlaying(true);
   };
 
@@ -75,41 +69,159 @@ export const useMusicPlayer = () => {
     setIsPlaying(event.data === 1); // 1: playing
   };
 
+  const onEnd = () => {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < videos.length) {
+      setCurrentIndex(nextIndex);
+      setCurrentVideoId(videos[nextIndex].snippet?.resourceId?.videoId || null);
+    }
+  };
+
   const playPause = () => {
     if (!playerReadyRef.current || !playerRef.current) return;
     isPlaying ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+    setIsPlaying(!isPlaying);
   };
 
   const nextTrack = () => {
-    if (playlist.length === 0) return;
-    setVideoIndex((videoIndex + 1) % playlist.length);
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < videos.length) {
+      setCurrentIndex(nextIndex);
+      setCurrentVideoId(videos[nextIndex].snippet?.resourceId?.videoId || null);
+    }
   };
 
   const prevTrack = () => {
-    if (playlist.length === 0) return;
-    setVideoIndex((videoIndex - 1 + playlist.length) % playlist.length);
+    const prevIndex = currentIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentIndex(prevIndex);
+      setCurrentVideoId(videos[prevIndex].snippet?.resourceId?.videoId || null);
+    } else {
+      // 첫 곡일 때는 마지막 곡으로 순환
+      const lastIndex = videos.length - 1;
+      setCurrentIndex(lastIndex);
+      setCurrentVideoId(videos[lastIndex].snippet?.resourceId?.videoId || null);
+    }
   };
 
-  const changeVolume = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseInt(event.target.value, 10);
+  const changeVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
-    if (playerReadyRef.current && playerRef.current) {
+    if (playerRef.current) {
       playerRef.current.setVolume(newVolume);
     }
   };
 
+  useEffect(() => {
+    const fetchUserPlaylists = async () => {
+      const token = localStorage.getItem("ytAccessToken");
+      if (!token) return;
+
+      try {
+        const channelRes = await fetch(
+          "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+        const channelData = await channelRes.json();
+        const channelId = channelData?.items?.[0]?.id;
+        if (!channelId) {
+          console.warn("🔍 유저 채널 ID 없음");
+          return;
+        }
+
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=${channelId}&maxResults=10`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+        const data = await response.json();
+        if (data.items?.length > 0) {
+          setPlaylists(data.items);
+        } else {
+          console.warn("📁 불러온 플레이리스트 없음");
+        }
+      } catch (err) {
+        console.error("플레이리스트 가져오기 실패:", err);
+      }
+    };
+
+    fetchUserPlaylists();
+    fetchUserInfo();
+  }, []);
+
+  const fetchLikedVideos = async () => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        "https://www.googleapis.com/youtube/v3/videos?part=snippet&myRating=like&maxResults=10",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.items?.length > 0) {
+        setLikedVideos(data.items);
+      } else {
+        console.warn("❤️ 좋아요한 영상 없음");
+      }
+    } catch (err) {
+      console.error("좋아요한 영상 가져오기 실패:", err);
+    }
+  };
+
+  const fetchUserInfo = async () => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      setUserProfile(data);
+    } catch (err) {
+      console.error("유저 정보 가져오기 실패:", err);
+    }
+  };
+
   return {
-    playlist,
-    videoIndex,
+    playlists,
+    videos,
+    currentVideoId,
+    isLoading,
     isPlaying,
     volume,
-    isLoading,
-    currentTrack: playlist[videoIndex],
+    currentVideoTitle: videos[currentIndex]?.snippet?.title || "",
+    currentVideoThumbnail:
+      videos[currentIndex]?.snippet?.thumbnails?.high?.url || "",
+    likedVideos,
+    userProfile,
+    fetchLikedVideos,
     onReady,
     onStateChange,
+    onEnd,
+    playPause,
     nextTrack,
     prevTrack,
-    playPause,
     changeVolume,
+    playPlaylist, // 추가됨
   };
 };

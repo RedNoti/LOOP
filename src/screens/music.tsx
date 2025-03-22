@@ -1,50 +1,142 @@
 import React from "react";
 import YouTube from "react-youtube";
+import styled from "styled-components";
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { useMusicPlayer } from "../components/MusicFunction";
 
+const Container = styled.div`
+  background-color: #1f2937;
+  color: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  width: 100%;
+  height: 100dvh;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow-y: auto;
+
+  @media (max-width: 768px) {
+    height: auto;
+    padding: 1rem;
+  }
+`;
+
+const AlbumArt = styled.img`
+  width: 256px;
+  height: 256px;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+  object-fit: cover;
+  transition: transform 0.3s;
+  &:hover {
+    transform: scale(1.05);
+  }
+`;
+
+const Title = styled.p`
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  text-align: center;
+`;
+
+const ControlRow = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  justify-content: center;
+  align-items: center;
+`;
+
+const VolumeControl = styled.div`
+  margin-top: 1.5rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const PlaylistGrid = styled.div`
+  margin-top: 2rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+`;
+
+const PlaylistCard = styled.div`
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+`;
+
+const UserProfile = styled.div`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const UserImage = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid white;
+`;
+
 const YouTubeMusicPlayer: React.FC = () => {
   const {
-    playlist,
+    videos,
+    currentVideoId,
     isLoading,
     isPlaying,
     volume,
-    currentTrack,
+    currentVideoTitle,
+    currentVideoThumbnail,
     onReady,
     onStateChange,
+    onEnd,
+    playPause,
     nextTrack,
     prevTrack,
-    playPause,
     changeVolume,
+    playlists,
+    likedVideos,
+    userProfile,
+    fetchLikedVideos,
+    playPlaylist,
   } = useMusicPlayer();
 
-  // 플레이리스트가 비어있으면 로딩 표시
-  if (isLoading || playlist.length === 0) {
+  if (isLoading || videos.length === 0 || !currentVideoId) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 bg-gray-900 text-white rounded-lg shadow-lg w-96 h-96 mx-auto mt-10">
-        <div className="text-xl">Loading music...</div>
-      </div>
+      <Container>
+        <div>Loading music...</div>
+      </Container>
     );
   }
 
   return (
-    <div className="flex flex-col items-center p-6 bg-gray-900 text-white rounded-lg shadow-lg w-96 mx-auto mt-10">
-      {/* 앨범 아트 표시 */}
-      <div className="w-64 h-64 mb-6 overflow-hidden rounded-lg shadow-lg">
-        <img
-          src={currentTrack.thumbnail}
-          alt="Album art"
-          className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
-        />
-      </div>
+    <Container>
+      {userProfile && (
+        <UserProfile>
+          <UserImage src={userProfile.picture} alt="user" />
+          <span>{userProfile.name}</span>
+        </UserProfile>
+      )}
 
-      {/* 현재 곡 제목 표시 */}
-      <p className="font-medium text-lg mb-4 text-center line-clamp-2">
-        {currentTrack.title}
-      </p>
+      <AlbumArt src={currentVideoThumbnail} alt="Album art" />
+
+      <Title>{currentVideoTitle}</Title>
 
       <YouTube
-        videoId={currentTrack.id}
+        videoId={currentVideoId ?? undefined}
         opts={{
           height: "0",
           width: "0",
@@ -58,48 +150,118 @@ const YouTubeMusicPlayer: React.FC = () => {
         }}
         onReady={onReady}
         onStateChange={onStateChange}
-        onEnd={nextTrack}
+        onEnd={onEnd}
       />
 
-      <div className="flex gap-6 mt-4 w-full justify-center items-center">
+      <ControlRow>
         <button
-          className="p-2 text-gray-300 hover:text-white transition"
           onClick={prevTrack}
           aria-label="Previous track"
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
         >
-          <SkipBack size={24} />
+          <SkipBack size={24} color="white" />
         </button>
         <button
-          className="p-3 bg-blue-600 rounded-full hover:bg-blue-700 transition"
           onClick={playPause}
           aria-label={isPlaying ? "Pause" : "Play"}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
         >
-          {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+          {isPlaying ? (
+            <Pause size={24} color="white" />
+          ) : (
+            <Play size={24} color="white" />
+          )}
         </button>
         <button
-          className="p-2 text-gray-300 hover:text-white transition"
           onClick={nextTrack}
           aria-label="Next track"
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
         >
-          <SkipForward size={24} />
+          <SkipForward size={24} color="white" />
         </button>
-      </div>
+      </ControlRow>
 
-      <div className="mt-6 w-full">
-        <div className="flex justify-between items-center">
-          <Volume2 size={16} className="text-gray-400" />
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={volume}
-            onChange={changeVolume}
-            className="mx-2 flex-grow"
-          />
-          <span className="text-xs text-gray-400">{volume}%</span>
+      <VolumeControl>
+        <Volume2 size={16} color="#9ca3af" />
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={volume}
+          onChange={changeVolume}
+          style={{ flexGrow: 1 }}
+        />
+        <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>{volume}%</span>
+      </VolumeControl>
+
+      {playlists.length > 0 && (
+        <>
+          <h3 style={{ marginTop: "2rem", fontSize: "1rem" }}>
+            📁 내 재생목록
+          </h3>
+          <PlaylistGrid>
+            {playlists.map((playlist) => (
+              <PlaylistCard
+                key={playlist.id}
+                onClick={() => playPlaylist(playlist.id)}
+              >
+                <img
+                  src={playlist.snippet.thumbnails.medium.url}
+                  alt={playlist.snippet.title}
+                  style={{ borderRadius: "0.5rem", width: "100%" }}
+                />
+                <p style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  {playlist.snippet.title}
+                </p>
+              </PlaylistCard>
+            ))}
+          </PlaylistGrid>
+        </>
+      )}
+
+      <button
+        onClick={fetchLikedVideos}
+        style={{
+          marginTop: "1.5rem",
+          fontSize: "0.875rem",
+          color: "#93c5fd",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          textDecoration: "underline",
+        }}
+      >
+        ❤️ 좋아요한 영상 보기
+      </button>
+
+      {likedVideos.length > 0 && (
+        <div style={{ marginTop: "1rem", width: "100%" }}>
+          <h3 style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+            ❤️ 좋아요한 영상
+          </h3>
+          <ul style={{ fontSize: "0.75rem", color: "#d1d5db" }}>
+            {likedVideos.map((video) => (
+              <li key={video.id}>{video.snippet.title}</li>
+            ))}
+          </ul>
         </div>
-      </div>
-    </div>
+      )}
+    </Container>
   );
 };
 
