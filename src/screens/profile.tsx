@@ -41,6 +41,7 @@ const ProfileEditor = () => {
     handleBackToEdit,
     handleUploadButtonClick,
     handleFileChange,
+    handleDeletePhoto,
   } = useProfileFunctions();
 
   // 인라인 스타일 객체 - 컴포넌트의 모든 스타일 정의
@@ -397,7 +398,12 @@ const ProfileEditor = () => {
             <div style={styles.profileDetailCard}>
               <div style={styles.profileDetailHeader}>
                 <img
-                  src={profile.photoUrl || "https://via.placeholder.com/150"}
+                  src={
+                    profile.photoUrl === ""
+                      ? auth.currentUser?.photoURL ||
+                        "https://via.placeholder.com/150"
+                      : profile.photoUrl
+                  }
                   alt=""
                   style={styles.profileDetailPhoto}
                 />
@@ -489,7 +495,12 @@ const ProfileEditor = () => {
               }}
             >
               <img
-                src={profile.photoUrl || "https://via.placeholder.com/150"}
+                src={
+                  profile.photoUrl === ""
+                    ? auth.currentUser?.photoURL ||
+                      "https://via.placeholder.com/150"
+                    : profile.photoUrl
+                }
                 alt=""
                 style={styles.previewPhoto}
               />
@@ -544,7 +555,12 @@ const ProfileEditor = () => {
                 onMouseLeave={() => setHoverPhoto(false)}
               >
                 <img
-                  src={profile.photoUrl || "https://via.placeholder.com/150"}
+                  src={
+                    profile.photoUrl === ""
+                      ? auth.currentUser?.photoURL ||
+                        "https://via.placeholder.com/150"
+                      : profile.photoUrl
+                  }
                   alt=""
                   style={styles.photo}
                 />
@@ -558,6 +574,13 @@ const ProfileEditor = () => {
                   </button>
                 </div>
               </div>
+              <button
+                type="button"
+                style={styles.saveBtn}
+                onClick={handleDeletePhoto}
+              >
+                프로필 사진 삭제
+              </button>
             </div>
 
             {/* 파일 업로드를 위한 숨겨진 input */}

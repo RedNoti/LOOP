@@ -15,6 +15,28 @@ export interface ProfileData {
 
 // 커스텀 훅을 생성하여 ProfileEditor에서 사용하도록 함
 export const useProfileFunctions = () => {
+  const handleDeletePhoto = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const profileRef = doc(db, "profiles", user.uid);
+
+      // 삭제 요청
+      try {
+        await fetch("http://uploadloop.kro.kr:4000/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: profile.photoUrl }),
+        });
+      } catch (err) {
+        console.error("서버에서 이미지 삭제 실패:", err);
+      }
+
+      await setDoc(profileRef, { ...profile, photoUrl: "" }, { merge: true });
+      setProfile((prev) => ({ ...prev, photoUrl: "" }));
+    }
+  };
   const [profile, setProfile] = useState<ProfileData>({
     name: "",
     email: "",
@@ -154,5 +176,6 @@ export const useProfileFunctions = () => {
     handleUploadButtonClick,
     handleFileChange,
     saveProfileToFirestore,
+    handleDeletePhoto,
   };
 };
