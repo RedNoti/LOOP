@@ -102,7 +102,19 @@ export const useProfileFunctions = () => {
     if (user) {
       const docSnap = await getDoc(doc(db, "profiles", user.uid));
       if (docSnap.exists()) {
-        setProfile(docSnap.data() as ProfileData);
+        const data = docSnap.data() as ProfileData;
+        if (!data.photoUrl || data.photoUrl.trim() === "") {
+          data.photoUrl = user.photoURL || "/profile_normal.png";
+        }
+        setProfile(data);
+      } else {
+        // 새로운 사용자일 경우 구글 프로필 또는 기본 이미지 적용
+        setProfile((prev) => ({
+          ...prev,
+          email: user.email || "",
+          name: user.displayName || "",
+          photoUrl: user.photoURL || "/profile_normal.png",
+        }));
       }
     }
   };
