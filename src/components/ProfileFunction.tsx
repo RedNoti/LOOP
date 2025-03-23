@@ -1,4 +1,3 @@
-// src/components/ProfileFunction.tsx
 import { useState, useRef, useEffect } from "react";
 import { auth, onAuthStateChanged } from "../firebaseConfig";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -15,28 +14,33 @@ export interface ProfileData {
 
 // 커스텀 훅을 생성하여 ProfileEditor에서 사용하도록 함
 export const useProfileFunctions = () => {
-  const handleDeletePhoto = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      const profileRef = doc(db, "profiles", user.uid);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState<File | null>(null);
+  const [previousProfile, setPreviousProfile] = useState<ProfileData | null>(
+    null
+  );
+  const [imageToDelete, setImageToDelete] = useState<string | null>(null);
 
-      // 삭제 요청
-      try {
-        await fetch("http://uploadloop.kro.kr:4000/delete", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ url: profile.photoUrl }),
-        });
-      } catch (err) {
+  const handleDeletePhoto = () => {
+    const isUploadedPhoto =
+      profile.photoUrl &&
+      profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/");
+
+    if (isUploadedPhoto) {
+      fetch("http://uploadloop.kro.kr:4000/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: profile.photoUrl }),
+      }).catch((err) => {
         console.error("서버에서 이미지 삭제 실패:", err);
-      }
-
-      await setDoc(profileRef, { ...profile, photoUrl: "" }, { merge: true });
-      setProfile((prev) => ({ ...prev, photoUrl: "" }));
+      });
     }
+
+    setPendingPhotoFile(null);
+    setProfile((prev) => ({ ...prev, photoUrl: "" }));
   };
+
   const [profile, setProfile] = useState<ProfileData>({
     name: "",
     email: "",
@@ -74,13 +78,49 @@ export const useProfileFunctions = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("프로필 업데이트:", profile);
+
+    if (pendingPhotoFile) {
+      const formData = new FormData();
+      formData.append("file", pendingPhotoFile);
+      try {
+        const res = await fetch("http://uploadloop.kro.kr:4000/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("업로드 실패");
+        const data = await res.json();
+        const imageUrl = `http://uploadloop.kro.kr:4000/${data.path}`;
+        profile.photoUrl = imageUrl;
+      } catch (err) {
+        console.error("이미지 업로드 실패", err);
+        alert("이미지 업로드에 실패했습니다.");
+      }
+    }
+
     await saveProfileToFirestore();
     setIsSubmitted(true);
+    setPendingPhotoFile(null);
+    setImageToDelete(null);
   };
 
   const handleBackToEdit = () => setIsSubmitted(false);
 
-  const handleUploadButtonClick = () => fileInputRef.current?.click();
+  const handleUploadButtonClick = () => {
+    const isUploadedPhoto =
+      profile.photoUrl &&
+      profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/");
+
+    if (isUploadedPhoto) {
+      const confirmDelete = window.confirm(
+        "현재 프로필 사진을 삭제하시겠습니까?"
+      );
+      if (confirmDelete) {
+        handleDeletePhoto();
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,26 +136,13 @@ export const useProfileFunctions = () => {
         return;
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
+      setPendingPhotoFile(file); // Store file locally
 
-      try {
-        const res = await fetch("http://uploadloop.kro.kr:4000/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!res.ok) {
-          throw new Error("업로드 실패");
-        }
-
-        const data = await res.json();
-        const imageUrl = `http://uploadloop.kro.kr:4000/${data.path}`;
-        setProfile((prev) => ({ ...prev, photoUrl: imageUrl }));
-      } catch (err) {
-        console.error("이미지 업로드 실패", err);
-        alert("이미지 업로드에 실패했습니다.");
-      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfile((prev) => ({ ...prev, photoUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file); // Preview image as base64
     }
   };
 
@@ -125,6 +152,7 @@ export const useProfileFunctions = () => {
       const docSnap = await getDoc(doc(db, "profiles", user.uid));
       if (docSnap.exists()) {
         const data = docSnap.data() as ProfileData;
+        setPreviousProfile(data);
         if (!data.photoUrl || data.photoUrl.trim() === "") {
           data.photoUrl = user.photoURL || "/profile_normal.png";
         }
@@ -177,5 +205,9 @@ export const useProfileFunctions = () => {
     handleFileChange,
     saveProfileToFirestore,
     handleDeletePhoto,
+    pendingPhotoFile,
+    setPendingPhotoFile,
+    imageToDelete,
+    setImageToDelete,
   };
 };

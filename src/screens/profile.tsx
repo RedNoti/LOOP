@@ -43,6 +43,7 @@ const ProfileEditor = () => {
     handleFileChange,
     handleDeletePhoto,
   } = useProfileFunctions();
+  const [hoverDelete, setHoverDelete] = useState(false);
 
   // 인라인 스타일 객체 - 컴포넌트의 모든 스타일 정의
   const styles: StylesDictionary = {
@@ -553,6 +554,7 @@ const ProfileEditor = () => {
                 style={styles.photoContainer}
                 onMouseEnter={() => setHoverPhoto(true)}
                 onMouseLeave={() => setHoverPhoto(false)}
+                onClick={handleUploadButtonClick}
               >
                 <img
                   src={
@@ -565,22 +567,9 @@ const ProfileEditor = () => {
                   style={styles.photo}
                 />
                 <div style={styles.photoOverlay}>
-                  <button
-                    type="button"
-                    style={styles.photoButton}
-                    onClick={handleUploadButtonClick}
-                  >
-                    사진 변경
-                  </button>
+                  <span style={styles.photoButton}>프로필 사진 변경</span>
                 </div>
               </div>
-              <button
-                type="button"
-                style={styles.saveBtn}
-                onClick={handleDeletePhoto}
-              >
-                프로필 사진 삭제
-              </button>
             </div>
 
             {/* 파일 업로드를 위한 숨겨진 input */}
