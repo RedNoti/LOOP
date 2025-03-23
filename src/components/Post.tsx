@@ -15,12 +15,14 @@ import {
 
 const Container = styled.div`
   width: 100%;
-  margin-left: 0;
-  margin-right: 0;
+  max-width: 100%;
+  margin: 0;
   border: 1px solid #353535;
   padding: 10px 15px;
   border-radius: 30px;
   height: auto;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
 `;
 
 const Wrapper = styled.div`
@@ -42,6 +44,9 @@ const Content = styled.div`
   flex-direction: column;
   gap: 8px;
   width: 100%;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 `;
 
 const UserInfo = styled.div`

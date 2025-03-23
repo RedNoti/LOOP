@@ -8,32 +8,52 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  height: 100dvh;
+  overflow-x: hidden; // ✅ 좌우 스크롤 방지
+  overflow-y: auto;
   gap: 0;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    height: auto;
-  }
 `;
 
 const ContentArea = styled.div`
-  flex: 1;
-  padding: 1.5rem;
-  overflow-y: auto;
+  flex: 1 1 auto;
+  width: calc(100% - 50%); // ✅ 음악 플레이어를 제외한 공간 계산
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  width: 100%; /* 추가해보면 좋음 */
+  overflow: hidden;
+
+  > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%; // ✅ 모바일에서는 꽉 채우기
+  }
 `;
 
 const MusicPlayerWrapper = styled.div`
   width: 50%;
   min-width: 300px;
   height: 100%;
-  background-color: #111827;
   padding: 1rem;
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  background-color: #111827;
+  border-radius: 30px; /* ✅ 여기만 30px로 변경 */
+
+  > div {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
 
   @media (max-width: 768px) {
     width: 100%;
@@ -42,6 +62,7 @@ const MusicPlayerWrapper = styled.div`
     bottom: 0;
     left: 0;
     z-index: 100;
+    border-radius: 0; /* ✅ 모바일에서는 둥근 모서리 제거 */
   }
 `;
 
@@ -49,11 +70,15 @@ export default () => {
   return (
     <Container>
       <ContentArea>
-        <InputPost />
-        <Timeline />
+        <div>
+          <InputPost />
+          <Timeline />
+        </div>
       </ContentArea>
       <MusicPlayerWrapper>
-        <YouTubeMusicPlayer />
+        <div>
+          <YouTubeMusicPlayer />
+        </div>
       </MusicPlayerWrapper>
     </Container>
   );

@@ -8,20 +8,21 @@ const Container = styled.div`
   gap: 8px;
   width: 100vw;
   height: 100dvh;
-  padding: 8px 10px;
+  padding: 0; /* ✅ 패딩 제거 */
   box-sizing: border-box;
 
   @media (max-width: 768px) {
     grid-template-columns: 50px 1fr;
-    padding: 4px 6px;
+    padding: 0;
   }
 `;
 
 const MainContent = styled.div`
   display: flex;
   flex-grow: 1;
-  overflow: hidden;
   height: 100%;
+  overflow-y: auto; /* ✅ 내부 스크롤 */
+  min-height: 0;
 `;
 
 const Navigator = styled.div`
@@ -29,6 +30,7 @@ const Navigator = styled.div`
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  margin-top: 12px; /* ✅ 상단 여백 추가 */
 `;
 
 const MenuItem = styled.div`
@@ -53,6 +55,7 @@ const BottomMenu = styled.div`
   flex-direction: column-reverse;
   align-items: center;
   flex: 1;
+  margin-bottom: 12px; /* ✅ 하단 여백 추가 */
 `;
 
 export default () => {

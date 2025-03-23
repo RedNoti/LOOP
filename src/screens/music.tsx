@@ -16,23 +16,30 @@ import { useMusicPlayer } from "../components/MusicFunction";
 const Container = styled.div<{ isFullscreen: boolean }>`
   background-color: #1f2937;
   color: white;
-  border-radius: ${(props) => (props.isFullscreen ? "0" : "1rem")};
+  border-radius: ${(props) => (props.isFullscreen ? "0" : "60px")};
   padding: 1.5rem;
   width: 100%;
   height: ${(props) => (props.isFullscreen ? "100dvh" : "auto")};
-  min-height: ${(props) => (props.isFullscreen ? "100dvh" : "400px")};
+  max-height: 100dvh;
+  overflow: hidden;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-y: auto;
   box-sizing: border-box;
   transition: all 0.3s ease;
 
   @media (max-width: 768px) {
     padding: 1rem;
-    border-radius: ${(props) => (props.isFullscreen ? "0" : "0.75rem")};
+    border-radius: ${(props) => (props.isFullscreen ? "0" : "60px")};
   }
+`;
+
+// 새로운 스크롤 가능한 콘텐츠 래퍼 추가
+const ScrollableContent = styled.div`
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 `;
 
 // 레이아웃을 유연하게 수정
@@ -161,24 +168,6 @@ const UserImage = styled.img`
   border: 1px solid white;
 `;
 
-const FullscreenToggle = styled.button`
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  background: transparent;
-  border: none;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-
-  &:hover {
-    opacity: 0.8;
-  }
-`;
-
 const SectionTitle = styled.h3`
   font-size: 1rem;
   margin-bottom: 1rem;
@@ -254,13 +243,6 @@ const YouTubeMusicPlayer: React.FC = () => {
 
   return (
     <Container isFullscreen={isFullscreen}>
-      <FullscreenToggle
-        onClick={toggleFullscreen}
-        aria-label="Toggle fullscreen"
-      >
-        {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-      </FullscreenToggle>
-
       {userProfile && (
         <UserProfile>
           <UserImage src={userProfile.picture} alt="user" />
@@ -268,178 +250,180 @@ const YouTubeMusicPlayer: React.FC = () => {
         </UserProfile>
       )}
 
-      <ContentWrapper isFullscreen={isFullscreen}>
-        <PlayerSection isFullscreen={isFullscreen}>
-          <AlbumArt
-            src={currentVideoThumbnail}
-            alt="Album art"
-            isFullscreen={isFullscreen}
-          />
-
-          <Title>{currentVideoTitle}</Title>
-
-          <YouTube
-            videoId={currentVideoId ?? undefined}
-            opts={{
-              height: "0",
-              width: "0",
-              playerVars: {
-                autoplay: 1,
-                controls: 0,
-                showinfo: 0,
-                modestbranding: 1,
-                rel: 0,
-              },
-            }}
-            onReady={onReady}
-            onStateChange={onStateChange}
-            onEnd={onEnd}
-          />
-
-          <ControlRow>
-            <button
-              onClick={prevTrack}
-              aria-label="Previous track"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-              }}
-            >
-              <SkipBack size={24} color="white" />
-            </button>
-            <button
-              onClick={playPause}
-              aria-label={isPlaying ? "Pause" : "Play"}
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-              }}
-            >
-              {isPlaying ? (
-                <Pause size={28} color="white" />
-              ) : (
-                <Play size={28} color="white" />
-              )}
-            </button>
-            <button
-              onClick={nextTrack}
-              aria-label="Next track"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-              }}
-            >
-              <SkipForward size={24} color="white" />
-            </button>
-          </ControlRow>
-
-          <VolumeControl>
-            <Volume2 size={16} color="#9ca3af" />
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={volume}
-              onChange={changeVolume}
-              style={{ flexGrow: 1 }}
+      <ScrollableContent>
+        <ContentWrapper isFullscreen={isFullscreen}>
+          <PlayerSection isFullscreen={isFullscreen}>
+            <AlbumArt
+              src={currentVideoThumbnail}
+              alt="Album art"
+              isFullscreen={isFullscreen}
             />
-            <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-              {volume}%
-            </span>
-          </VolumeControl>
 
-          <button
-            onClick={fetchLikedVideos}
-            style={{
-              marginTop: "1.5rem",
-              fontSize: "0.875rem",
-              color: "#93c5fd",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              textDecoration: "underline",
-            }}
-          >
-            ❤️ 좋아요한 영상 보기
-          </button>
-        </PlayerSection>
+            <Title>{currentVideoTitle}</Title>
 
-        <PlaylistSection>
-          {playlists.length > 0 && (
-            <>
-              <SectionTitle>
-                <span role="img" aria-label="Folder">
-                  📁
-                </span>{" "}
-                내 재생목록
-              </SectionTitle>
-              <PlaylistGrid>
-                {playlists.map((playlist) => (
-                  <PlaylistCard
-                    key={playlist.id}
-                    onClick={() => playPlaylist(playlist.id)}
-                  >
-                    <PlaylistImage
-                      src={playlist.snippet.thumbnails.medium.url}
-                      alt={playlist.snippet.title}
-                    />
-                    <p
+            <YouTube
+              videoId={currentVideoId ?? undefined}
+              opts={{
+                height: "0",
+                width: "0",
+                playerVars: {
+                  autoplay: 1,
+                  controls: 0,
+                  showinfo: 0,
+                  modestbranding: 1,
+                  rel: 0,
+                },
+              }}
+              onReady={onReady}
+              onStateChange={onStateChange}
+              onEnd={onEnd}
+            />
+
+            <ControlRow>
+              <button
+                onClick={prevTrack}
+                aria-label="Previous track"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                <SkipBack size={24} color="white" />
+              </button>
+              <button
+                onClick={playPause}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                {isPlaying ? (
+                  <Pause size={28} color="white" />
+                ) : (
+                  <Play size={28} color="white" />
+                )}
+              </button>
+              <button
+                onClick={nextTrack}
+                aria-label="Next track"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                <SkipForward size={24} color="white" />
+              </button>
+            </ControlRow>
+
+            <VolumeControl>
+              <Volume2 size={16} color="#9ca3af" />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={changeVolume}
+                style={{ flexGrow: 1 }}
+              />
+              <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                {volume}%
+              </span>
+            </VolumeControl>
+
+            <button
+              onClick={fetchLikedVideos}
+              style={{
+                marginTop: "1.5rem",
+                fontSize: "0.875rem",
+                color: "#93c5fd",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              ❤️ 좋아요한 영상 보기
+            </button>
+          </PlayerSection>
+
+          <PlaylistSection>
+            {playlists.length > 0 && (
+              <>
+                <SectionTitle>
+                  <span role="img" aria-label="Folder">
+                    📁
+                  </span>{" "}
+                  내 재생목록
+                </SectionTitle>
+                <PlaylistGrid>
+                  {playlists.map((playlist) => (
+                    <PlaylistCard
+                      key={playlist.id}
+                      onClick={() => playPlaylist(playlist.id)}
+                    >
+                      <PlaylistImage
+                        src={playlist.snippet.thumbnails.medium.url}
+                        alt={playlist.snippet.title}
+                      />
+                      <p
+                        style={{
+                          fontSize: "0.75rem",
+                          marginTop: "0.5rem",
+                          maxWidth: "100%",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {playlist.snippet.title}
+                      </p>
+                    </PlaylistCard>
+                  ))}
+                </PlaylistGrid>
+              </>
+            )}
+
+            {likedVideos.length > 0 && (
+              <div style={{ marginTop: "2rem", width: "100%" }}>
+                <SectionTitle>
+                  <span role="img" aria-label="Heart">
+                    ❤️
+                  </span>{" "}
+                  좋아요한 영상
+                </SectionTitle>
+                <ul
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#d1d5db",
+                    paddingLeft: "1rem",
+                  }}
+                >
+                  {likedVideos.map((video) => (
+                    <li
+                      key={video.id}
                       style={{
-                        fontSize: "0.75rem",
-                        marginTop: "0.5rem",
-                        maxWidth: "100%",
+                        marginBottom: "0.5rem",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {playlist.snippet.title}
-                    </p>
-                  </PlaylistCard>
-                ))}
-              </PlaylistGrid>
-            </>
-          )}
-
-          {likedVideos.length > 0 && (
-            <div style={{ marginTop: "2rem", width: "100%" }}>
-              <SectionTitle>
-                <span role="img" aria-label="Heart">
-                  ❤️
-                </span>{" "}
-                좋아요한 영상
-              </SectionTitle>
-              <ul
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#d1d5db",
-                  paddingLeft: "1rem",
-                }}
-              >
-                {likedVideos.map((video) => (
-                  <li
-                    key={video.id}
-                    style={{
-                      marginBottom: "0.5rem",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {video.snippet.title}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </PlaylistSection>
-      </ContentWrapper>
+                      {video.snippet.title}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </PlaylistSection>
+        </ContentWrapper>
+      </ScrollableContent>
     </Container>
   );
 };
