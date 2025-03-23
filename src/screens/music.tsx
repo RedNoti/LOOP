@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import YouTube from "react-youtube";
 import styled from "styled-components";
+import Playlist from "../components/playlist";
 import {
   Play,
   Pause,
@@ -336,23 +337,7 @@ const YouTubeMusicPlayer: React.FC = () => {
                 {volume}%
               </span>
             </VolumeControl>
-
-            <button
-              onClick={fetchLikedVideos}
-              style={{
-                marginTop: "1.5rem",
-                fontSize: "0.875rem",
-                color: "#93c5fd",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-            >
-              ❤️ 좋아요한 영상 보기
-            </button>
           </PlayerSection>
-
           <PlaylistSection>
             {playlists.length > 0 && (
               <>
@@ -389,7 +374,6 @@ const YouTubeMusicPlayer: React.FC = () => {
                 </PlaylistGrid>
               </>
             )}
-
             {likedVideos.length > 0 && (
               <div style={{ marginTop: "2rem", width: "100%" }}>
                 <SectionTitle>
