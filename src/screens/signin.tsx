@@ -203,7 +203,7 @@ export default () => {
           <Divider>또는</Divider>
           <Guide>
             <EmailSignUpButton />
-            <GoogleSignUpButton />
+            <GoogleSignUpButton showPlaylists={false} />
           </Guide>
         </Form>
       </Container>

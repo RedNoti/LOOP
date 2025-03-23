@@ -13,6 +13,7 @@ import Layout from "./screens/layout";
 import YouTubeMusicPlayer from "./screens/music"; // YouTubeMusicPlayer 컴포넌트 import
 import "moment/locale/ko";
 import KategorieFunction from "./components/KategorieFunction";
+import InputPostScreen from "./screens/InputPostScreen";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -43,6 +44,11 @@ const router = createBrowserRouter([
         // KategorieFunction
         path: "KategorieFunction", // '/music' 경로 추가
         element: <KategorieFunction />, // YouTubeMusicPlayer 컴포넌트 추가
+      },
+      {
+        // InputPostScreen
+        path: "InputPostScreen", // '/music' 경로 추가
+        element: <InputPostScreen />, // YouTubeMusicPlayer 컴포넌트 추가
       },
     ],
   },

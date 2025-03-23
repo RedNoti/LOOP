@@ -23,7 +23,7 @@ const Icon = styled.img`
   height: 12px;
 `;
 
-export default () => {
+export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
   const navigation = useNavigate();
   const [playlists, setPlaylists] = useState<any[]>([]); // 재생목록 저장
 
@@ -82,7 +82,7 @@ export default () => {
         <Title>Google 계정으로 로그인하기</Title>
       </Button>
 
-      {playlists.length > 0 && (
+      {showPlaylists && playlists.length > 0 && (
         <div style={{ marginTop: "20px" }}>
           <h3>내 유튜브 재생목록</h3>
           <ul>
