@@ -1,58 +1,57 @@
+// home.tsx
 import styled from "styled-components";
-import { auth } from "../firebaseConfig";
-import InputPost from "../components/InputPost";
 import Timeline from "../components/Timeline";
 import YouTubeMusicPlayer from "./music";
 
 const Container = styled.div`
   display: flex;
-  flex-direction: row;
-  width: 100vw;
-  height: 100dvh;
-  overflow-x: hidden; // ✅ 좌우 스크롤 방지
-  overflow-y: auto;
-  gap: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 `;
 
 const ContentArea = styled.div`
-  flex: 1 1 auto;
-  width: calc(100% - 50%); // ✅ 음악 플레이어를 제외한 공간 계산
+  flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
   overflow: hidden;
 
   > div {
     flex: 1;
-    display: flex;
-    flex-direction: column;
     overflow-y: auto;
     min-height: 0;
-  }
-
-  @media (max-width: 768px) {
-    width: 100%; // ✅ 모바일에서는 꽉 채우기
   }
 `;
 
 const MusicPlayerWrapper = styled.div`
   width: 50%;
-  min-width: 300px;
+  min-width: 320px;
   height: 100%;
   padding: 1rem;
   box-sizing: border-box;
   overflow: hidden;
-
+  background-color: rgb(13, 15, 18);
+  border-radius: 15px;
   display: flex;
   flex-direction: column;
-
-  background-color: #111827;
-  border-radius: 30px; /* ✅ 여기만 30px로 변경 */
 
   > div {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
+
+    /* ✅ 스크롤바 투명 처리 */
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background-color: transparent;
+    }
+    &:hover::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
   }
 
   @media (max-width: 768px) {
@@ -62,7 +61,7 @@ const MusicPlayerWrapper = styled.div`
     bottom: 0;
     left: 0;
     z-index: 100;
-    border-radius: 0; /* ✅ 모바일에서는 둥근 모서리 제거 */
+    border-radius: 0;
   }
 `;
 
@@ -71,7 +70,6 @@ export default () => {
     <Container>
       <ContentArea>
         <div>
-          <InputPost />
           <Timeline />
         </div>
       </ContentArea>

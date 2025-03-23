@@ -19,10 +19,11 @@ const Container = styled.div`
   margin: 0;
   border: 1px solid #353535;
   padding: 10px 15px;
-  border-radius: 30px;
+  border-radius: 15px;
   height: auto;
   box-sizing: border-box;
   overflow-wrap: break-word;
+  background-color: rgb(36, 36, 36);
 `;
 
 const Wrapper = styled.div`

@@ -13,6 +13,7 @@ import Post from "./Post";
 
 // ✅ 유동적 레이아웃을 위한 스타일 적용
 const Container = styled.div`
+  /* 기존 스타일 유지 */
   flex: 1;
   width: 100%;
   height: 100%;
@@ -24,8 +25,27 @@ const Container = styled.div`
   flex-direction: column;
   min-height: 0;
 
+  /* ✅ 스크롤바 투명하게 만들기 */
+  &::-webkit-scrollbar {
+    width: 6px; /* 너비 설정 */
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent; /* 완전 투명 */
+    border-radius: 6px;
+    transition: background-color 0.2s;
+  }
+
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2); /* 살짝 보이게 */
+  }
+
   * {
-    max-width: 100%; // ✅ 하위 요소도 강제로 제한
+    max-width: 100%;
     word-break: break-word;
   }
 `;

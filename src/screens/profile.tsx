@@ -1,6 +1,8 @@
 import React, { useState, useRef } from "react";
 import { auth } from "../firebaseConfig";
 import { useProfileFunctions } from "../components/ProfileFunction";
+import YouTubeMusicPlayer from "./music";
+import styled from "styled-components";
 
 // 프로필 데이터 구조를 정의하는 인터페이스
 interface ProfileData {
@@ -15,6 +17,87 @@ interface ProfileData {
 interface StylesDictionary {
   [key: string]: React.CSSProperties;
 }
+
+const Container = styled.div`
+  display: flex;
+  width: 100%;
+  height: 100vh; /* 전체 화면 기준 유지 */
+  overflow: hidden;
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const ScrollableContent = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px 20px;
+  box-sizing: border-box;
+
+  /* ✅ 스크롤바 투명 처리 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: transparent;
+  }
+
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+`;
+
+const MusicPlayerWrapper = styled.div`
+  width: 50%;
+  min-width: 320px;
+  height: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: rgb(13, 15, 18);
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+
+  > div {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: transparent;
+    }
+
+    &:hover::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    height: auto;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    border-radius: 0;
+  }
+`;
 
 const ProfileEditor = () => {
   const {
@@ -83,6 +166,7 @@ const ProfileEditor = () => {
       fontSize: "22px", // 제목 글자 크기
       fontWeight: 400, // 폰트 굵기 - 일반
       margin: "0 0 8px", // 하단에만 마진 적용
+      color: "black",
     },
     headerSubtitle: {
       color: "#5f6368", // 부제목 색상 - 회색
@@ -152,6 +236,7 @@ const ProfileEditor = () => {
       outline: "none", // 포커스 시 기본 아웃라인 제거
       transition: "border-color 0.2s", // 테두리 색상 변경 시 부드러운 전환
       boxSizing: "border-box", // 패딩과 테두리를 너비에 포함
+      color: "black",
     },
     disabledInput: {
       backgroundColor: "#f8f9fa", // 비활성화된 입력 필드 배경색
@@ -235,6 +320,7 @@ const ProfileEditor = () => {
     },
     previewSection: {
       marginBottom: "16px",
+      color: "black",
     },
     previewLabel: {
       fontSize: "12px",
@@ -468,201 +554,237 @@ const ProfileEditor = () => {
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.contentWrapper}>
-        {/* 미리보기 토글 버튼 */}
-        <button
-          type="button"
-          style={styles.toggleBtn}
-          onMouseEnter={() => setHoverToggle(true)}
-          onMouseLeave={() => setHoverToggle(false)}
-          onClick={togglePreview}
-        >
-          {showPreview ? "미리보기 숨기기" : "미리보기 표시"}
-        </button>
-
-        {/* 미리보기 섹션 */}
-        <div style={styles.previewCard}>
-          <div style={styles.previewHeader}>
-            <h2 style={styles.previewTitle}>프로필 미리보기</h2>
-          </div>
-          <div style={styles.previewContent}>
+    <Container>
+      <ContentArea>
+        <ScrollableContent>
+          <div>
             <div
               style={{
-                ...styles.previewSection,
-                display: "flex",
-                alignItems: "center",
-                gap: "20px",
+                width: "100%",
+                height: "100%",
+                boxSizing: "border-box",
+                overflow: "hidden", // ✅ 스크롤 제거 // ✅ 좌우 padding 제거
               }}
             >
-              <img
-                src={
-                  profile.photoUrl === ""
-                    ? auth.currentUser?.photoURL ||
-                      "https://via.placeholder.com/150"
-                    : profile.photoUrl
-                }
-                alt=""
-                style={styles.previewPhoto}
-              />
-              <div>
-                <h3 style={{ margin: "0", fontSize: "20px" }}>
-                  {profile.name || (
-                    <span style={styles.noDataText}>이름 미입력</span>
-                  )}
-                </h3>
-                <p style={{ margin: "0", color: "#5f6368" }}>
-                  {profile.location || (
-                    <span style={styles.noDataText}>위치 미입력</span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div style={styles.previewSection}>
-              <div style={styles.previewLabel}>이메일</div>
-              <div style={styles.previewValue}>
-                {profile.email || (
-                  <span style={styles.noDataText}>이메일 미입력</span>
-                )}
-              </div>
-            </div>
-
-            <div style={styles.previewSection}>
-              <div style={styles.previewLabel}>소개</div>
-              <div style={styles.previewValue}>
-                {profile.bio || (
-                  <span style={styles.noDataText}>소개 미입력</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 프로필 편집 카드 */}
-        <div style={styles.card}>
-          <div style={styles.header}>
-            <h1 style={styles.headerTitle}>프로필 정보</h1>
-            <p style={styles.headerSubtitle}>
-              LOOP 서비스에서 사용되는 기본 정보를 관리하세요
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.photoSection}>
               <div
-                style={styles.photoContainer}
-                onMouseEnter={() => setHoverPhoto(true)}
-                onMouseLeave={() => setHoverPhoto(false)}
-                onClick={handleUploadButtonClick}
+                style={{
+                  width: "100%",
+                  maxWidth: "none", // ✅ 제한 없애기
+                  margin: "0", // ✅ 중앙정렬 제거
+                  display: "flex",
+                  flexDirection: "column",
+                  // ✅ 스크롤바 투명 처리
+                  scrollbarWidth: "thin",
+                  scrollbarColor: "transparent transparent",
+                }}
+                className="profile-scroll-container"
               >
-                <img
-                  src={
-                    profile.photoUrl === ""
-                      ? auth.currentUser?.photoURL ||
-                        "https://via.placeholder.com/150"
-                      : profile.photoUrl
-                  }
-                  alt=""
-                  style={styles.photo}
-                />
-                <div style={styles.photoOverlay}>
-                  <span style={styles.photoButton}>프로필 사진 변경</span>
+                {/* ▼ 아래는 기존 프로필 UI 내용 그대로 유지 ▼ */}
+
+                {/* 미리보기 토글 버튼 */}
+                <button
+                  type="button"
+                  style={styles.toggleBtn}
+                  onMouseEnter={() => setHoverToggle(true)}
+                  onMouseLeave={() => setHoverToggle(false)}
+                  onClick={togglePreview}
+                >
+                  {showPreview ? "미리보기 숨기기" : "미리보기 표시"}
+                </button>
+
+                {/* 미리보기 섹션 */}
+                <div style={styles.previewCard}>
+                  <div style={styles.previewHeader}>
+                    <h2 style={styles.previewTitle}>프로필 미리보기</h2>
+                  </div>
+                  <div style={styles.previewContent}>
+                    <div
+                      style={{
+                        ...styles.previewSection,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "20px",
+                      }}
+                    >
+                      <img
+                        src={
+                          profile.photoUrl === ""
+                            ? auth.currentUser?.photoURL ||
+                              "https://via.placeholder.com/150"
+                            : profile.photoUrl
+                        }
+                        alt=""
+                        style={styles.previewPhoto}
+                      />
+                      <div>
+                        <h3 style={{ margin: "0", fontSize: "20px" }}>
+                          {profile.name || (
+                            <span style={styles.noDataText}>이름 미입력</span>
+                          )}
+                        </h3>
+                        <p style={{ margin: "0", color: "#5f6368" }}>
+                          {profile.location || (
+                            <span style={styles.noDataText}>위치 미입력</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={styles.previewSection}>
+                      <div style={styles.previewLabel}>이메일</div>
+                      <div style={styles.previewValue}>
+                        {profile.email || (
+                          <span style={styles.noDataText}>이메일 미입력</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={styles.previewSection}>
+                      <div style={styles.previewLabel}>소개</div>
+                      <div style={styles.previewValue}>
+                        {profile.bio || (
+                          <span style={styles.noDataText}>소개 미입력</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 프로필 편집 카드 */}
+                <div style={styles.card}>
+                  <div style={styles.header}>
+                    <h1 style={styles.headerTitle}>프로필 정보</h1>
+                    <p style={styles.headerSubtitle}>
+                      LOOP 서비스에서 사용되는 기본 정보를 관리하세요
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSubmit} style={styles.form}>
+                    <div style={styles.photoSection}>
+                      <div
+                        style={styles.photoContainer}
+                        onMouseEnter={() => setHoverPhoto(true)}
+                        onMouseLeave={() => setHoverPhoto(false)}
+                        onClick={handleUploadButtonClick}
+                      >
+                        <img
+                          src={
+                            profile.photoUrl === ""
+                              ? auth.currentUser?.photoURL ||
+                                "https://via.placeholder.com/150"
+                              : profile.photoUrl
+                          }
+                          alt=""
+                          style={styles.photo}
+                        />
+                        <div style={styles.photoOverlay}>
+                          <span style={styles.photoButton}>
+                            프로필 사진 변경
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      style={{ display: "none" }}
+                      accept="image/*"
+                    />
+
+                    <div style={styles.formRow}>
+                      <label htmlFor="name" style={styles.label}>
+                        이름
+                      </label>
+                      <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        value={profile.name}
+                        onChange={handleChange}
+                        style={styles.textInput}
+                        placeholder="이름을 입력하세요"
+                      />
+                    </div>
+
+                    <div style={styles.formRow}>
+                      <label htmlFor="email" style={styles.label}>
+                        이메일
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={profile.email}
+                        onChange={handleChange}
+                        style={styles.textInput}
+                        placeholder="이메일을 입력하세요"
+                      />
+                    </div>
+
+                    <div style={styles.formRow}>
+                      <label htmlFor="bio" style={styles.label}>
+                        소개
+                      </label>
+                      <textarea
+                        id="bio"
+                        name="bio"
+                        value={profile.bio}
+                        onChange={handleChange}
+                        style={{ ...styles.textInput, ...styles.textarea }}
+                        rows={3}
+                        placeholder="자기소개를 입력하세요"
+                      />
+                    </div>
+
+                    <div style={styles.formRow}>
+                      <label htmlFor="location" style={styles.label}>
+                        위치
+                      </label>
+                      <input
+                        type="text"
+                        id="location"
+                        name="location"
+                        value={profile.location}
+                        onChange={handleChange}
+                        style={styles.textInput}
+                        placeholder="위치를 입력하세요 (예: 서울특별시)"
+                      />
+                    </div>
+
+                    <div style={styles.actions} data-mobile-actions>
+                      <button
+                        type="button"
+                        style={styles.cancelBtn}
+                        onMouseEnter={() => setHoverCancel(true)}
+                        onMouseLeave={() => setHoverCancel(false)}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="submit"
+                        style={styles.saveBtn}
+                        onMouseEnter={() => setHoverSave(true)}
+                        onMouseLeave={() => setHoverSave(false)}
+                      >
+                        변경사항 저장
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             </div>
+          </div>
+        </ScrollableContent>
+      </ContentArea>
 
-            {/* 파일 업로드를 위한 숨겨진 input */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              style={{ display: "none" }}
-              accept="image/*"
-            />
-
-            <div style={styles.formRow}>
-              <label htmlFor="name" style={styles.label}>
-                이름
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={profile.name}
-                onChange={handleChange}
-                style={styles.textInput}
-                placeholder="이름을 입력하세요"
-              />
-            </div>
-
-            <div style={styles.formRow}>
-              <label htmlFor="email" style={styles.label}>
-                이메일
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={profile.email}
-                onChange={handleChange}
-                style={styles.textInput}
-                placeholder="이메일을 입력하세요"
-              />
-            </div>
-
-            <div style={styles.formRow}>
-              <label htmlFor="bio" style={styles.label}>
-                소개
-              </label>
-              <textarea
-                id="bio"
-                name="bio"
-                value={profile.bio}
-                onChange={handleChange}
-                style={{ ...styles.textInput, ...styles.textarea }}
-                rows={3}
-                placeholder="자기소개를 입력하세요"
-              />
-            </div>
-
-            <div style={styles.formRow}>
-              <label htmlFor="location" style={styles.label}>
-                위치
-              </label>
-              <input
-                type="text"
-                id="location"
-                name="location"
-                value={profile.location}
-                onChange={handleChange}
-                style={styles.textInput}
-                placeholder="위치를 입력하세요 (예: 서울특별시)"
-              />
-            </div>
-
-            <div style={styles.actions} data-mobile-actions>
-              <button
-                type="button"
-                style={styles.cancelBtn}
-                onMouseEnter={() => setHoverCancel(true)}
-                onMouseLeave={() => setHoverCancel(false)}
-              >
-                취소
-              </button>
-              <button
-                type="submit"
-                style={styles.saveBtn}
-                onMouseEnter={() => setHoverSave(true)}
-                onMouseLeave={() => setHoverSave(false)}
-              >
-                변경사항 저장
-              </button>
-            </div>
-          </form>
+      <MusicPlayerWrapper>
+        <div>
+          <YouTubeMusicPlayer />
         </div>
-      </div>
-    </div>
+      </MusicPlayerWrapper>
+    </Container>
   );
 };
 

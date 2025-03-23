@@ -97,7 +97,7 @@ export default App;
 const GlobalStyle = createGlobalStyle`
   ${reset}
   body{
-    background-color: #004cb7;
+    background-color:rgb(0, 0, 0);
     color: white;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   }
