@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import styled from "styled-components";
-import { auth, firestore } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
 import { addDoc, collection } from "firebase/firestore";
 
 const Form = styled.form`
@@ -9,9 +9,9 @@ const Form = styled.form`
   border: 1px solid #353535;
   padding: 20px 10px;
   width: 100%;
-  max-width: 600px; /* 최대 너비 */
-  margin-left: 0; /* 왼쪽 고정 */
-  margin-right: 0; /* 오른쪽 고정 */
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
   border-radius: 30px;
 `;
 const ProfileArea = styled.div`
@@ -22,11 +22,10 @@ const ProfileArea = styled.div`
 `;
 const PostArea = styled.div`
   flex: 1;
-  border-radius: 30px;
   display: flex;
-  flex-direction: column; /* 내용이 세로로 정렬되도록 */
-  justify-content: space-between; /* 내용들이 균등하게 배치되도록 */
-  height: 100%; /* 높이를 100%로 맞추기 */
+  flex-direction: column;
+  justify-content: space-between;
+  height: auto;
 `;
 const TextArea = styled.textarea`
   resize: none;
@@ -112,8 +111,17 @@ export default () => {
         createdAt: Date.now(),
         post: post,
       };
-      const path = collection(firestore, "posts");
+      const path = collection(db, "posts");
       await addDoc(path, myPost);
+
+      // Clear the post content and reset the textarea height
+      setPost("");
+      if (textAreaRef && textAreaRef.current) {
+        textAreaRef.current.style.height = "auto";
+      }
+
+      // Optionally clear the file as well
+      setFile(undefined);
     } catch (e) {
       console.warn(e);
     } finally {

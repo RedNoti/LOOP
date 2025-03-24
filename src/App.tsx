@@ -10,10 +10,12 @@ import { useEffect, useState } from "react";
 import LoadingScreen from "./screens/loading-screen";
 import ProtectedRouter from "./components/protected-router";
 import Layout from "./screens/layout";
+import YouTubeMusicPlayer from "./screens/music"; // YouTubeMusicPlayer 컴포넌트 import
 import "moment/locale/ko";
+import KategorieFunction from "./components/KategorieFunction";
+import InputPostScreen from "./screens/InputPostScreen";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
-// - Page : home, profile, signin, signup
 const router = createBrowserRouter([
   {
     path: "/",
@@ -32,6 +34,21 @@ const router = createBrowserRouter([
         // profile
         path: "profile",
         element: <Profile />,
+      },
+      {
+        // music
+        path: "music", // '/music' 경로 추가
+        element: <YouTubeMusicPlayer />, // YouTubeMusicPlayer 컴포넌트 추가
+      },
+      {
+        // KategorieFunction
+        path: "KategorieFunction", // '/music' 경로 추가
+        element: <KategorieFunction />, // YouTubeMusicPlayer 컴포넌트 추가
+      },
+      {
+        // InputPostScreen
+        path: "InputPostScreen", // '/music' 경로 추가
+        element: <InputPostScreen />, // YouTubeMusicPlayer 컴포넌트 추가
       },
     ],
   },
@@ -58,28 +75,17 @@ function App() {
   // 로그인 여부 파악을 위한 로딩 상태(State)
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Server(Firebase)를 통해 현재 로그인한지 안한지 확인
-  // - Server API ... 속도의 차이 => 비동기형 함수
   const init = async () => {
     // 로딩 Start (=이미 true 로딩이 시작되어있음)
-    // Firebase 가 로그인 인증 여부 파악
     await auth.authStateReady();
     // 로딩 Finish
     setLoading(false);
   };
 
-  // 실행 : 페이지가 렌더링될 때(=접속했을 때) 실행되는 함수
   useEffect(() => {
     // 로그인 여부 파악(1번만)
     init();
   }, []);
-
-  // Page Rendering Area
-  // - A.로그인을 한 경우   > Home화면으로 이동
-  // - B.로그인을 안한 경우 > Login화면으로 이동
-  // + C.로딩하는 동안 보여줄 loading-screen 필요
-  // 삼항연산자 >> 조건문 ? 참 : 거짓;
-  // return 로딩중이라면? 로딩화면 or 홈/로그인
 
   return loading ? (
     <LoadingScreen />
@@ -97,7 +103,7 @@ export default App;
 const GlobalStyle = createGlobalStyle`
   ${reset}
   body{
-    background-color: #004cb7;
+    background-color:rgb(0, 0, 0);
     color: white;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   }

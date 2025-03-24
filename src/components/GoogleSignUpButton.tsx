@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import { FirebaseError } from "firebase/app";
+import { useState, useEffect } from "react";
 
 const Button = styled.div`
   display: flex;
@@ -22,31 +23,75 @@ const Icon = styled.img`
   height: 12px;
 `;
 
-export default () => {
-  // navigate Hook
+export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
   const navigation = useNavigate();
+  const [playlists, setPlaylists] = useState<any[]>([]); // 재생목록 저장
 
-  // Google 로그인 함수(비동기형) .. with Server(Firebase)
   const onClick = async () => {
     try {
-      // 1. provider 생성 (Google 로그인 제공자)
       const provider = new GoogleAuthProvider();
-      // 2. Firebase 에게 provider & 로그인 정보를 전달
-      await signInWithPopup(auth, provider);
-      // 3. 로그인 성공, Home 페이지로 이동
+      provider.addScope("https://www.googleapis.com/auth/youtube.readonly");
+
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+
+      if (token) {
+        localStorage.setItem("ytAccessToken", token);
+        console.log("Access Token 저장됨:", token);
+      }
+
       navigation("/");
     } catch (e) {
-      // Firebase 에러인 경우, 알림창
       if (e instanceof FirebaseError) {
         alert(e.message);
       }
     }
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return;
+
+    const fetchPlaylists = async () => {
+      try {
+        const response = await fetch(
+          "https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=10",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          }
+        );
+        const data = await response.json();
+        console.log("내 유튜브 재생목록:", data);
+        setPlaylists(data.items || []);
+      } catch (error) {
+        console.error("YouTube API 호출 실패:", error);
+      }
+    };
+
+    fetchPlaylists();
+  }, []);
+
   return (
-    <Button onClick={onClick}>
-      <Icon src={`${process.env.PUBLIC_URL}/google-icon.png`} />
-      <Title>Google 계정으로 로그인하기</Title>
-    </Button>
+    <div>
+      <Button onClick={onClick}>
+        <Icon src={`${process.env.PUBLIC_URL}/google-icon.png`} />
+        <Title>Google 계정으로 로그인하기</Title>
+      </Button>
+
+      {showPlaylists && playlists.length > 0 && (
+        <div style={{ marginTop: "20px" }}>
+          <h3>내 유튜브 재생목록</h3>
+          <ul>
+            {playlists.map((playlist) => (
+              <li key={playlist.id}>{playlist.snippet.title}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 };
