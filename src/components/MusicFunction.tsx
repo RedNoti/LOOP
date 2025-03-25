@@ -112,51 +112,86 @@ export const useMusicPlayer = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchUserPlaylists = async () => {
-      const token = localStorage.getItem("ytAccessToken");
-      if (!token) return;
+  const refreshAccessToken = async (): Promise<boolean> => {
+    const refreshToken = localStorage.getItem("ytRefreshToken");
+    if (!refreshToken) return false;
 
-      try {
-        const channelRes = await fetch(
-          "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          }
-        );
-        const channelData = await channelRes.json();
-        const channelId = channelData?.items?.[0]?.id;
-        if (!channelId) {
-          console.warn("🔍 유저 채널 ID 없음");
-          return;
-        }
+    try {
+      const response = await fetch("/api/refresh-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
 
-        const response = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=${channelId}&maxResults=10`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          }
-        );
-        const data = await response.json();
-        if (data.items?.length > 0) {
-          setPlaylists(data.items);
-        } else {
-          console.warn("📁 불러온 플레이리스트 없음");
-        }
-      } catch (err) {
-        console.error("플레이리스트 가져오기 실패:", err);
+      const data = await response.json();
+      if (data.access_token) {
+        localStorage.setItem("ytAccessToken", data.access_token);
+        console.log("🔄 Access token refreshed");
+        return true;
+      } else {
+        console.warn("❗️Access token refresh failed");
+        return false;
       }
-    };
+    } catch (error) {
+      console.error("토큰 갱신 중 오류 발생:", error);
+      return false;
+    }
+  };
 
-    fetchUserPlaylists();
-    fetchUserInfo();
+  useEffect(() => {
+    const initialize = async () => {
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
+        console.warn("🔁 토큰 갱신 실패 - 기존 access token으로 시도함");
+      }
+      fetchUserPlaylists();
+      fetchUserInfo();
+    };
+    initialize();
   }, []);
+
+  const fetchUserPlaylists = async () => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return;
+
+    try {
+      const channelRes = await fetch(
+        "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      const channelData = await channelRes.json();
+      const channelId = channelData?.items?.[0]?.id;
+      if (!channelId) {
+        console.warn("🔍 유저 채널 ID 없음");
+        return;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=${channelId}&maxResults=10`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.items?.length > 0) {
+        setPlaylists(data.items);
+      } else {
+        console.warn("📁 불러온 플레이리스트 없음");
+      }
+    } catch (err) {
+      console.error("플레이리스트 가져오기 실패:", err);
+    }
+  };
 
   const fetchLikedVideos = async () => {
     const token = localStorage.getItem("ytAccessToken");
