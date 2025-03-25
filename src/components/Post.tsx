@@ -11,19 +11,19 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
+  setDoc,
+  collection,
 } from "firebase/firestore";
 
 const Container = styled.div`
   width: 100%;
-  max-width: 100%;
-  margin: 0;
+  max-width: 600px;
+  margin-left: 0;
+  margin-right: 0;
   border: 1px solid #353535;
   padding: 10px 15px;
-  border-radius: 15px;
+  border-radius: 30px;
   height: auto;
-  box-sizing: border-box;
-  overflow-wrap: break-word;
-  background-color: rgb(36, 36, 36);
 `;
 
 const Wrapper = styled.div`
@@ -45,9 +45,6 @@ const Content = styled.div`
   flex-direction: column;
   gap: 8px;
   width: 100%;
-  max-width: 100%;
-  overflow-wrap: break-word;
-  word-break: break-word;
 `;
 
 const UserInfo = styled.div`
@@ -115,7 +112,6 @@ const EditBtn = styled(Button)`
 const defaultProfileImg =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
 
-// 댓글 수정 컴포넌트
 const EditCommentInput = styled.textarea`
   width: 100%;
   height: 60px;
@@ -127,24 +123,25 @@ const EditCommentInput = styled.textarea`
 
 export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
   const user = auth.currentUser;
-  const [likes, setLikes] = useState(0); // 좋아요 카운트
-  const [comments, setComments] = useState(0); // 댓글 카운트
+  const [likes, setLikes] = useState(0);
+  const [comments, setComments] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedPost, setEditedPost] = useState(post); // 수정할 댓글 내용 상태
-  const [hasLiked, setHasLiked] = useState(false); // 좋아요 여부 상태
+  const [editedPost, setEditedPost] = useState(post);
+  const [hasLiked, setHasLiked] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState(""); // 댓글 입력 상태
 
   useEffect(() => {
-    // 컴포넌트가 마운트 될 때 좋아요 상태를 확인
     const checkLikeStatus = async () => {
       try {
-        const docRef = doc(db, "posts", id); // Firestore에서 특정 문서 참조 생성
-        const docSnap = await getDoc(docRef); // getDoc으로 문서 스냅샷 가져오기
+        const docRef = doc(db, "posts", id);
+        const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
           setLikes(data.likeCount || 0);
           setComments(data.commentCount || 0);
-          setHasLiked(data.likedBy?.includes(user?.uid) || false); // 현재 사용자가 좋아요를 눌렀는지 확인
+          setHasLiked(data.likedBy?.includes(user?.uid) || false);
         } else {
           console.log("문서를 찾을 수 없습니다.");
         }
@@ -158,51 +155,71 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
     }
   }, [id, user]);
 
-  // 좋아요 클릭 시
   const onLike = async () => {
     const docRef = doc(db, "posts", id);
     if (hasLiked) {
-      // 좋아요 취소
       await updateDoc(docRef, {
-        likeCount: increment(-1), // likeCount를 1 감소시킴
-        likedBy: arrayRemove(user?.uid), // 사용자 UID를 likedBy 배열에서 제거
+        likeCount: increment(-1),
+        likedBy: arrayRemove(user?.uid),
       });
-      setLikes(likes - 1); // 상태 업데이트
+      setLikes(likes - 1);
     } else {
-      // 좋아요
       await updateDoc(docRef, {
-        likeCount: increment(1), // likeCount를 1 증가시킴
-        likedBy: arrayUnion(user?.uid), // 사용자 UID를 likedBy 배열에 추가
+        likeCount: increment(1),
+        likedBy: arrayUnion(user?.uid),
       });
-      setLikes(likes + 1); // 상태 업데이트
+      setLikes(likes + 1);
     }
-    setHasLiked(!hasLiked); // 좋아요 상태 토글
+    setHasLiked(!hasLiked);
   };
 
-  // 댓글 수정 시
   const onEdit = async () => {
     const docRef = doc(db, "posts", id);
     try {
       await updateDoc(docRef, {
-        post: editedPost, // 수정된 게시글 내용으로 업데이트
+        post: editedPost,
       });
-      setIsEditing(false); // 수정 모드 종료
+      setIsEditing(false);
     } catch (e) {
       console.error("댓글 수정 오류:", e);
     }
   };
 
-  // 댓글 삭제 시
-  const onDeleteComment = async () => {
-    const isOK = window.confirm("댓글을 삭제하시겠습니까?");
+  const onDeletePost = async () => {
+    const isOK = window.confirm("게시글을 삭제하시겠습니까?");
     try {
       if (isOK) {
         const removeDoc = await doc(db, "posts", id);
         await deleteDoc(removeDoc);
+        console.log("게시글이 삭제되었습니다.");
       }
     } catch (e) {
-      console.error("댓글 삭제 오류:", e);
+      console.error("게시글 삭제 오류:", e);
     }
+  };
+
+  const onAddComment = async () => {
+    if (!newComment) return;
+
+    const commentData = {
+      userId: user?.uid,
+      content: newComment,
+      createdAt: new Date(),
+    };
+
+    const commentsRef = collection(db, "posts", id, "comments");
+    try {
+      await setDoc(doc(commentsRef), commentData);
+      setNewComment(""); // 댓글 입력 필드 초기화
+      setComments(comments + 1); // 댓글 수 업데이트
+    } catch (error) {
+      console.error("댓글 추가 오류:", error);
+    }
+  };
+
+  // 댓글 기능 추가
+  const onCommentClick = () => {
+    setShowComments(!showComments);
   };
 
   return (
@@ -220,7 +237,7 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
               )}
             </UserInfo>
             {user?.uid === userId && (
-              <DeleteBtn onClick={onDeleteComment}>삭제</DeleteBtn>
+              <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
             )}
           </Topbar>
           {isEditing ? (
@@ -241,11 +258,23 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
         <LikeBtn onClick={onLike}>
           {hasLiked ? `좋아요 ${likes}` : `좋아요 ${likes}`}
         </LikeBtn>
-        <CommentBtn onClick={onDeleteComment}>댓글 {comments}</CommentBtn>
+        <CommentBtn onClick={onCommentClick}>댓글 {comments}</CommentBtn>
         {user?.uid === userId && (
           <EditBtn onClick={() => setIsEditing(true)}>수정</EditBtn>
         )}
       </Footer>
+      {/* 댓글 섹션 추가 */}
+      {showComments && (
+        <div>
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="댓글을 작성하세요"
+          />
+          <Button onClick={onAddComment}>댓글 추가</Button>
+          {/* 댓글 목록을 여기서 표시할 수 있습니다 */}
+        </div>
+      )}
     </Container>
   );
 };
