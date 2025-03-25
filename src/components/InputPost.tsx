@@ -73,11 +73,59 @@ const SubmitButton = styled.input`
     opacity: 0.8;
   }
 `;
+const ImagePreviewContainer = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+`;
+const ImagePreviewWrapper = styled.div`
+  position: relative;
+  width: 100px;
+  height: 100px;
+`;
+const ImagePreview = styled.img`
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+`;
+const RemoveImageButton = styled.button`
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(0,0,0,0.5);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+const ImageCountBadge = styled.div`
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background-color: rgba(0,0,0,0.5);
+  color: white;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+`;
 
 export default () => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [post, setPost] = useState<string>("");
-  const [file, setFile] = useState<File>();
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -90,9 +138,39 @@ export default () => {
   };
 
   const onChangeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length === 1) {
-      setFile(files[0]);
+    const selectedFiles = e.target.files;
+    if (selectedFiles) {
+      // 현재 파일 수와 새로 선택된 파일 수의 합이 5개 이하인지 확인
+      const newFiles = Array.from(selectedFiles).slice(0, 5 - files.length);
+      
+      const newPreviews: string[] = [];
+      const newFilesToAdd: File[] = [];
+
+      newFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPreviews.push(reader.result as string);
+          newFilesToAdd.push(file);
+
+          // 모든 파일 처리가 완료되면 상태 업데이트
+          if (newPreviews.length === newFiles.length) {
+            setFiles(prev => [...prev, ...newFilesToAdd]);
+            setPreviews(prev => [...prev, ...newPreviews]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+    setPreviews(prev => prev.filter((_, index) => index !== indexToRemove));
+    
+    // 파일 입력 초기화
+    const fileInput = document.getElementById('photo') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
     }
   };
 
@@ -110,18 +188,18 @@ export default () => {
         userId: user.uid,
         createdAt: Date.now(),
         post: post,
+        // 여기에 이미지 업로드 로직 추가 필요
       };
       const path = collection(db, "posts");
       await addDoc(path, myPost);
 
-      // Clear the post content and reset the textarea height
+      // 게시물 작성 후 초기화
       setPost("");
+      setFiles([]);
+      setPreviews([]);
       if (textAreaRef && textAreaRef.current) {
         textAreaRef.current.style.height = "auto";
       }
-
-      // Optionally clear the file as well
-      setFile(undefined);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -140,15 +218,32 @@ export default () => {
           onChange={(e) => onChange(e)}
           placeholder="무슨 일이 일어났나요?"
         ></TextArea>
+        {previews.length > 0 && (
+          <ImagePreviewContainer>
+            {previews.map((preview, index) => (
+              <ImagePreviewWrapper key={index}>
+                <ImagePreview src={preview} alt={`preview ${index}`} />
+                <RemoveImageButton type="button" onClick={() => removeImage(index)}>
+                  X
+                </RemoveImageButton>
+                <ImageCountBadge>{index + 1} / {previews.length}</ImageCountBadge>
+              </ImagePreviewWrapper>
+            ))}
+          </ImagePreviewContainer>
+        )}
         <BottomMenu>
           <AttachPhotoButton htmlFor="photo">
-            {file ? "사진 추가됨" : "사진 업로드"}
+            {previews.length > 0 
+              ? `사진 추가됨 (${previews.length}/5)` 
+              : "사진 업로드"}
           </AttachPhotoButton>
           <AttachPhotoInput
             onChange={(e) => onChangeFile(e)}
             id="photo"
             type="file"
             accept="image/*"
+            multiple
+            disabled={previews.length >= 5}
           />
           <SubmitButton
             type="submit"
