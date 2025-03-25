@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
 import { addDoc, collection } from "firebase/firestore";
+import axios from "axios";
 
 const Form = styled.form`
   display: flex;
@@ -123,6 +124,7 @@ const ImageCountBadge = styled.div`
 
 export default () => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [post, setPost] = useState<string>("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -168,28 +170,61 @@ export default () => {
     setPreviews(prev => prev.filter((_, index) => index !== indexToRemove));
     
     // 파일 입력 초기화
-    const fileInput = document.getElementById('photo') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
+    if (textAreaRef.current) {
+      textAreaRef.current.value = '';
     }
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // 사용자 로그인 확인
+    const user = auth.currentUser;
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+
+    // 게시물 내용이나 이미지 확인
+    if (post.trim() === "" && files.length === 0) {
+      alert("게시물 내용이나 이미지를 입력해주세요.");
+      return;
+    }
+
+    // 중복 제출 방지
+    if (loading) return;
+
     setLoading(true);
 
     try {
-      const user = auth.currentUser;
-      if (user == null || post == "" || loading) {
-        return;
+      // 이미지들 업로드
+      const photoUrls: string[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await axios.post('http://uploadloop.kro.kr:4000/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        // 이미지 URL 저장
+        photoUrls.push(response.data.path);
       }
+
       const myPost = {
         nickname: user.displayName,
         userId: user.uid,
         createdAt: Date.now(),
         post: post,
-        // 여기에 이미지 업로드 로직 추가 필요
+        photoUrls: photoUrls, // 이미지 URL 배열 추가
+        photoUrl: user.photoURL || "", // 사용자 프로필 이미지 URL 추가
+        likeCount: 0, // 초기 좋아요 카운트
+        commentCount: 0, // 초기 댓글 카운트
+        likedBy: [] // 좋아요 누른 사용자 배열
       };
+
       const path = collection(db, "posts");
       await addDoc(path, myPost);
 
@@ -197,25 +232,29 @@ export default () => {
       setPost("");
       setFiles([]);
       setPreviews([]);
-      if (textAreaRef && textAreaRef.current) {
+      if (textAreaRef.current) {
         textAreaRef.current.style.height = "auto";
       }
+      if (textAreaRef.current) {
+        textAreaRef.current.value = '';
+      }
     } catch (e) {
-      console.warn(e);
+      console.error("게시물 작성 중 오류:", e);
+      alert("게시물 작성에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Form onSubmit={(e) => onSubmit(e)}>
+    <Form onSubmit={onSubmit}>
       <ProfileArea></ProfileArea>
       <PostArea>
         <TextArea
           ref={textAreaRef}
           rows={4}
           value={post}
-          onChange={(e) => onChange(e)}
+          onChange={onChange}
           placeholder="무슨 일이 일어났나요?"
         ></TextArea>
         {previews.length > 0 && (
@@ -238,7 +277,8 @@ export default () => {
               : "사진 업로드"}
           </AttachPhotoButton>
           <AttachPhotoInput
-            onChange={(e) => onChangeFile(e)}
+            ref={fileInputRef}
+            onChange={onChangeFile}
             id="photo"
             type="file"
             accept="image/*"
@@ -248,6 +288,7 @@ export default () => {
           <SubmitButton
             type="submit"
             value={loading ? "제출 중" : "제출하기"}
+            disabled={loading}
           />
         </BottomMenu>
       </PostArea>

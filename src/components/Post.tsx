@@ -124,8 +124,21 @@ const EditCommentInput = styled.textarea`
   border-radius: 5px;
   font-size: 14px;
 `;
+const ImageContainer = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  overflow-x: auto;
+`;
 
-export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
+const PostImage = styled.img`
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+`;
+
+export default ({ id, userId, createdAt, nickname, post, photoUrls, photoUrl }: IPost) => {
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0); // 좋아요 카운트
   const [comments, setComments] = useState(0); // 댓글 카운트
@@ -223,18 +236,35 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
               <DeleteBtn onClick={onDeleteComment}>삭제</DeleteBtn>
             )}
           </Topbar>
-          {isEditing ? (
-            <div>
-              <EditCommentInput
-                value={editedPost}
-                onChange={(e) => setEditedPost(e.target.value)}
-              />
-              <Button onClick={onEdit}>수정 완료</Button>
-            </div>
-          ) : (
-            <PostText>{post}</PostText>
-          )}
+          {!isEditing ? ( 
+  <>
+    <PostText>{post}</PostText>
+    {/* 이미지들 표시 */}
+    {photoUrls && photoUrls.length > 0 && (
+      <ImageContainer>
+        {photoUrls.map((url, index) => (
+          <PostImage 
+            key={index} 
+            src={`http://uploadloop.kro.kr:4000/${url}`} 
+            alt={`Post image ${index + 1}`} 
+          />
+        ))}
+      </ImageContainer>
+    )}
+    <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
+  </>
+) : (
+  <div>
+    <EditCommentInput
+      value={editedPost}
+      onChange={(e) => setEditedPost(e.target.value)}
+    />
+    <Button onClick={onEdit}>수정 완료</Button>
+  </div>
+)}
+          
           <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
+          
         </Content>
       </Wrapper>
       <Footer>
