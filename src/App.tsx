@@ -14,6 +14,7 @@ import YouTubeMusicPlayer from "./screens/music"; // YouTubeMusicPlayer 컴포�
 import "moment/locale/ko";
 import KategorieFunction from "./components/KategorieFunction";
 import InputPostScreen from "./screens/InputPostScreen";
+import YouTubeGlobalPlayer from "./components/YouTubeGlobalPlayer"; // 상단 import
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -92,6 +93,7 @@ function App() {
   ) : (
     <Container className="App">
       <GlobalStyle />
+      <YouTubeGlobalPlayer />
       <RouterProvider router={router}></RouterProvider>
     </Container>
   );

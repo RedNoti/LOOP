@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
+export const playerRef: { current: any } = { current: null };
+export const playerReadyRef: { current: boolean } = { current: false };
 
 export const useMusicPlayer = () => {
   const [playlists, setPlaylists] = useState<any[]>([]);
@@ -10,9 +13,6 @@ export const useMusicPlayer = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
-
-  const playerRef = useRef<any>(null);
-  const playerReadyRef = useRef(false);
 
   console.log("🎧 videos:", videos);
   console.log("▶️ currentVideoId:", currentVideoId);

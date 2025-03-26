@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import YouTube from "react-youtube";
 import styled from "styled-components";
 import Playlist from "../components/playlist";
@@ -12,6 +12,7 @@ import {
   Minimize2,
 } from "lucide-react";
 import { useMusicPlayer } from "../components/MusicFunction";
+import { YouTubePlayer, YouTubeEvent } from "react-youtube"; // 상단에 추가
 
 // 컨테이너를 유동적으로 조절할 수 있도록 수정
 const Container = styled.div<{ isFullscreen: boolean }>`
@@ -261,24 +262,6 @@ const YouTubeMusicPlayer: React.FC = () => {
             />
 
             <Title>{currentVideoTitle}</Title>
-
-            <YouTube
-              videoId={currentVideoId ?? undefined}
-              opts={{
-                height: "0",
-                width: "0",
-                playerVars: {
-                  autoplay: 1,
-                  controls: 0,
-                  showinfo: 0,
-                  modestbranding: 1,
-                  rel: 0,
-                },
-              }}
-              onReady={onReady}
-              onStateChange={onStateChange}
-              onEnd={onEnd}
-            />
 
             <ControlRow>
               <button
