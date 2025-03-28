@@ -11,9 +11,7 @@ import {
 import { db } from "../firebaseConfig";
 import Post from "./Post";
 
-// ✅ 유동적 레이아웃을 위한 스타일 적용
 const Container = styled.div`
-  /* 기존 스타일 유지 */
   flex: 1;
   width: 100%;
   height: 100%;
@@ -25,9 +23,8 @@ const Container = styled.div`
   flex-direction: column;
   min-height: 0;
 
-  /* ✅ 스크롤바 투명하게 만들기 */
   &::-webkit-scrollbar {
-    width: 6px; /* 너비 설정 */
+    width: 6px;
   }
 
   &::-webkit-scrollbar-track {
@@ -35,13 +32,13 @@ const Container = styled.div`
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: transparent; /* 완전 투명 */
+    background-color: transparent;
     border-radius: 6px;
     transition: background-color 0.2s;
   }
 
   &:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2); /* 살짝 보이게 */
+    background-color: rgba(255, 255, 255, 0.2);
   }
 
   * {
@@ -63,12 +60,24 @@ export default () => {
 
       unsubscribe = onSnapshot(postsQuery, (snapshot) => {
         const timelinePosts = snapshot.docs.map((doc) => {
-          const { createdAt, nickname, post, userId } = doc.data() as IPost;
+          const {
+            createdAt,
+            nickname,
+            post,
+            userId,
+            email,
+            photoUrls,
+            photoUrl,
+          } = doc.data();
+
           return {
             createdAt,
             nickname,
             post,
             userId,
+            email, // ✅ 추가된 부분
+            photoUrls: photoUrls ?? [],
+            photoUrl: photoUrl ?? "",
             id: doc.id,
           };
         });

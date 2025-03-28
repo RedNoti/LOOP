@@ -6,4 +6,6 @@ export type IPost = {
   createdAt: number;
   photoUrl?: string;
   id: string;
+  photoUrls?: string[];
+  email: string;
 };

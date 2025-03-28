@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { IPost } from "../types/post-type";
 import { auth, db } from "../firebaseConfig";
+import axios from "axios";
 import moment from "moment";
 import {
   deleteDoc,
@@ -11,8 +12,6 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
-  setDoc,
-  collection,
 } from "firebase/firestore";
 
 const Container = styled.div`
@@ -126,15 +125,36 @@ const EditCommentInput = styled.textarea`
   font-size: 14px;
 `;
 
-export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
+const ImageContainer = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  overflow-x: auto;
+`;
+
+const PostImage = styled.img`
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+`;
+
+export default ({
+  id,
+  userId,
+  createdAt,
+  nickname,
+  post,
+  photoUrls,
+  photoUrl,
+  email,
+}: IPost) => {
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
   const [comments, setComments] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const [hasLiked, setHasLiked] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [newComment, setNewComment] = useState(""); // 댓글 입력 상태
 
   useEffect(() => {
     const checkLikeStatus = async () => {
@@ -190,41 +210,32 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
     }
   };
 
-  const onDeletePost = async () => {
-    const isOK = window.confirm("게시글을 삭제하시겠습니까?");
+  const onDeleteComment = async () => {
+    const isOK = window.confirm("댓글을 삭제하시겠습니까?");
     try {
       if (isOK) {
-        const removeDoc = await doc(db, "posts", id);
+        // Firestore에서 문서 삭제
+        const removeDoc = doc(db, "posts", id);
         await deleteDoc(removeDoc);
-        console.log("게시글이 삭제되었습니다.");
+
+        // 첨부된 이미지 삭제 요청
+        if (photoUrls && photoUrls.length > 0) {
+          for (const filename of photoUrls) {
+            try {
+              await axios.post("http://uploadloop.kro.kr:4000/delete", {
+                url: `http://uploadloop.kro.kr:4000/postphoto/${filename}`,
+              });
+            } catch (err) {
+              console.error("이미지 삭제 실패:", err);
+            }
+          }
+        }
+
+        console.log("게시글 및 이미지 삭제 완료");
       }
     } catch (e) {
-      console.error("게시글 삭제 오류:", e);
+      console.error("댓글 삭제 오류:", e);
     }
-  };
-
-  const onAddComment = async () => {
-    if (!newComment) return;
-
-    const commentData = {
-      userId: user?.uid,
-      content: newComment,
-      createdAt: new Date(),
-    };
-
-    const commentsRef = collection(db, "posts", id, "comments");
-    try {
-      await setDoc(doc(commentsRef), commentData);
-      setNewComment(""); // 댓글 입력 필드 초기화
-      setComments(comments + 1); // 댓글 수 업데이트
-    } catch (error) {
-      console.error("댓글 추가 오류:", error);
-    }
-  };
-
-  // 댓글 기능 추가
-  const onCommentClick = () => {
-    setShowComments(!showComments);
   };
 
   return (
@@ -237,15 +248,29 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
           <Topbar>
             <UserInfo>
               <UserName>{nickname}</UserName>
-              {auth.currentUser && (
-                <UserEmail>{auth.currentUser.email}</UserEmail>
-              )}
+              <UserEmail>{email}</UserEmail>
             </UserInfo>
             {user?.uid === userId && (
-              <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
+              <DeleteBtn onClick={onDeleteComment}>삭제</DeleteBtn>
             )}
           </Topbar>
-          {isEditing ? (
+          {!isEditing ? (
+            <>
+              <PostText>{post}</PostText>
+              {photoUrls && photoUrls.length > 0 && (
+                <ImageContainer>
+                  {photoUrls.map((url, index) => (
+                    <PostImage
+                      key={index}
+                      src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
+                      alt={`Post image ${index + 1}`}
+                    />
+                  ))}
+                </ImageContainer>
+              )}
+              <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
+            </>
+          ) : (
             <div>
               <EditCommentInput
                 value={editedPost}
@@ -253,33 +278,18 @@ export default ({ id, userId, createdAt, nickname, post, photoUrl }: IPost) => {
               />
               <Button onClick={onEdit}>수정 완료</Button>
             </div>
-          ) : (
-            <PostText>{post}</PostText>
           )}
-          <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
         </Content>
       </Wrapper>
       <Footer>
         <LikeBtn onClick={onLike}>
           {hasLiked ? `좋아요 ${likes}` : `좋아요 ${likes}`}
         </LikeBtn>
-        <CommentBtn onClick={onCommentClick}>댓글 {comments}</CommentBtn>
+        <CommentBtn onClick={onDeleteComment}>댓글 {comments}</CommentBtn>
         {user?.uid === userId && (
           <EditBtn onClick={() => setIsEditing(true)}>수정</EditBtn>
         )}
       </Footer>
-      {/* 댓글 섹션 추가 */}
-      {showComments && (
-        <div>
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="댓글을 작성하세요"
-          />
-          <Button onClick={onAddComment}>댓글 추가</Button>
-          {/* 댓글 목록을 여기서 표시할 수 있습니다 */}
-        </div>
-      )}
     </Container>
   );
 };
