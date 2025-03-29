@@ -10,11 +10,11 @@ import { useEffect, useState } from "react";
 import LoadingScreen from "./screens/loading-screen";
 import ProtectedRouter from "./components/protected-router";
 import Layout from "./screens/layout";
-import YouTubeMusicPlayer from "./screens/music"; // YouTubeMusicPlayer 컴포넌트 import
 import "moment/locale/ko";
 import KategorieFunction from "./components/KategorieFunction";
-import InputPostScreen from "./screens/InputPostScreen";
-import YouTubeGlobalPlayer from "./components/YouTubeGlobalPlayer"; // 상단 import
+import InputPostScreen from "./screens/InputPostScreen"; // 상단 import
+import YouTubeMusicPlayer from "./screens/music";
+import YouTubeGlobalPlayer from "./components/YouTubeGlobalPlayer";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -93,7 +93,8 @@ function App() {
   ) : (
     <Container className="App">
       <GlobalStyle />
-      <YouTubeGlobalPlayer />
+      {window.location.pathname !== "/signin" &&
+        window.location.pathname !== "/signup" && <YouTubeGlobalPlayer />}
       <RouterProvider router={router}></RouterProvider>
     </Container>
   );

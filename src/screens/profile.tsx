@@ -1,7 +1,6 @@
 import React, { useState, useRef } from "react";
 import { auth } from "../firebaseConfig";
 import { useProfileFunctions } from "../components/ProfileFunction";
-import YouTubeMusicPlayer from "./music";
 import styled from "styled-components";
 
 // 프로필 데이터 구조를 정의하는 인터페이스
@@ -52,50 +51,6 @@ const ScrollableContent = styled.div`
 
   &:hover::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.2);
-  }
-`;
-
-const MusicPlayerWrapper = styled.div`
-  width: 50%;
-  min-width: 320px;
-  height: 100%;
-  padding: 1rem;
-  box-sizing: border-box;
-  overflow: hidden;
-  background-color: rgb(13, 15, 18);
-  border-radius: 15px;
-  display: flex;
-  flex-direction: column;
-
-  > div {
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background-color: transparent;
-    }
-
-    &:hover::-webkit-scrollbar-thumb {
-      background-color: rgba(255, 255, 255, 0.2);
-    }
-
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-
-  @media (max-width: 768px) {
-    width: 100%;
-    height: auto;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    z-index: 100;
-    border-radius: 0;
   }
 `;
 
@@ -778,12 +733,6 @@ const ProfileEditor = () => {
           </div>
         </ScrollableContent>
       </ContentArea>
-
-      <MusicPlayerWrapper>
-        <div>
-          <YouTubeMusicPlayer />
-        </div>
-      </MusicPlayerWrapper>
     </Container>
   );
 };

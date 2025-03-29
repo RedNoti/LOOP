@@ -1,7 +1,8 @@
 // layout.tsx
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
+import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
 
 const LayoutWrapper = styled.div`
   display: flex;
@@ -27,7 +28,7 @@ const Logo = styled.img`
 `;
 
 const Body = styled.div`
-  height: calc(100vh - 70px); // Header 높이 만큼 빼줌
+  height: calc(100vh - 70px);
   display: flex;
   overflow: hidden;
 `;
@@ -41,7 +42,7 @@ const Navigator = styled.div`
   background-color: rgb(39, 39, 39);
   border-radius: 0 15px 15px 0;
   padding-top: 20px;
-  padding-bottom: 16px; // ✅ 하단 여백 추가
+  padding-bottom: 16px;
   overflow-y: overlay;
   min-height: 0;
   flex-shrink: 0;
@@ -57,7 +58,7 @@ const MenuItem = styled.div`
   cursor: pointer;
 
   svg {
-    width: 30px; // ✅ 아이콘 내부는 더 작게
+    width: 30px;
     height: 30px;
   }
 `;
@@ -77,6 +78,9 @@ const MainContent = styled.div`
 
 export default () => {
   const navi = useNavigate();
+  const location = useLocation();
+  const hidePlayer =
+    location.pathname === "/signin" || location.pathname === "/signup";
 
   const signOut = async () => {
     const isOK = window.confirm("정말로 로그아웃 하실 건가요?");
@@ -114,8 +118,7 @@ export default () => {
           <Link to="/InputPostScreen">
             <MenuItem>
               <svg
-                className="w-6 h-6 text-gray-800 dark:text-white"
-                aria-hidden="true"
+                className="w-6 h-6"
                 xmlns="http://www.w3.org/2000/svg"
                 width="24"
                 height="24"
@@ -125,12 +128,11 @@ export default () => {
               >
                 <path
                   stroke="currentColor"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
                   d="M5 12h14m-7 7V5"
                 />
-
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -177,9 +179,26 @@ export default () => {
           </BottomMenu>
         </Navigator>
 
-        <MainContent>
-          <Outlet />
-        </MainContent>
+        <div style={{ display: "flex", width: "100%", height: "100%" }}>
+          <MainContent>
+            <Outlet />
+          </MainContent>
+          {!hidePlayer && (
+            <div
+              style={{
+                width: "50%",
+                minWidth: "320px",
+                height: "100%",
+                padding: "1rem",
+                boxSizing: "border-box",
+                backgroundColor: "rgb(13, 15, 18)",
+                borderLeft: "1px solid #333",
+              }}
+            >
+              <YouTubeMusicPlayer />
+            </div>
+          )}
+        </div>
       </Body>
     </LayoutWrapper>
   );
