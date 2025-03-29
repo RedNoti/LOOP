@@ -1,7 +1,37 @@
 import { useEffect, useState } from "react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db, auth } from "../firebaseConfig"; // adjust path as needed
 
 export const playerRef: { current: any } = { current: null };
 export const playerReadyRef: { current: boolean } = { current: false };
+
+const savePlaybackStateToFirestore = async (
+  userId: string,
+  playlistId: string,
+  videoIndex: number
+) => {
+  try {
+    await setDoc(doc(db, "playbackStates", userId), {
+      playlistId,
+      videoIndex,
+      timestamp: Date.now(),
+    });
+  } catch (err) {
+    console.error("Firebase 저장 실패:", err);
+  }
+};
+
+const loadPlaybackStateFromFirestore = async (userId: string) => {
+  try {
+    const docSnap = await getDoc(doc(db, "playbackStates", userId));
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+  } catch (err) {
+    console.error("Firebase 불러오기 실패:", err);
+  }
+  return null;
+};
 
 export const useMusicPlayer = () => {
   const [playlists, setPlaylists] = useState<any[]>([]);
@@ -13,6 +43,10 @@ export const useMusicPlayer = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(
+    null
+  );
+  const [playbackRestored, setPlaybackRestored] = useState(false);
 
   console.log("🎧 videos:", videos);
   console.log("▶️ currentVideoId:", currentVideoId);
@@ -22,47 +56,84 @@ export const useMusicPlayer = () => {
     const token = localStorage.getItem("ytAccessToken");
     if (!token) return;
 
+    let nextPageToken = "";
+    const allItems: any[] = [];
+
     try {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlistId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      do {
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${nextPageToken}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        if (data.items) {
+          allItems.push(...data.items);
         }
-      );
-      const data = await response.json();
-      if (data.items) {
-        setVideos(data.items);
-        setCurrentIndex(0);
-        setCurrentVideoId(data.items[0]?.snippet?.resourceId?.videoId || null);
-      }
+        nextPageToken = data.nextPageToken || "";
+      } while (nextPageToken);
+
+      setVideos(allItems);
+      setCurrentIndex(0);
+      setCurrentVideoId(allItems[0]?.snippet?.resourceId?.videoId || null);
     } catch (err) {
       console.error("영상 목록 불러오기 실패:", err);
     }
   };
 
-  const playPlaylist = (playlistId: string) => {
-    fetchPlaylistVideos(playlistId);
+  const playPlaylist = async (playlistId: string, startIndex = 0) => {
+    setCurrentPlaylistId(playlistId); // track current playlist
+    await fetchPlaylistVideos(playlistId);
+
+    const nextVideoId = videos[startIndex]?.snippet?.resourceId?.videoId;
+    if (nextVideoId) {
+      setCurrentIndex(startIndex);
+      setCurrentVideoId(nextVideoId);
+
+      if (auth.currentUser?.uid) {
+        savePlaybackStateToFirestore(
+          auth.currentUser.uid,
+          playlistId,
+          startIndex
+        );
+      }
+    }
   };
 
   useEffect(() => {
-    const tryLoadFirstPlaylist = async () => {
-      if (playlists.length > 0 && videos.length === 0) {
-        await fetchPlaylistVideos(playlists[0].id);
+    const tryRestorePlayback = async () => {
+      if (auth.currentUser?.uid && playlists.length > 0 && !playbackRestored) {
+        const saved = await loadPlaybackStateFromFirestore(
+          auth.currentUser.uid
+        );
+        if (saved?.playlistId) {
+          const index = saved.videoIndex || 0;
+          await playPlaylist(saved.playlistId, index);
+          setPlaybackRestored(true);
+        } else {
+          // fallback: load first playlist only if no saved playback exists
+          await fetchPlaylistVideos(playlists[0].id);
+        }
       }
     };
-    tryLoadFirstPlaylist();
+    tryRestorePlayback();
   }, [playlists]);
 
   const onReady = (event: any) => {
     playerRef.current = event.target;
     playerReadyRef.current = true;
     playerRef.current.setVolume(volume);
-    if (currentVideoId) {
-      playerRef.current.loadVideoById(currentVideoId);
+
+    const fallbackId = currentVideoId;
+    const videoId =
+      videos[currentIndex]?.snippet?.resourceId?.videoId || fallbackId;
+    if (videoId) {
+      playerRef.current.loadVideoById(videoId);
+      setIsPlaying(true);
     }
-    setIsPlaying(true);
   };
 
   const onStateChange = (event: any) => {
@@ -74,6 +145,10 @@ export const useMusicPlayer = () => {
     if (nextIndex < videos.length) {
       setCurrentIndex(nextIndex);
       setCurrentVideoId(videos[nextIndex].snippet?.resourceId?.videoId || null);
+    } else if (videos.length > 0) {
+      // 마지막 곡일 때 첫 곡으로 순환
+      setCurrentIndex(0);
+      setCurrentVideoId(videos[0].snippet?.resourceId?.videoId || null);
     }
   };
 
@@ -88,6 +163,10 @@ export const useMusicPlayer = () => {
     if (nextIndex < videos.length) {
       setCurrentIndex(nextIndex);
       setCurrentVideoId(videos[nextIndex].snippet?.resourceId?.videoId || null);
+    } else if (videos.length > 0) {
+      // 마지막 곡일 때 첫 곡으로 순환
+      setCurrentIndex(0);
+      setCurrentVideoId(videos[0].snippet?.resourceId?.videoId || null);
     }
   };
 
@@ -258,5 +337,6 @@ export const useMusicPlayer = () => {
     prevTrack,
     changeVolume,
     playPlaylist, // 추가됨
+    playerRef, // 추가
   };
 };

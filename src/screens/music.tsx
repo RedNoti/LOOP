@@ -11,7 +11,7 @@ import {
   Maximize2,
   Minimize2,
 } from "lucide-react";
-import { useMusicPlayer } from "../components/MusicFunction";
+import { useMusicPlayer } from "../components/MusicFunction"; // 상단에 추가
 import { YouTubePlayer, YouTubeEvent } from "react-youtube"; // 상단에 추가
 
 // 컨테이너를 유동적으로 조절할 수 있도록 수정
@@ -71,8 +71,8 @@ const PlayerSection = styled.div<{ isFullscreen: boolean }>`
 `;
 
 const PlaylistSection = styled.div`
-  flex: 1;
-  width: 100%;
+  flex: none;
+  width: 280px;
   overflow-y: auto;
 `;
 
@@ -100,7 +100,7 @@ const Title = styled.p`
   font-weight: 500;
   margin-bottom: 1rem;
   text-align: center;
-  max-width: 100%;
+  max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -126,12 +126,8 @@ const VolumeControl = styled.div`
 const PlaylistGrid = styled.div`
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
-
-  @media (max-width: 576px) {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
 `;
 
 const PlaylistCard = styled.div`
@@ -149,6 +145,8 @@ const PlaylistCard = styled.div`
 
 const PlaylistImage = styled.img`
   width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
   border-radius: 0.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 `;
@@ -206,6 +204,7 @@ const YouTubeMusicPlayer: React.FC = () => {
     userProfile,
     fetchLikedVideos,
     playPlaylist,
+    playerRef,
   } = useMusicPlayer();
 
   // 화면 크기 변경 감지
@@ -255,6 +254,22 @@ const YouTubeMusicPlayer: React.FC = () => {
       <ScrollableContent>
         <ContentWrapper isFullscreen={isFullscreen}>
           <PlayerSection isFullscreen={isFullscreen}>
+            <YouTube
+              videoId={currentVideoId}
+              key={currentVideoId}
+              opts={{
+                height: "0",
+                width: "0",
+                playerVars: {
+                  autoplay: 1,
+                },
+              }}
+              onReady={(event: { target: YouTubePlayer }) => {
+                playerRef.current = event.target;
+              }}
+              onStateChange={onStateChange}
+              onEnd={onEnd}
+            />
             <AlbumArt
               src={currentVideoThumbnail}
               alt="Album art"
@@ -320,74 +335,159 @@ const YouTubeMusicPlayer: React.FC = () => {
                 {volume}%
               </span>
             </VolumeControl>
+            <div
+              style={{
+                marginTop: "1.5rem",
+                width: "100%",
+                overflowY: "auto",
+                maxHeight: "300px",
+                paddingRight: "0.25rem",
+                paddingBottom: "0.5rem",
+              }}
+            >
+              {playlists.length > 0 && (
+                <>
+                  <SectionTitle>
+                    <span role="img" aria-label="Folder">
+                      📁
+                    </span>{" "}
+                    내 재생목록
+                  </SectionTitle>
+                  <PlaylistGrid style={{ marginBottom: "2rem" }}>
+                    {playlists.map((playlist) => (
+                      <PlaylistCard
+                        key={playlist.id}
+                        onClick={() => playPlaylist(playlist.id)}
+                      >
+                        <PlaylistImage
+                          src={playlist.snippet.thumbnails.medium.url}
+                          alt={playlist.snippet.title}
+                        />
+                        <p
+                          style={{
+                            fontSize: "0.75rem",
+                            marginTop: "0.5rem",
+                            maxWidth: "100%",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {playlist.snippet.title}
+                        </p>
+                      </PlaylistCard>
+                    ))}
+                  </PlaylistGrid>
+                </>
+              )}
+            </div>
           </PlayerSection>
           <PlaylistSection>
-            {playlists.length > 0 && (
-              <>
-                <SectionTitle>
-                  <span role="img" aria-label="Folder">
-                    📁
-                  </span>{" "}
-                  내 재생목록
-                </SectionTitle>
-                <PlaylistGrid>
-                  {playlists.map((playlist) => (
-                    <PlaylistCard
-                      key={playlist.id}
-                      onClick={() => playPlaylist(playlist.id)}
-                    >
-                      <PlaylistImage
-                        src={playlist.snippet.thumbnails.medium.url}
-                        alt={playlist.snippet.title}
-                      />
-                      <p
+            <div
+              style={{
+                overflowY: "auto",
+                maxHeight: "calc(100vh - 100px)",
+                paddingRight: "0.25rem",
+                paddingBottom: "0.25rem",
+              }}
+            >
+              {videos.length > 0 && (
+                <>
+                  <SectionTitle>
+                    <span role="img" aria-label="Music Note">
+                      🎶
+                    </span>{" "}
+                    현재 재생목록 곡들
+                  </SectionTitle>
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      padding: 0,
+                      margin: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    {videos.map((video, index) => (
+                      <li
+                        key={index}
+                        onClick={() => {
+                          const videoId = video?.snippet?.resourceId?.videoId;
+                          if (videoId) {
+                            playPlaylist(video.snippet.playlistId || "", index);
+                          }
+                        }}
                         style={{
-                          fontSize: "0.75rem",
-                          marginTop: "0.5rem",
-                          maxWidth: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          cursor: "pointer",
+                          padding: "0.5rem",
+                          borderRadius: "0.5rem",
+                          transition: "background 0.2s",
+                          gap: "0.75rem",
+                        }}
+                      >
+                        <img
+                          src={video.snippet.thumbnails.default.url}
+                          alt={video.snippet.title}
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            borderRadius: "0.5rem",
+                            objectFit: "cover",
+                            flexShrink: 0,
+                            aspectRatio: "1 / 1",
+                          }}
+                        />
+                        <div
+                          style={{
+                            fontSize: "1rem",
+                            color: "white",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {video.snippet.title}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {likedVideos.length > 0 && (
+                <div style={{ marginTop: "2rem", width: "100%" }}>
+                  <SectionTitle>
+                    <span role="img" aria-label="Heart">
+                      ❤️
+                    </span>{" "}
+                    좋아요한 영상
+                  </SectionTitle>
+                  <ul
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#d1d5db",
+                      paddingLeft: "1rem",
+                    }}
+                  >
+                    {likedVideos.map((video) => (
+                      <li
+                        key={video.id}
+                        style={{
+                          marginBottom: "0.5rem",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {playlist.snippet.title}
-                      </p>
-                    </PlaylistCard>
-                  ))}
-                </PlaylistGrid>
-              </>
-            )}
-            {likedVideos.length > 0 && (
-              <div style={{ marginTop: "2rem", width: "100%" }}>
-                <SectionTitle>
-                  <span role="img" aria-label="Heart">
-                    ❤️
-                  </span>{" "}
-                  좋아요한 영상
-                </SectionTitle>
-                <ul
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#d1d5db",
-                    paddingLeft: "1rem",
-                  }}
-                >
-                  {likedVideos.map((video) => (
-                    <li
-                      key={video.id}
-                      style={{
-                        marginBottom: "0.5rem",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {video.snippet.title}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                        {video.snippet.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </PlaylistSection>
         </ContentWrapper>
       </ScrollableContent>
