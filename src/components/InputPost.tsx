@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 
 const Form = styled.form`
@@ -16,10 +16,16 @@ const Form = styled.form`
   border-radius: 30px;
 `;
 const ProfileArea = styled.div`
-  background-color: tomato;
   width: 50px;
   height: 50px;
   border-radius: 30px;
+  background-color: tomato;
+  overflow: hidden;
+`;
+const ProfileImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 `;
 const PostArea = styled.div`
   flex: 1;
@@ -129,6 +135,32 @@ export default () => {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
+
+  // 프로필 이미지 로드
+  useEffect(() => {
+    const loadProfilePhoto = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      // 기본적으로 Auth의 photoURL 사용
+      let photoUrl = user.photoURL || "";
+      
+      // Firestore에서 추가 확인
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        if (profileDoc.exists() && profileDoc.data().photoUrl) {
+          photoUrl = profileDoc.data().photoUrl;
+        }
+      } catch (err) {
+        console.error("프로필 사진 로드 실패:", err);
+      }
+      
+      setProfilePhotoUrl(photoUrl);
+    };
+    
+    loadProfilePhoto();
+  }, []);
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -206,10 +238,10 @@ export default () => {
       const photoUrls: string[] = [];
       for (const file of files) {
         const formData = new FormData();
-        formData.append("file", file); // ✅ multer에서 사용하는 키 이름
+        formData.append("file", file);
 
         const response = await axios.post(
-          "http://uploadloop.kro.kr:4000/postphoto", // ✅ 수정된 경로
+          "http://uploadloop.kro.kr:4000/postphoto",
           formData,
           {
             headers: {
@@ -218,19 +250,34 @@ export default () => {
           }
         );
 
-        // ✅ 서버에서 filename 그대로 받음
         const filename = response.data.filename;
         photoUrls.push(filename);
       }
 
+      // 최신 프로필 정보 가져오기
+      let profileName = user.displayName || "";
+      let profilePhotoUrl = user.photoURL || "";
+      
+      // Firestore에서 추가 프로필 정보 확인
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
+          if (profileData.name) profileName = profileData.name;
+          if (profileData.photoUrl) profilePhotoUrl = profileData.photoUrl;
+        }
+      } catch (err) {
+        console.error("프로필 정보 가져오기 실패:", err);
+      }
+
       const myPost = {
-        nickname: user.displayName,
+        nickname: profileName,
         userId: user.uid,
-        email: user.email, // ✅ 이메일 추가!
+        email: user.email,
         createdAt: Date.now(),
         post: post,
         photoUrls: photoUrls,
-        photoUrl: user.photoURL || "",
+        photoUrl: profilePhotoUrl,
         likeCount: 0,
         commentCount: 0,
         likedBy: [],
@@ -256,7 +303,11 @@ export default () => {
 
   return (
     <Form onSubmit={onSubmit}>
-      <ProfileArea></ProfileArea>
+      <ProfileArea>
+        {profilePhotoUrl ? (
+          <ProfileImage src={profilePhotoUrl} alt="프로필 사진" />
+        ) : null}
+      </ProfileArea>
       <PostArea>
         <TextArea
           ref={textAreaRef}

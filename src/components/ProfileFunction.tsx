@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { auth, onAuthStateChanged } from "../firebaseConfig";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth"; // firebase/auth에서 직접 import
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 // 프로필 데이터 인터페이스
@@ -67,14 +68,44 @@ export const useProfileFunctions = () => {
     setProfile((prev) => ({ ...prev, [name]: value }));
   };
 
+  // 변경된 saveProfileToFirestore 함수
   const saveProfileToFirestore = async () => {
     const user = auth.currentUser;
     if (user) {
+      // 1. Firestore에 프로필 저장
       await setDoc(doc(db, "profiles", user.uid), profile);
+      
+      // 2. Auth 프로필 업데이트
+      await updateProfile(user, {
+        displayName: profile.name,
+        photoURL: profile.photoUrl
+      });
+      
+      // 3. 사용자의 모든 게시물의 프로필 정보 업데이트
+      try {
+        const postsRef = collection(db, "posts");
+        const q = query(postsRef, where("userId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+        
+        // 각 게시물마다 프로필 정보 업데이트
+        const updatePromises = querySnapshot.docs.map(postDoc => {
+          return updateDoc(doc(db, "posts", postDoc.id), {
+            photoUrl: profile.photoUrl,
+            nickname: profile.name
+          });
+        });
+        
+        // 모든 업데이트 완료 대기
+        await Promise.all(updatePromises);
+        console.log("모든 게시물의 프로필 정보가 업데이트되었습니다.");
+      } catch (error) {
+        console.error("게시물 프로필 정보 업데이트 중 오류:", error);
+      }
     }
   };
 
   const togglePreview = () => setShowPreview((prev) => !prev);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("프로필 업데이트:", profile);

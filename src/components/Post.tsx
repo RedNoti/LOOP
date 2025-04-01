@@ -25,6 +25,7 @@ const Container = styled.div`
   box-sizing: border-box;
   overflow-wrap: break-word;
   background-color: rgb(36, 36, 36);
+  margin-bottom: 16px;
 `;
 
 const Wrapper = styled.div`
@@ -39,6 +40,7 @@ const ProfileImg = styled.img`
   height: 22px;
   border-radius: 50%;
   background-color: white;
+  object-fit: cover;
 `;
 
 const Content = styled.div`
@@ -155,8 +157,25 @@ export default ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const [hasLiked, setHasLiked] = useState(false);
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState(photoUrl || defaultProfileImg);
+  const [currentNickname, setCurrentNickname] = useState(nickname);
 
+  // 컴포넌트 마운트 시 최신 프로필 정보 가져오기
   useEffect(() => {
+    const fetchLatestProfileInfo = async () => {
+      try {
+        // Firestore에서 최신 프로필 정보 확인
+        const profileDoc = await getDoc(doc(db, "profiles", userId));
+        if (profileDoc.exists()) {
+          const data = profileDoc.data();
+          if (data.photoUrl) setCurrentPhotoUrl(data.photoUrl);
+          if (data.name) setCurrentNickname(data.name);
+        }
+      } catch (error) {
+        console.error("프로필 정보 가져오기 실패:", error);
+      }
+    };
+
     const checkLikeStatus = async () => {
       try {
         const docRef = doc(db, "posts", id);
@@ -178,7 +197,9 @@ export default ({
     if (user) {
       checkLikeStatus();
     }
-  }, [id, user]);
+
+    fetchLatestProfileInfo();
+  }, [id, user, userId, photoUrl, nickname]);
 
   const onLike = async () => {
     const docRef = doc(db, "posts", id);
@@ -242,12 +263,12 @@ export default ({
     <Container>
       <Wrapper>
         <ProfileArea>
-          <ProfileImg src={photoUrl || defaultProfileImg} />
+          <ProfileImg src={currentPhotoUrl} />
         </ProfileArea>
         <Content>
           <Topbar>
             <UserInfo>
-              <UserName>{nickname}</UserName>
+              <UserName>{currentNickname}</UserName>
               <UserEmail>{email}</UserEmail>
             </UserInfo>
             {user?.uid === userId && (
