@@ -132,19 +132,18 @@ const EditCommentInput = styled.textarea`
   overflow-y: auto;
 `;
 
-const ImageList = styled.div`
+const ImageContainer = styled.div`
   display: flex;
   gap: 10px;
-  flex-wrap: wrap;
   margin-top: 10px;
+  overflow-x: auto;
 `;
 
 const PostImage = styled.img`
-  width: 100%;
-  max-width: 300px;
-  height: auto;
-  border-radius: 10px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
+  border-radius: 10px;
 `;
 
 const Post = ({
@@ -155,7 +154,6 @@ const Post = ({
   post,
   photoUrl,
   comments,
-  photoUrls,
 }: IPost) => {
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
@@ -174,6 +172,7 @@ const Post = ({
     photoUrl || defaultProfileImg
   );
   const [currentNickname, setCurrentNickname] = useState(nickname);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]); // Added state for photoUrls
 
   useEffect(() => {
     const checkLikeStatus = async () => {
@@ -185,6 +184,7 @@ const Post = ({
           setLikes(data.likeCount || 0);
           setCommentCount(data.commentCount || 0);
           setHasLiked(data.likedBy?.includes(user?.uid) || false);
+          setPhotoUrls(data.photoUrls || []); // Update photoUrls state
         }
       } catch (error) {
         console.error("문서 조회 오류:", error);
@@ -316,18 +316,18 @@ const Post = ({
           ) : (
             <PostText>{post}</PostText>
           )}
-          <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
           {photoUrls && photoUrls.length > 0 && (
-            <ImageList>
-              {photoUrls.map((url, idx) => (
+            <ImageContainer>
+              {photoUrls.map((url, index) => (
                 <PostImage
-                  key={idx}
+                  key={index}
                   src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
-                  alt={`업로드 이미지 ${idx + 1}`}
+                  alt={`Post image ${index + 1}`}
                 />
               ))}
-            </ImageList>
+            </ImageContainer>
           )}
+          <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
         </Content>
       </Wrapper>
       <Footer>
