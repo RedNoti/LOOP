@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 const Form = styled.form`
   display: flex;
@@ -142,6 +143,7 @@ const ImageCountBadge = styled.div`
 `;
 
 export default () => {
+  const navigate = useNavigate(); // ✅ 페이지 이동 훅
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [post, setPost] = useState<string>("");
@@ -263,6 +265,7 @@ export default () => {
 
       await addDoc(collection(db, "posts"), myPost);
 
+      // 상태 초기화
       setPost("");
       setFiles([]);
       setPreviews([]);
@@ -270,6 +273,10 @@ export default () => {
         textAreaRef.current.style.height = "auto";
         textAreaRef.current.value = "";
       }
+
+      // ✅ 타임라인으로 이동
+      navigate("/");
+
     } catch (e) {
       console.error("게시물 작성 중 오류:", e);
       alert("게시물 작성에 실패했습니다. 다시 시도해주세요.");
