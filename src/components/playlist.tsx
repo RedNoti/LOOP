@@ -1,44 +1,40 @@
-// src/components/Playlist.tsx
 import styled from "styled-components";
 import { useMusicPlayer } from "./MusicFunction";
 
-const SectionTitle = styled.h3`
-  font-size: 1rem;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
 const PlaylistGrid = styled.div`
-  width: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 1rem;
-
-  @media (max-width: 576px) {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
+  gap: 1.5rem;
 `;
 
-const PlaylistCard = styled.div`
+const Card = styled.div`
+  background-color: #1e1e1e;
+  border-radius: 12px;
+  padding: 1rem;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  transition: transform 0.2s;
+  transition: background 0.3s ease, transform 0.2s ease;
 
   &:hover {
-    transform: translateY(-4px);
+    background-color: #2a2a2a;
+    transform: scale(1.02);
   }
 `;
 
-const PlaylistImage = styled.img`
+const Thumbnail = styled.img`
   width: 100%;
-  border-radius: 0.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-bottom: 0.75rem;
+`;
+
+const Title = styled.p`
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 export default function Playlist() {
@@ -48,36 +44,16 @@ export default function Playlist() {
 
   return (
     <>
-      <SectionTitle>
-        <span role="img" aria-label="Folder">
-          📁
-        </span>
-        내 재생목록
-      </SectionTitle>
-
+      <h3 style={{ color: "white", marginBottom: "1rem" }}>내 재생목록</h3>
       <PlaylistGrid>
         {playlists.map((playlist) => (
-          <PlaylistCard
-            key={playlist.id}
-            onClick={() => playPlaylist(playlist.id)}
-          >
-            <PlaylistImage
+          <Card key={playlist.id} onClick={() => playPlaylist(playlist.id)}>
+            <Thumbnail
               src={playlist.snippet.thumbnails.medium.url}
               alt={playlist.snippet.title}
             />
-            <p
-              style={{
-                fontSize: "0.75rem",
-                marginTop: "0.5rem",
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {playlist.snippet.title}
-            </p>
-          </PlaylistCard>
+            <Title>{playlist.snippet.title}</Title>
+          </Card>
         ))}
       </PlaylistGrid>
     </>
