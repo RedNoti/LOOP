@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 
 const Form = styled.form`
@@ -15,12 +15,21 @@ const Form = styled.form`
   margin: 0;
   border-radius: 30px;
 `;
+
+const ProfileImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
 const ProfileArea = styled.div`
-  background-color: tomato;
   width: 50px;
   height: 50px;
   border-radius: 30px;
+  background-color: tomato;
+  overflow: hidden;
 `;
+
 const PostArea = styled.div`
   flex: 1;
   display: flex;
@@ -28,6 +37,7 @@ const PostArea = styled.div`
   justify-content: space-between;
   height: auto;
 `;
+
 const TextArea = styled.textarea`
   resize: none;
   background-color: black;
@@ -42,12 +52,14 @@ const TextArea = styled.textarea`
     outline-color: #118bf0;
   }
 `;
+
 const BottomMenu = styled.div`
   display: flex;
   justify-content: space-between;
   margin-top: 15px;
   border-radius: 30px;
 `;
+
 const AttachPhotoButton = styled.label`
   padding: 5px 20px;
   background-color: #19315d;
@@ -57,9 +69,11 @@ const AttachPhotoButton = styled.label`
   font-weight: bold;
   cursor: pointer;
 `;
+
 const AttachPhotoInput = styled.input`
   display: none;
 `;
+
 const SubmitButton = styled.input`
   padding: 5px 20px;
   border-radius: 30px;
@@ -74,6 +88,7 @@ const SubmitButton = styled.input`
     opacity: 0.8;
   }
 `;
+
 const ImagePreviewContainer = styled.div`
   display: flex;
   gap: 10px;
@@ -81,17 +96,20 @@ const ImagePreviewContainer = styled.div`
   overflow-x: auto;
   padding-bottom: 10px;
 `;
+
 const ImagePreviewWrapper = styled.div`
   position: relative;
   width: 100px;
   height: 100px;
 `;
+
 const ImagePreview = styled.img`
   width: 100px;
   height: 100px;
   object-fit: cover;
   border-radius: 10px;
 `;
+
 const RemoveImageButton = styled.button`
   position: absolute;
   top: 5px;
@@ -107,6 +125,7 @@ const RemoveImageButton = styled.button`
   justify-content: center;
   cursor: pointer;
 `;
+
 const ImageCountBadge = styled.div`
   position: absolute;
   top: 5px;
@@ -129,11 +148,31 @@ export default () => {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
+
+  useEffect(() => {
+    const loadProfilePhoto = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      let photoUrl = user.photoURL || "";
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        if (profileDoc.exists() && profileDoc.data().photoUrl) {
+          photoUrl = profileDoc.data().photoUrl;
+        }
+      } catch (err) {
+        console.error("프로필 사진 로드 실패:", err);
+      }
+      setProfilePhotoUrl(photoUrl);
+    };
+    loadProfilePhoto();
+  }, []);
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setPost(value);
-    if (textAreaRef && textAreaRef.current) {
+    if (textAreaRef.current) {
       textAreaRef.current.style.height = "auto";
       textAreaRef.current.style.height = `${textAreaRef.current.scrollHeight}px`;
     }
@@ -143,7 +182,6 @@ export default () => {
     const selectedFiles = e.target.files;
     if (selectedFiles) {
       const newFiles = Array.from(selectedFiles).slice(0, 5 - files.length);
-
       const newPreviews: string[] = [];
       const newFilesToAdd: File[] = [];
 
@@ -166,27 +204,11 @@ export default () => {
   const removeImage = (indexToRemove: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
     setPreviews((prev) => prev.filter((_, index) => index !== indexToRemove));
-
-    if (textAreaRef.current) {
-      textAreaRef.current.value = "";
-    }
-  };
-
-  const deleteUploadedImages = async (filenames: string[]) => {
-    for (const filename of filenames) {
-      try {
-        await axios.post("http://uploadloop.kro.kr:4000/delete", {
-          url: `http://uploadloop.kro.kr:4000/postphoto/${filename}`,
-        });
-      } catch (err) {
-        console.error("이미지 삭제 실패:", err);
-      }
-    }
+    if (textAreaRef.current) textAreaRef.current.value = "";
   };
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     const user = auth.currentUser;
     if (!user) {
       alert("로그인이 필요합니다.");
@@ -199,45 +221,47 @@ export default () => {
     }
 
     if (loading) return;
-
     setLoading(true);
 
     try {
       const photoUrls: string[] = [];
       for (const file of files) {
         const formData = new FormData();
-        formData.append("file", file); // ✅ multer에서 사용하는 키 이름
+        formData.append("file", file);
+        const response = await axios.post("http://uploadloop.kro.kr:4000/postphoto", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        photoUrls.push(response.data.filename);
+      }
 
-        const response = await axios.post(
-          "http://uploadloop.kro.kr:4000/postphoto", // ✅ 수정된 경로
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
+      let profileName = user.displayName || "";
+      let profilePhoto = user.photoURL || "";
 
-        // ✅ 서버에서 filename 그대로 받음
-        const filename = response.data.filename;
-        photoUrls.push(filename);
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
+          if (profileData.name) profileName = profileData.name;
+          if (profileData.photoUrl) profilePhoto = profileData.photoUrl;
+        }
+      } catch (err) {
+        console.error("프로필 정보 가져오기 실패:", err);
       }
 
       const myPost = {
-        nickname: user.displayName,
+        nickname: profileName,
         userId: user.uid,
-        email: user.email, // ✅ 이메일 추가!
+        email: user.email,
         createdAt: Date.now(),
         post: post,
         photoUrls: photoUrls,
-        photoUrl: user.photoURL || "",
+        photoUrl: profilePhoto,
         likeCount: 0,
         commentCount: 0,
         likedBy: [],
       };
 
-      const path = collection(db, "posts");
-      await addDoc(path, myPost);
+      await addDoc(collection(db, "posts"), myPost);
 
       setPost("");
       setFiles([]);
@@ -256,7 +280,9 @@ export default () => {
 
   return (
     <Form onSubmit={onSubmit}>
-      <ProfileArea></ProfileArea>
+      <ProfileArea>
+        {profilePhotoUrl && <ProfileImage src={profilePhotoUrl} alt="프로필 사진" />}
+      </ProfileArea>
       <PostArea>
         <TextArea
           ref={textAreaRef}
@@ -264,16 +290,13 @@ export default () => {
           value={post}
           onChange={onChange}
           placeholder="무슨 일이 일어났나요?"
-        ></TextArea>
+        />
         {previews.length > 0 && (
           <ImagePreviewContainer>
             {previews.map((preview, index) => (
               <ImagePreviewWrapper key={index}>
                 <ImagePreview src={preview} alt={`preview ${index}`} />
-                <RemoveImageButton
-                  type="button"
-                  onClick={() => removeImage(index)}
-                >
+                <RemoveImageButton type="button" onClick={() => removeImage(index)}>
                   X
                 </RemoveImageButton>
                 <ImageCountBadge>
@@ -285,9 +308,7 @@ export default () => {
         )}
         <BottomMenu>
           <AttachPhotoButton htmlFor="photo">
-            {previews.length > 0
-              ? `사진 추가됨 (${previews.length}/5)`
-              : "사진 업로드"}
+            {previews.length > 0 ? `사진 추가됨 (${previews.length}/5)` : "사진 업로드"}
           </AttachPhotoButton>
           <AttachPhotoInput
             ref={fileInputRef}

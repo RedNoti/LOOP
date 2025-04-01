@@ -20,25 +20,46 @@ export const useProfileFunctions = () => {
   );
   const [imageToDelete, setImageToDelete] = useState<string | null>(null);
 
-  const handleDeletePhoto = () => {
+  // 수정된 부분: 이미지 삭제 함수 개선
+  const handleDeletePhoto = async () => {
     const isUploadedPhoto =
       profile.photoUrl &&
       profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/");
 
+    // 이미지가 업로드된 이미지인 경우 서버에서 삭제 요청
     if (isUploadedPhoto) {
-      fetch("http://uploadloop.kro.kr:4000/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: profile.photoUrl }),
-      }).catch((err) => {
-        console.error("서버에서 이미지 삭제 실패:", err);
-      });
+      try {
+        const response = await fetch("http://uploadloop.kro.kr:4000/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: profile.photoUrl }),
+        });
+
+        if (!response.ok) {
+          console.error("서버에서 이미지 삭제 실패:", await response.text());
+        } else {
+          console.log("서버에서 이미지 삭제 성공");
+        }
+      } catch (err) {
+        console.error("서버에서 이미지 삭제 요청 중 오류:", err);
+      }
     }
 
-    setPendingPhotoFile(null);
+    // 프로필 상태 업데이트 - 이미지 URL을 빈 문자열로 설정
     setProfile((prev) => ({ ...prev, photoUrl: "" }));
+
+    // 대기 중인 파일 정보 초기화
+    setPendingPhotoFile(null);
+
+    // 삭제할 이미지 참조 초기화
+    setImageToDelete(null);
+
+    // 파일 입력 필드 초기화 (추가)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const [profile, setProfile] = useState<ProfileData>({
@@ -134,6 +155,14 @@ export const useProfileFunctions = () => {
       if (file.size > maxSize) {
         alert("파일 크기가 5MB를 초과할 수 없습니다.");
         return;
+      }
+
+      // 기존 이미지가 업로드된 이미지인 경우 삭제 표시
+      if (
+        profile.photoUrl &&
+        profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/")
+      ) {
+        setImageToDelete(profile.photoUrl);
       }
 
       setPendingPhotoFile(file); // Store file locally

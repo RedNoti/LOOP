@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { IPost } from "../types/post-type";
 import { auth, db } from "../firebaseConfig";
-import axios from "axios";
 import moment from "moment";
 import {
   deleteDoc,
@@ -12,6 +11,9 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
+  setDoc,
+  collection,
+  getDocs,
 } from "firebase/firestore";
 
 const Container = styled.div`
@@ -34,6 +36,7 @@ const Wrapper = styled.div`
 `;
 
 const ProfileArea = styled.div``;
+
 const ProfileImg = styled.img`
   width: 22px;
   height: 22px;
@@ -103,6 +106,8 @@ const DeleteBtn = styled(Button)`
 
 const LikeBtn = styled(Button)`
   background-color: #ff8c00;
+  display: flex;
+  align-items: center;
 `;
 
 const CommentBtn = styled(Button)`
@@ -123,62 +128,103 @@ const EditCommentInput = styled.textarea`
   margin-top: 5px;
   border-radius: 5px;
   font-size: 14px;
+  resize: none;
+  overflow-y: auto;
 `;
 
-const ImageContainer = styled.div`
+const ImageList = styled.div`
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
   margin-top: 10px;
-  overflow-x: auto;
 `;
 
 const PostImage = styled.img`
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
   border-radius: 10px;
+  object-fit: cover;
 `;
 
-export default ({
+const Post = ({
   id,
   userId,
   createdAt,
   nickname,
   post,
-  photoUrls,
   photoUrl,
-  email,
+  comments,
+  photoUrls,
 }: IPost) => {
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
-  const [comments, setComments] = useState(0);
+  const [commentCount, setCommentCount] = useState(
+    comments ? comments.length : 0
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const [hasLiked, setHasLiked] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [commentList, setCommentList] = useState<
+    { userId: string; nickname: string; content: string; createdAt: number }[]
+  >(comments || []);
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState(
+    photoUrl || defaultProfileImg
+  );
+  const [currentNickname, setCurrentNickname] = useState(nickname);
 
   useEffect(() => {
     const checkLikeStatus = async () => {
       try {
         const docRef = doc(db, "posts", id);
         const docSnap = await getDoc(docRef);
-
         if (docSnap.exists()) {
           const data = docSnap.data();
           setLikes(data.likeCount || 0);
-          setComments(data.commentCount || 0);
+          setCommentCount(data.commentCount || 0);
           setHasLiked(data.likedBy?.includes(user?.uid) || false);
-        } else {
-          console.log("문서를 찾을 수 없습니다.");
         }
       } catch (error) {
         console.error("문서 조회 오류:", error);
       }
     };
 
+    const loadComments = async () => {
+      const commentsRef = collection(db, "posts", id, "comments");
+      const commentSnapshot = await getDocs(commentsRef);
+      const commentList = commentSnapshot.docs.map(
+        (doc) =>
+          doc.data() as {
+            userId: string;
+            nickname: string;
+            content: string;
+            createdAt: number;
+          }
+      );
+      setCommentList(commentList);
+    };
+
+    const fetchLatestProfileInfo = async () => {
+      try {
+        const profileDoc = await getDoc(doc(db, "profiles", userId));
+        if (profileDoc.exists()) {
+          const data = profileDoc.data();
+          if (data.photoUrl) setCurrentPhotoUrl(data.photoUrl);
+          if (data.name) setCurrentNickname(data.name);
+        }
+      } catch (error) {
+        console.error("프로필 정보 가져오기 실패:", error);
+      }
+    };
+
     if (user) {
       checkLikeStatus();
+      loadComments();
+      fetchLatestProfileInfo();
     }
-  }, [id, user]);
+  }, [id, user, userId]);
 
   const onLike = async () => {
     const docRef = doc(db, "posts", id);
@@ -201,95 +247,127 @@ export default ({
   const onEdit = async () => {
     const docRef = doc(db, "posts", id);
     try {
-      await updateDoc(docRef, {
-        post: editedPost,
-      });
+      await updateDoc(docRef, { post: editedPost });
       setIsEditing(false);
     } catch (e) {
-      console.error("댓글 수정 오류:", e);
+      console.error("게시글 수정 오류:", e);
     }
   };
 
-  const onDeleteComment = async () => {
-    const isOK = window.confirm("댓글을 삭제하시겠습니까?");
-    try {
-      if (isOK) {
-        // Firestore에서 문서 삭제
-        const removeDoc = doc(db, "posts", id);
+  const onDeletePost = async () => {
+    if (window.confirm("게시글을 삭제하시겠습니까?")) {
+      try {
+        const removeDoc = await doc(db, "posts", id);
         await deleteDoc(removeDoc);
-
-        // 첨부된 이미지 삭제 요청
-        if (photoUrls && photoUrls.length > 0) {
-          for (const filename of photoUrls) {
-            try {
-              await axios.post("http://uploadloop.kro.kr:4000/delete", {
-                url: `http://uploadloop.kro.kr:4000/postphoto/${filename}`,
-              });
-            } catch (err) {
-              console.error("이미지 삭제 실패:", err);
-            }
-          }
-        }
-
-        console.log("게시글 및 이미지 삭제 완료");
+        console.log("게시글이 삭제되었습니다.");
+      } catch (e) {
+        console.error("게시글 삭제 오류:", e);
       }
-    } catch (e) {
-      console.error("댓글 삭제 오류:", e);
     }
   };
+
+  const onAddComment = async () => {
+    if (!newComment) return;
+    const commentData = {
+      userId: user?.uid || "",
+      nickname: user?.displayName || "익명",
+      content: newComment,
+      createdAt: new Date().getTime(),
+    };
+    const commentsRef = collection(db, "posts", id, "comments");
+    try {
+      await setDoc(doc(commentsRef), commentData);
+      setNewComment("");
+      setCommentCount(commentCount + 1);
+      setCommentList((prev) => [...prev, commentData]);
+    } catch (error) {
+      console.error("댓글 추가 오류:", error);
+    }
+  };
+
+  const onCommentClick = () => setShowComments(!showComments);
 
   return (
     <Container>
       <Wrapper>
         <ProfileArea>
-          <ProfileImg src={photoUrl || defaultProfileImg} />
+          <ProfileImg src={currentPhotoUrl} />
         </ProfileArea>
         <Content>
           <Topbar>
             <UserInfo>
-              <UserName>{nickname}</UserName>
-              <UserEmail>{email}</UserEmail>
+              <UserName>{currentNickname}</UserName>
+              {auth.currentUser && (
+                <UserEmail>{auth.currentUser.email}</UserEmail>
+              )}
             </UserInfo>
             {user?.uid === userId && (
-              <DeleteBtn onClick={onDeleteComment}>삭제</DeleteBtn>
+              <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
             )}
           </Topbar>
-          {!isEditing ? (
+          {isEditing ? (
             <>
-              <PostText>{post}</PostText>
-              {photoUrls && photoUrls.length > 0 && (
-                <ImageContainer>
-                  {photoUrls.map((url, index) => (
-                    <PostImage
-                      key={index}
-                      src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
-                      alt={`Post image ${index + 1}`}
-                    />
-                  ))}
-                </ImageContainer>
-              )}
-              <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
-            </>
-          ) : (
-            <div>
               <EditCommentInput
                 value={editedPost}
                 onChange={(e) => setEditedPost(e.target.value)}
               />
               <Button onClick={onEdit}>수정 완료</Button>
-            </div>
+            </>
+          ) : (
+            <PostText>{post}</PostText>
+          )}
+          <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
+          {photoUrls && photoUrls.length > 0 && (
+            <ImageList>
+              {photoUrls.map((url, idx) => (
+                <PostImage
+                  key={idx}
+                  src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
+                  alt={`업로드 이미지 ${idx + 1}`}
+                />
+              ))}
+            </ImageList>
           )}
         </Content>
       </Wrapper>
       <Footer>
         <LikeBtn onClick={onLike}>
-          {hasLiked ? `좋아요 ${likes}` : `좋아요 ${likes}`}
+          <img
+            src={hasLiked ? "/heart2.png" : "/heart.png"}
+            alt="Like"
+            width="15"
+            height="15"
+          />
+          <span>{likes}</span>
         </LikeBtn>
-        <CommentBtn onClick={onDeleteComment}>댓글 {comments}</CommentBtn>
+        <CommentBtn onClick={onCommentClick}>
+          <img src="/comment.png" alt="Comment" width="15" height="15" />
+          <span>{commentCount}</span>
+        </CommentBtn>
         {user?.uid === userId && (
           <EditBtn onClick={() => setIsEditing(true)}>수정</EditBtn>
         )}
       </Footer>
+
+      {showComments && (
+        <div>
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="댓글을 작성하세요"
+          />
+          <Button onClick={onAddComment}>댓글 추가</Button>
+          <div>
+            {commentList.map((comment, index) => (
+              <div key={index}>
+                <strong>{comment.nickname}</strong>: {comment.content}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </Container>
   );
 };
+
+export default Post;
