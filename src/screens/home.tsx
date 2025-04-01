@@ -20,6 +20,7 @@ const ContentArea = styled.div`
     flex: 1;
     overflow-y: auto;
     min-height: 0;
+    margin-right: 10px;
   }
 `;
 
