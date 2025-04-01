@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState, MouseEvent, TouchEvent } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
@@ -77,6 +77,42 @@ const Controls = styled.div`
     &:hover {
       transform: scale(1.1);
     }
+  }
+`;
+
+const ProgressBarWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 240px;
+  margin-top: 1rem;
+`;
+
+const ProgressTime = styled.span`
+  font-size: 0.75rem;
+  color: #bbb;
+  width: 30px;
+  text-align: center;
+`;
+
+const ProgressBar = styled.input`
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(to right, #1db954 0%, #444 0%);
+  border-radius: 2px;
+  outline: none;
+  position: relative;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
   }
 `;
 
@@ -181,6 +217,12 @@ const ScrollableContent = styled.div`
   flex: 1;
 `;
 
+function formatTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${minutes}:${secs < 10 ? "0" : ""}${secs}`;
+}
+
 export default function YouTubeMusicPlayer() {
   const {
     currentVideoId,
@@ -200,6 +242,60 @@ export default function YouTubeMusicPlayer() {
     playPlaylist,
   } = useMusicPlayer();
 
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [sliderValue, setSliderValue] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // 시킹 중에는 현재 시간 업데이트 건너뛰기
+      if (!isSeeking && playerRef.current) {
+        const time = playerRef.current.getCurrentTime();
+        if (typeof time === "number" && !isNaN(time)) {
+          setCurrentTime(time);
+          setSliderValue(time);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [playerRef, isSeeking]);
+
+  const handleSeekStart = () => {
+    setIsSeeking(true);
+  };
+
+  const handleSeekChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // 드래그 중에만 슬라이더 값 업데이트
+    setSliderValue(parseFloat(event.target.value));
+  };
+
+  const handleSeek = () => {
+    if (playerRef.current) {
+      // 실제 비디오 시간 변경
+      playerRef.current.seekTo(sliderValue, true);
+      setCurrentTime(sliderValue);
+
+      // 현재 재생 상태 확인 (1은 재생 중)
+      const playerState = playerRef.current.getPlayerState();
+
+      // 만약 재생 중이었다면, 계속 재생
+      if (playerState === 1 || isPlaying) {
+        playerRef.current.playVideo();
+      }
+    }
+
+    // 시킹 종료
+    setIsSeeking(false);
+  };
+
+  // 재생 바의 진행 상태를 보여주는 스타일 계산
+  const progressPercentage = duration > 0 ? (sliderValue / duration) * 100 : 0;
+  const progressStyle = {
+    background: `linear-gradient(to right, #1db954 ${progressPercentage}%, #444 ${progressPercentage}%)`,
+  };
+
   return (
     <Container>
       {currentVideoId && (
@@ -209,6 +305,10 @@ export default function YouTubeMusicPlayer() {
           opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
           onReady={(e: YouTubeEvent<YouTubePlayer>) => {
             playerRef.current = e.target;
+            const duration = e.target.getDuration();
+            if (typeof duration === "number" && !isNaN(duration)) {
+              setDuration(duration);
+            }
           }}
           onStateChange={onStateChange}
           onEnd={onEnd}
@@ -232,6 +332,22 @@ export default function YouTubeMusicPlayer() {
             <SkipForward size={28} />
           </button>
         </Controls>
+
+        <ProgressBarWrapper>
+          <ProgressTime>{formatTime(currentTime)}</ProgressTime>
+          <ProgressBar
+            type="range"
+            min="0"
+            max={duration}
+            value={sliderValue}
+            style={progressStyle}
+            onMouseDown={handleSeekStart}
+            onChange={handleSeekChange}
+            onMouseUp={handleSeek}
+            onTouchEnd={handleSeek}
+          />
+          <ProgressTime>{formatTime(duration)}</ProgressTime>
+        </ProgressBarWrapper>
 
         <VolumeWrapper>
           <Volume2 size={16} />
