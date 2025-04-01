@@ -1,7 +1,15 @@
 import React, { useEffect, useState, MouseEvent, TouchEvent } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
-import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  Repeat,
+  Shuffle,
+} from "lucide-react";
 import { useMusicPlayer } from "../components/MusicFunction";
 
 const Container = styled.div`
@@ -116,15 +124,65 @@ const ProgressBar = styled.input`
   }
 `;
 
-const VolumeWrapper = styled.div`
+const PlayerControlsWrapper = styled.div`
   margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
+  width: 240px;
+  justify-content: space-between;
+`;
+
+const VolumeWrapper = styled.div`
   display: flex;
   align-items: center;
   gap: 0.75rem;
 `;
 
 const VolumeSlider = styled.input`
-  width: 150px;
+  width: 100px;
+  height: 6px;
+  appearance: none;
+  background: linear-gradient(to right, #1db954 50%, #444 50%);
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    position: relative;
+    z-index: 2;
+  }
+
+  &::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    border: none;
+  }
+`;
+
+const PlaybackControlsWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const PlaybackControlButton = styled.button<{ active?: boolean }>`
+  background: none;
+  border: none;
+  color: ${(props) => (props.active ? "#1db954" : "white")};
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
 `;
 
 const SectionTitle = styled.h3`
@@ -223,6 +281,13 @@ function formatTime(seconds: number) {
   return `${minutes}:${secs < 10 ? "0" : ""}${secs}`;
 }
 
+// 반복 모드를 위한 상수 정의
+enum RepeatMode {
+  NO_REPEAT = 0,
+  REPEAT_ALL = 1,
+  REPEAT_ONE = 2,
+}
+
 export default function YouTubeMusicPlayer() {
   const {
     currentVideoId,
@@ -246,6 +311,12 @@ export default function YouTubeMusicPlayer() {
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
+
+  // 새로운 state 추가
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(
+    RepeatMode.NO_REPEAT
+  );
+  const [shuffleMode, setShuffleMode] = useState<boolean>(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -296,6 +367,40 @@ export default function YouTubeMusicPlayer() {
     background: `linear-gradient(to right, #1db954 ${progressPercentage}%, #444 ${progressPercentage}%)`,
   };
 
+  // 반복 모드 토글 함수
+  const toggleRepeatMode = () => {
+    setRepeatMode((prevMode) => {
+      switch (prevMode) {
+        case RepeatMode.NO_REPEAT:
+          return RepeatMode.REPEAT_ALL;
+        case RepeatMode.REPEAT_ALL:
+          return RepeatMode.REPEAT_ONE;
+        case RepeatMode.REPEAT_ONE:
+          return RepeatMode.NO_REPEAT;
+        default:
+          return RepeatMode.NO_REPEAT;
+      }
+    });
+  };
+
+  // 셔플 모드 토글 함수
+  const toggleShuffleMode = () => {
+    setShuffleMode((prevMode) => !prevMode);
+  };
+
+  // 트랙 종료 시 핸들러 수정 (onEnd 함수를 직접 대체할 수 있지만, 이 예제에서는 래핑)
+  const handleTrackEnd = () => {
+    if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
+      // 한 곡 반복 모드면 현재 곡을 다시 재생
+      playerRef.current.seekTo(0, true);
+      playerRef.current.playVideo();
+    } else {
+      // 그 외의 경우 기존 onEnd 함수 호출
+      // 셔플 모드나 전체 반복 모드는 MusicFunction에서 구현 필요
+      onEnd();
+    }
+  };
+
   return (
     <Container>
       {currentVideoId && (
@@ -311,7 +416,7 @@ export default function YouTubeMusicPlayer() {
             }
           }}
           onStateChange={onStateChange}
-          onEnd={onEnd}
+          onEnd={handleTrackEnd}
         />
       )}
 
@@ -349,17 +454,56 @@ export default function YouTubeMusicPlayer() {
           <ProgressTime>{formatTime(duration)}</ProgressTime>
         </ProgressBarWrapper>
 
-        <VolumeWrapper>
-          <Volume2 size={16} />
-          <VolumeSlider
-            type="range"
-            min="0"
-            max="100"
-            value={volume}
-            onChange={changeVolume}
-          />
-          <span style={{ fontSize: "0.75rem" }}>{volume}%</span>
-        </VolumeWrapper>
+        <PlayerControlsWrapper>
+          <VolumeWrapper>
+            <Volume2 size={16} />
+            <VolumeSlider
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={changeVolume}
+              style={{
+                background: `linear-gradient(to right, #1db954 ${volume}%, #444 ${volume}%)`,
+              }}
+            />
+          </VolumeWrapper>
+
+          <PlaybackControlsWrapper>
+            <PlaybackControlButton
+              active={shuffleMode}
+              onClick={toggleShuffleMode}
+              title="Shuffle Play"
+            >
+              <Shuffle size={16} />
+            </PlaybackControlButton>
+            <PlaybackControlButton
+              active={repeatMode !== RepeatMode.NO_REPEAT}
+              onClick={toggleRepeatMode}
+              title={
+                repeatMode === RepeatMode.NO_REPEAT
+                  ? "No Repeat"
+                  : repeatMode === RepeatMode.REPEAT_ALL
+                  ? "Repeat All"
+                  : "Repeat One"
+              }
+            >
+              <Repeat size={16} />
+              {repeatMode === RepeatMode.REPEAT_ONE && (
+                <span
+                  style={{
+                    fontSize: "10px",
+                    position: "absolute",
+                    marginTop: "-8px",
+                    marginLeft: "-6px",
+                  }}
+                >
+                  1
+                </span>
+              )}
+            </PlaybackControlButton>
+          </PlaybackControlsWrapper>
+        </PlayerControlsWrapper>
       </PlayerWrapper>
 
       <ScrollableContent>
