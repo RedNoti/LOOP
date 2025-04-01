@@ -1,241 +1,99 @@
 import { useState, useEffect } from "react";
 import styled from "styled-components";
-import { IPost } from "../types/post-type";
 import { auth, db } from "../firebaseConfig";
-import moment from "moment";
 import {
-  deleteDoc,
   doc,
+  getDoc,
   updateDoc,
-  increment,
+  deleteDoc,
   arrayUnion,
   arrayRemove,
-  getDoc,
-  setDoc,
-  collection,
-  getDocs,
+  increment,
 } from "firebase/firestore";
+import CommentSection from "./Comment"; // 대소문자 확인!
 
-const Container = styled.div`
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  border: 1px solid #353535;
-  padding: 10px 15px;
-  border-radius: 15px;
-  height: auto;
-  box-sizing: border-box;
-  overflow-wrap: break-word;
-  background-color: rgb(36, 36, 36);
-`;
-
-const Wrapper = styled.div`
-  display: flex;
-  gap: 5px;
-  align-items: flex-start;
-`;
-
-const ProfileArea = styled.div``;
-
-const ProfileImg = styled.img`
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background-color: white;
-`;
-
-const Content = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: 100%;
-  overflow-wrap: break-word;
-  word-break: break-word;
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  gap: 5px;
-  align-items: flex-end;
-`;
-
-const UserEmail = styled.div`
-  font-size: 10px;
-  color: #52adf8;
-`;
-
-const UserName = styled.div`
-  font-weight: 700;
-  font-size: 13px;
-`;
-
-const PostText = styled.div`
-  font-size: 15px;
-`;
-
-const CreateTime = styled.div`
-  font-size: 10px;
-  color: #575757;
-`;
-
-const Footer = styled.div`
-  display: flex;
-  gap: 8px;
-  margin: 10px 0px;
-`;
-
-const Topbar = styled.div`
-  display: flex;
-  justify-content: space-between;
-`;
-
-const Button = styled.button`
-  cursor: pointer;
-  font-size: 12px;
-  padding: 5px;
-  border: none;
-  background-color: #52adf8;
-  color: white;
-  border-radius: 5px;
-`;
-
-const DeleteBtn = styled(Button)`
-  background-color: #ff4747;
-`;
-
-const LikeBtn = styled(Button)`
-  background-color: #ff8c00;
-  display: flex;
-  align-items: center;
-`;
-
-const CommentBtn = styled(Button)`
-  background-color: #4caf50;
-`;
-
-const EditBtn = styled(Button)`
-  background-color: #2196f3;
-`;
+interface PostProps {
+  id: string;
+  userId: string;
+  nickname: string;
+  post: string;
+  createdAt: number;
+  photoUrl?: string;
+  comments?: {
+    userId: string;
+    nickname: string;
+    content: string;
+    createdAt: number;
+  }[];
+}
 
 const defaultProfileImg =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
 
-const EditCommentInput = styled.textarea`
-  width: 100%;
-  height: 60px;
-  padding: 5px;
-  margin-top: 5px;
-  border-radius: 5px;
-  font-size: 14px;
-  resize: none;
-  overflow-y: auto;
-`;
-
-const ImageContainer = styled.div`
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-  overflow-x: auto;
-`;
-
-const PostImage = styled.img`
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 10px;
-`;
-
 const Post = ({
   id,
   userId,
-  createdAt,
   nickname,
   post,
+  createdAt,
   photoUrl,
   comments,
-}: IPost) => {
+}: PostProps) => {
+  const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
-  const [commentCount, setCommentCount] = useState(
-    comments ? comments.length : 0
-  );
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedPost, setEditedPost] = useState(post);
   const [hasLiked, setHasLiked] = useState(false);
   const [showComments, setShowComments] = useState(false);
-  const [newComment, setNewComment] = useState("");
-  const [commentList, setCommentList] = useState<
-    { userId: string; nickname: string; content: string; createdAt: number }[]
-  >(comments || []);
-  const [currentPhotoUrl, setCurrentPhotoUrl] = useState(
-    photoUrl || defaultProfileImg
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | undefined>(
+    photoUrl
   );
-  const [currentNickname, setCurrentNickname] = useState(nickname);
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]); // Added state for photoUrls
+  const [currentNickname, setCurrentNickname] = useState<string | undefined>(
+    nickname
+  );
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPost, setEditedPost] = useState(post);
 
   useEffect(() => {
-    const checkLikeStatus = async () => {
-      try {
-        const docRef = doc(db, "posts", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setLikes(data.likeCount || 0);
-          setCommentCount(data.commentCount || 0);
-          setHasLiked(data.likedBy?.includes(user?.uid) || false);
-          setPhotoUrls(data.photoUrls || []); // Update photoUrls state
-        }
-      } catch (error) {
-        console.error("문서 조회 오류:", error);
+    const fetchPost = async () => {
+      const postRef = doc(db, "posts", id);
+      const docSnap = await getDoc(postRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLikes(data.likeCount || 0);
+        setHasLiked(data.likedBy?.includes(user?.uid));
+        setCurrentPhotoUrl(data.photoUrl || defaultProfileImg);
+        setCurrentNickname(data.nickname || nickname);
+        setPhotoUrls(data.photoUrls || []);
       }
     };
 
-    const loadComments = async () => {
-      const commentsRef = collection(db, "posts", id, "comments");
-      const commentSnapshot = await getDocs(commentsRef);
-      const commentList = commentSnapshot.docs.map(
-        (doc) =>
-          doc.data() as {
-            userId: string;
-            nickname: string;
-            content: string;
-            createdAt: number;
-          }
-      );
-      setCommentList(commentList);
-    };
+    fetchPost();
+  }, [id, user?.uid, nickname]);
 
-    const fetchLatestProfileInfo = async () => {
-      try {
-        const profileDoc = await getDoc(doc(db, "profiles", userId));
-        if (profileDoc.exists()) {
-          const data = profileDoc.data();
-          if (data.photoUrl) setCurrentPhotoUrl(data.photoUrl);
-          if (data.name) setCurrentNickname(data.name);
-        }
-      } catch (error) {
-        console.error("프로필 정보 가져오기 실패:", error);
+  useEffect(() => {
+    const fetchComments = async () => {
+      const postRef = doc(db, "posts", id);
+      const docSnap = await getDoc(postRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCommentList(data.comments || []);
       }
     };
 
-    if (user) {
-      checkLikeStatus();
-      loadComments();
-      fetchLatestProfileInfo();
-    }
-  }, [id, user, userId]);
+    fetchComments();
+  }, [id]);
 
-  const onLike = async () => {
-    const docRef = doc(db, "posts", id);
+  const handleLike = async () => {
+    const postRef = doc(db, "posts", id);
     if (hasLiked) {
-      await updateDoc(docRef, {
+      await updateDoc(postRef, {
         likeCount: increment(-1),
         likedBy: arrayRemove(user?.uid),
       });
       setLikes(likes - 1);
     } else {
-      await updateDoc(docRef, {
+      await updateDoc(postRef, {
         likeCount: increment(1),
         likedBy: arrayUnion(user?.uid),
       });
@@ -244,130 +102,240 @@ const Post = ({
     setHasLiked(!hasLiked);
   };
 
-  const onEdit = async () => {
-    const docRef = doc(db, "posts", id);
-    try {
-      await updateDoc(docRef, { post: editedPost });
-      setIsEditing(false);
-    } catch (e) {
-      console.error("게시글 수정 오류:", e);
-    }
-  };
-
   const onDeletePost = async () => {
-    if (window.confirm("게시글을 삭제하시겠습니까?")) {
-      try {
-        const removeDoc = await doc(db, "posts", id);
-        await deleteDoc(removeDoc);
-        console.log("게시글이 삭제되었습니다.");
-      } catch (e) {
-        console.error("게시글 삭제 오류:", e);
-      }
-    }
-  };
-
-  const onAddComment = async () => {
-    if (!newComment) return;
-    const commentData = {
-      userId: user?.uid || "",
-      nickname: user?.displayName || "익명",
-      content: newComment,
-      createdAt: new Date().getTime(),
-    };
-    const commentsRef = collection(db, "posts", id, "comments");
+    if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
-      await setDoc(doc(commentsRef), commentData);
-      setNewComment("");
-      setCommentCount(commentCount + 1);
-      setCommentList((prev) => [...prev, commentData]);
+      if (photoUrls && photoUrls.length > 0) {
+        for (const filename of photoUrls) {
+          try {
+            await fetch("http://uploadloop.kro.kr:4000/delete", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ url: `/postphoto/${filename}` }),
+            });
+          } catch (error) {
+            console.error("서버 이미지 삭제 실패:", error);
+          }
+        }
+      }
+      await deleteDoc(doc(db, "posts", id));
+      alert("게시물이 삭제되었습니다.");
     } catch (error) {
-      console.error("댓글 추가 오류:", error);
+      console.error("삭제 실패:", error);
     }
   };
-
-  const onCommentClick = () => setShowComments(!showComments);
 
   return (
     <Container>
       <Wrapper>
-        <ProfileArea>
-          <ProfileImg src={currentPhotoUrl} />
-        </ProfileArea>
-        <Content>
-          <Topbar>
-            <UserInfo>
-              <UserName>{currentNickname}</UserName>
-              {auth.currentUser && (
-                <UserEmail>{auth.currentUser.email}</UserEmail>
-              )}
-            </UserInfo>
-            {user?.uid === userId && (
-              <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
-            )}
-          </Topbar>
-          {isEditing ? (
-            <>
-              <EditCommentInput
-                value={editedPost}
-                onChange={(e) => setEditedPost(e.target.value)}
-              />
-              <Button onClick={onEdit}>수정 완료</Button>
-            </>
-          ) : (
-            <PostText>{post}</PostText>
-          )}
-          {photoUrls && photoUrls.length > 0 && (
-            <ImageContainer>
-              {photoUrls.map((url, index) => (
-                <PostImage
-                  key={index}
-                  src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
-                  alt={`Post image ${index + 1}`}
-                />
-              ))}
-            </ImageContainer>
-          )}
-          <CreateTime>{moment(createdAt).fromNow()}</CreateTime>
-        </Content>
+        <ProfileImg
+          src={currentPhotoUrl || defaultProfileImg}
+          alt="Profile"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.onerror = null;
+            target.src = defaultProfileImg;
+          }}
+        />
+        <UserInfo>
+          <UserName>{currentNickname}</UserName>
+          <UserMeta>
+            <span>{user?.uid === userId ? user.email : ""}</span>
+            <span>{new Date(createdAt).toLocaleDateString()}</span>
+          </UserMeta>
+        </UserInfo>
+        {user?.uid === userId && (
+          <div style={{ display: "flex", gap: "5px", marginLeft: "auto" }}>
+            <EditBtn onClick={() => setIsEditing(!isEditing)}>수정</EditBtn>
+            <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
+          </div>
+        )}
       </Wrapper>
-      <Footer>
-        <LikeBtn onClick={onLike}>
+      <EditableContent>
+        {isEditing ? (
+          <>
+            <textarea
+              value={editedPost}
+              onChange={(e) => setEditedPost(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px",
+                borderRadius: "5px",
+                border: "1px solid #ccc",
+                resize: "vertical",
+              }}
+            />
+            <SaveBtn
+              onClick={async () => {
+                try {
+                  await updateDoc(doc(db, "posts", id), { post: editedPost });
+                  setIsEditing(false);
+                } catch (err) {
+                  console.error("게시글 수정 오류:", err);
+                }
+              }}
+            >
+              저장
+            </SaveBtn>
+          </>
+        ) : (
+          <Content>{post}</Content>
+        )}
+      </EditableContent>
+      {photoUrls.length > 0 && (
+        <ImageGallery>
+          {photoUrls.map((url, index) => (
+            <Image
+              key={index}
+              src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
+              alt={`Post image ${index + 1}`}
+            />
+          ))}
+        </ImageGallery>
+      )}
+      <Actions>
+        <LikeBtn onClick={handleLike}>
           <img
             src={hasLiked ? "/heart2.png" : "/heart.png"}
             alt="Like"
             width="15"
-            height="15"
           />
           <span>{likes}</span>
         </LikeBtn>
-        <CommentBtn onClick={onCommentClick}>
+        <CommentBtn onClick={() => setShowComments(!showComments)}>
           <img src="/comment.png" alt="Comment" width="15" height="15" />
-          <span>{commentCount}</span>
+          <span style={{ marginLeft: "4px" }}>{commentList.length}</span>
         </CommentBtn>
-        {user?.uid === userId && (
-          <EditBtn onClick={() => setIsEditing(true)}>수정</EditBtn>
-        )}
-      </Footer>
+      </Actions>
 
       {showComments && (
-        <div>
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="댓글을 작성하세요"
-          />
-          <Button onClick={onAddComment}>댓글 추가</Button>
-          <div>
-            {commentList.map((comment, index) => (
-              <div key={index}>
-                <strong>{comment.nickname}</strong>: {comment.content}
-              </div>
-            ))}
-          </div>
-        </div>
+        <CommentSection
+          postId={id}
+          initialComments={commentList}
+          initialCount={commentList.length}
+          onCommentAdded={async (newComment) => {
+            const updatedComments = [...commentList, newComment];
+            setCommentList(updatedComments);
+            await updateDoc(doc(db, "posts", id), {
+              comments: updatedComments,
+            });
+          }}
+        />
       )}
     </Container>
   );
 };
 
 export default Post;
+
+// 스타일 생략 or 아래처럼 간단한 예시
+const Container = styled.div`
+  border: 1px solid #444;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  background: #222;
+`;
+
+const Wrapper = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+`;
+
+const ProfileImg = styled.img`
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  margin-right: 0.5rem;
+`;
+
+const UserInfo = styled.div`
+  color: #ccc;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const UserName = styled.div`
+  font-weight: bold;
+  font-size: 16px;
+  color: #fff;
+`;
+
+const UserMeta = styled.div`
+  font-size: 12px;
+  color: #aaa;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  opacity: 0.5;
+`;
+
+const EditableContent = styled.div`
+  color: #eee;
+  margin-bottom: 0.5rem;
+`;
+
+const Content = styled.div`
+  margin-bottom: 0.5rem;
+`;
+
+const ImageGallery = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const Image = styled.img`
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+`;
+
+const Actions = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  margin: 1rem 0 0.5rem 0;
+`;
+
+const LikeBtn = styled.button`
+  background: none;
+  border: none;
+  color: orange;
+  cursor: pointer;
+`;
+
+const CommentBtn = styled.button`
+  background: none;
+  border: none;
+  color: green;
+  cursor: pointer;
+`;
+
+const DeleteBtn = styled.button`
+  background: none;
+  border: none;
+  color: red;
+  cursor: pointer;
+`;
+
+const EditBtn = styled.button`
+  background: none;
+  border: none;
+  color: blue;
+  cursor: pointer;
+`;
+
+const SaveBtn = styled.button`
+  background: none;
+  border: 1px solid #ccc;
+  color: white;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+`;

@@ -1,13 +1,7 @@
 import React from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
-import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-} from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { useMusicPlayer } from "../components/MusicFunction";
 
 const Container = styled.div`
@@ -18,25 +12,42 @@ const Container = styled.div`
   overflow: auto;
   display: flex;
   flex-direction: column;
+  position: relative;
 `;
 
 const PlayerWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: sticky;
+  top: 0;
+  background-color: #121212;
+  z-index: 10;
+  padding-bottom: 1rem;
+`;
+
+const AlbumArtWrapper = styled.div`
+  position: relative;
+  width: 240px;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 `;
 
 const AlbumArt = styled.img`
-  width: 240px;
-  height: 240px;
-  border-radius: 12px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  height: 160%;
+  transform: translate(-50%, -50%);
   object-fit: cover;
-  margin-bottom: 1.25rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   transition: transform 0.3s ease;
 
   &:hover {
-    transform: scale(1.03);
+    transform: translate(-50%, -50%) scale(1.03);
   }
 `;
 
@@ -110,12 +121,22 @@ const PlaylistItem = styled.li`
     background-color: #1f1f1f;
   }
 
-  img {
+  .thumbnail {
     width: 56px;
     height: 56px;
     border-radius: 8px;
-    object-fit: cover;
+    overflow: hidden;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .thumbnail img {
+    width: 160%;
+    height: 160%;
+    object-fit: cover;
+    object-position: center;
   }
 
   p {
@@ -155,6 +176,11 @@ const PlaylistImage = styled.img`
   margin-bottom: 0.75rem;
 `;
 
+const ScrollableContent = styled.div`
+  overflow-y: auto;
+  flex: 1;
+`;
+
 export default function YouTubeMusicPlayer() {
   const {
     currentVideoId,
@@ -190,7 +216,9 @@ export default function YouTubeMusicPlayer() {
       )}
 
       <PlayerWrapper>
-        <AlbumArt src={currentVideoThumbnail} alt="album" />
+        <AlbumArtWrapper>
+          <AlbumArt src={currentVideoThumbnail} alt="album" />
+        </AlbumArtWrapper>
         <Title>{currentVideoTitle}</Title>
 
         <Controls>
@@ -218,47 +246,51 @@ export default function YouTubeMusicPlayer() {
         </VolumeWrapper>
       </PlayerWrapper>
 
-      {videos.length > 0 && (
-        <>
-          <SectionTitle>🎵 현재 재생목록</SectionTitle>
-          <PlaylistItemList>
-            {videos.map((video, index) => (
-              <PlaylistItem
-                key={index}
-                onClick={() =>
-                  playPlaylist(video.snippet.playlistId || "", index)
-                }
-              >
-                <img
-                  src={video.snippet.thumbnails.default.url}
-                  alt={video.snippet.title}
-                />
-                <p>{video.snippet.title}</p>
-              </PlaylistItem>
-            ))}
-          </PlaylistItemList>
-        </>
-      )}
+      <ScrollableContent>
+        {videos.length > 0 && (
+          <>
+            <SectionTitle>🎵 현재 재생목록</SectionTitle>
+            <PlaylistItemList>
+              {videos.map((video, index) => (
+                <PlaylistItem
+                  key={index}
+                  onClick={() =>
+                    playPlaylist(video.snippet.playlistId || "", index)
+                  }
+                >
+                  <div className="thumbnail">
+                    <img
+                      src={video.snippet.thumbnails.default.url}
+                      alt={video.snippet.title}
+                    />
+                  </div>
+                  <p>{video.snippet.title}</p>
+                </PlaylistItem>
+              ))}
+            </PlaylistItemList>
+          </>
+        )}
 
-      {playlists.length > 0 && (
-        <>
-          <SectionTitle>📁 내 재생목록</SectionTitle>
-          <PlaylistGrid>
-            {playlists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                onClick={() => playPlaylist(playlist.id)}
-              >
-                <PlaylistImage
-                  src={playlist.snippet.thumbnails.medium.url}
-                  alt={playlist.snippet.title}
-                />
-                <p>{playlist.snippet.title}</p>
-              </PlaylistCard>
-            ))}
-          </PlaylistGrid>
-        </>
-      )}
+        {playlists.length > 0 && (
+          <>
+            <SectionTitle>📁 내 재생목록</SectionTitle>
+            <PlaylistGrid>
+              {playlists.map((playlist) => (
+                <PlaylistCard
+                  key={playlist.id}
+                  onClick={() => playPlaylist(playlist.id)}
+                >
+                  <PlaylistImage
+                    src={playlist.snippet.thumbnails.medium.url}
+                    alt={playlist.snippet.title}
+                  />
+                  <p>{playlist.snippet.title}</p>
+                </PlaylistCard>
+              ))}
+            </PlaylistGrid>
+          </>
+        )}
+      </ScrollableContent>
     </Container>
   );
 }
