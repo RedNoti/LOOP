@@ -39,7 +39,10 @@ export const useMusicPlayer = () => {
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(50);
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem("musicPlayerVolume");
+    return saved ? parseInt(saved) : 50;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -186,6 +189,7 @@ export const useMusicPlayer = () => {
   const changeVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
+    localStorage.setItem("musicPlayerVolume", String(newVolume));
     if (playerRef.current) {
       playerRef.current.setVolume(newVolume);
     }

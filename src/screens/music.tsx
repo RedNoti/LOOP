@@ -1,4 +1,4 @@
-import React, { useEffect, useState, MouseEvent, TouchEvent } from "react";
+import React, { useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -288,6 +288,18 @@ enum RepeatMode {
   REPEAT_ONE = 2,
 }
 
+// 로컬 스토리지 키 상수
+const STORAGE_KEYS = {
+  VOLUME: "musicPlayerVolume",
+  LAST_VIDEO_ID: "musicPlayerLastVideoId",
+  LAST_VIDEO_TITLE: "musicPlayerLastVideoTitle",
+  LAST_VIDEO_THUMBNAIL: "musicPlayerLastVideoThumbnail",
+  REPEAT_MODE: "musicPlayerRepeatMode",
+  SHUFFLE_MODE: "musicPlayerShuffleMode",
+  LAST_PLAYLIST_ID: "musicPlayerLastPlaylistId",
+  CURRENT_VIDEO_INDEX: "musicPlayerCurrentVideoIndex",
+};
+
 export default function YouTubeMusicPlayer() {
   const {
     currentVideoId,
@@ -295,7 +307,6 @@ export default function YouTubeMusicPlayer() {
     currentVideoThumbnail,
     isPlaying,
     volume,
-    onEnd,
     onStateChange,
     playPause,
     prevTrack,
@@ -313,10 +324,75 @@ export default function YouTubeMusicPlayer() {
   const [sliderValue, setSliderValue] = useState(0);
 
   // 새로운 state 추가
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>(
-    RepeatMode.NO_REPEAT
-  );
-  const [shuffleMode, setShuffleMode] = useState<boolean>(false);
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
+    const savedRepeatMode = localStorage.getItem(STORAGE_KEYS.REPEAT_MODE);
+    return savedRepeatMode ? parseInt(savedRepeatMode) : RepeatMode.NO_REPEAT;
+  });
+
+  const [shuffleMode, setShuffleMode] = useState<boolean>(() => {
+    const savedShuffleMode = localStorage.getItem(STORAGE_KEYS.SHUFFLE_MODE);
+    return savedShuffleMode ? savedShuffleMode === "true" : false;
+  });
+
+  // 초기 로드 시 로컬 스토리지에서 설정 불러오기
+  useEffect(() => {
+    // 마지막 재생 플레이리스트 정보 불러오기
+    const savedPlaylistId = localStorage.getItem(STORAGE_KEYS.LAST_PLAYLIST_ID);
+    const savedVideoIndex = localStorage.getItem(
+      STORAGE_KEYS.CURRENT_VIDEO_INDEX
+    );
+
+    if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
+      // 컴포넌트가 완전히 마운트된 후 플레이리스트 로드
+      const timer = setTimeout(() => {
+        playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [playlists.length]);
+
+  // 볼륨 값이 변경될 때 로컬 스토리지 업데이트
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.VOLUME, String(volume));
+  }, [volume]);
+
+  // 현재 재생 비디오가 변경될 때 로컬 스토리지 업데이트
+  useEffect(() => {
+    if (currentVideoId && currentVideoTitle && currentVideoThumbnail) {
+      localStorage.setItem(STORAGE_KEYS.LAST_VIDEO_ID, currentVideoId);
+      localStorage.setItem(STORAGE_KEYS.LAST_VIDEO_TITLE, currentVideoTitle);
+      localStorage.setItem(
+        STORAGE_KEYS.LAST_VIDEO_THUMBNAIL,
+        currentVideoThumbnail
+      );
+
+      // 현재 비디오의 인덱스와 플레이리스트 ID 찾기
+      const currentVideoIndex = videos.findIndex(
+        (v) => v.id.videoId === currentVideoId
+      );
+      if (currentVideoIndex !== -1) {
+        const playlistId = videos[currentVideoIndex].snippet.playlistId;
+        localStorage.setItem(
+          STORAGE_KEYS.CURRENT_VIDEO_INDEX,
+          String(currentVideoIndex)
+        );
+        if (playlistId) {
+          localStorage.setItem(STORAGE_KEYS.LAST_PLAYLIST_ID, playlistId);
+        }
+      }
+    }
+  }, [currentVideoId, currentVideoTitle, currentVideoThumbnail, videos]);
+
+  // 반복 모드가 변경될 때 로컬 스토리지 업데이트
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
+  }, [repeatMode]);
+
+  // 셔플 모드가 변경될 때 로컬 스토리지 업데이트
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SHUFFLE_MODE, String(shuffleMode));
+  }, [shuffleMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -388,6 +464,21 @@ export default function YouTubeMusicPlayer() {
     setShuffleMode((prevMode) => !prevMode);
   };
 
+  const handleNextTrack = () => {
+    if (shuffleMode && videos.length > 1) {
+      const currentIndex = videos.findIndex(
+        (v) => v.id.videoId === currentVideoId
+      );
+      let nextIndex = currentIndex;
+      while (nextIndex === currentIndex) {
+        nextIndex = Math.floor(Math.random() * videos.length);
+      }
+      playPlaylist(videos[nextIndex].snippet.playlistId || "", nextIndex);
+    } else {
+      nextTrack();
+    }
+  };
+
   // 트랙 종료 시 핸들러 수정 (onEnd 함수를 직접 대체할 수 있지만, 이 예제에서는 래핑)
   const handleTrackEnd = () => {
     if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
@@ -395,9 +486,7 @@ export default function YouTubeMusicPlayer() {
       playerRef.current.seekTo(0, true);
       playerRef.current.playVideo();
     } else {
-      // 그 외의 경우 기존 onEnd 함수 호출
-      // 셔플 모드나 전체 반복 모드는 MusicFunction에서 구현 필요
-      onEnd();
+      handleNextTrack();
     }
   };
 
@@ -413,6 +502,14 @@ export default function YouTubeMusicPlayer() {
             const duration = e.target.getDuration();
             if (typeof duration === "number" && !isNaN(duration)) {
               setDuration(duration);
+            }
+
+            const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
+            if (savedVolume !== null) {
+              playerRef.current.setVolume(Number(savedVolume));
+              changeVolume({
+                target: { value: savedVolume },
+              } as React.ChangeEvent<HTMLInputElement>);
             }
           }}
           onStateChange={onStateChange}
@@ -433,7 +530,7 @@ export default function YouTubeMusicPlayer() {
           <button onClick={playPause}>
             {isPlaying ? <Pause size={28} /> : <Play size={28} />}
           </button>
-          <button onClick={nextTrack}>
+          <button onClick={handleNextTrack}>
             <SkipForward size={28} />
           </button>
         </Controls>
