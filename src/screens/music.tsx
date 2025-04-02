@@ -13,7 +13,6 @@ import {
 import { useMusicPlayer } from "../components/MusicFunction";
 
 const Container = styled.div`
-  background-color: #121212;
   color: white;
   padding: 2rem;
   height: 100%;
@@ -29,7 +28,6 @@ const PlayerWrapper = styled.div`
   align-items: center;
   position: sticky;
   top: 0;
-  background-color: #121212;
   z-index: 10;
   padding-bottom: 1rem;
 `;
