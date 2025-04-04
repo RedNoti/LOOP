@@ -1,3 +1,4 @@
+import ColorThief from "colorthief/dist/color-thief";
 import React, { useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
@@ -16,7 +17,7 @@ const Container = styled.div`
   color: white;
   padding: 2rem;
   height: 100%;
-  overflow: auto;
+  overflow: visuable;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -200,7 +201,7 @@ const PlaylistItemList = styled.ul`
   gap: 0.5rem;
 `;
 
-const PlaylistItem = styled.li`
+const PlaylistItem = styled.li<{ hoverColor?: string }>`
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -210,7 +211,7 @@ const PlaylistItem = styled.li`
   transition: background 0.2s;
 
   &:hover {
-    background-color: #1f1f1f;
+    background-color: ${(props) => props.hoverColor || "#1f1f1f"};
   }
 
   .thumbnail {
@@ -246,16 +247,16 @@ const PlaylistGrid = styled.div`
   gap: 1.5rem;
 `;
 
-const PlaylistCard = styled.div`
+const PlaylistCard = styled.div<{ hoverColor?: string }>`
   cursor: pointer;
-  background-color: #1f1f1f;
   border-radius: 12px;
   padding: 1rem;
   transition: background-color 0.2s, transform 0.2s;
   text-align: center;
+  font-weight: bold;
 
   &:hover {
-    background-color: #2a2a2a;
+    background-color: ${(props) => props.hoverColor || "#2a2a2a"};
     transform: translateY(-4px);
   }
 `;
@@ -298,7 +299,15 @@ const STORAGE_KEYS = {
   CURRENT_VIDEO_INDEX: "musicPlayerCurrentVideoIndex",
 };
 
-export default function YouTubeMusicPlayer() {
+export default function YouTubeMusicPlayer({
+  onColorExtract,
+  onColorExtractSecondary,
+  onColorExtractHover,
+}: {
+  onColorExtract?: (color: string) => void;
+  onColorExtractSecondary?: (color: string) => void;
+  onColorExtractHover?: (color: string) => void;
+}) {
   const {
     currentVideoId,
     currentVideoTitle,
@@ -320,6 +329,8 @@ export default function YouTubeMusicPlayer() {
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
+  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [hoverColor, setHoverColor] = useState<string | null>(null);
 
   // 새로운 state 추가
   const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
@@ -387,7 +398,49 @@ export default function YouTubeMusicPlayer() {
     localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
   }, [repeatMode]);
 
-  // 셔플 모드가 변경될 때 로컬 스토리지 업데이트
+  // Extract dominant color from album art when thumbnail changes
+  useEffect(() => {
+    if (!currentVideoThumbnail) return;
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = currentVideoThumbnail;
+
+    img.onload = () => {
+      const colorThief = new ColorThief();
+      try {
+        const palette = colorThief.getPalette(img, 5);
+        const mainColor = palette?.[0];
+        const secondColor = palette?.[1];
+
+        if (mainColor) {
+          const formattedMain = `rgb(${mainColor[0]}, ${mainColor[1]}, ${mainColor[2]})`;
+          setDominantColor(formattedMain);
+          if (onColorExtract) onColorExtract(formattedMain);
+
+          // ✅ hover color 계산
+          const desaturated = mainColor.map((c) => Math.floor(c * 0.6));
+          const formattedHover = `rgb(${desaturated[0]}, ${desaturated[1]}, ${desaturated[2]})`;
+          setHoverColor(formattedHover);
+          if (onColorExtractHover) onColorExtractHover(formattedHover);
+        }
+
+        if (secondColor && onColorExtractSecondary) {
+          const formattedSecond = `rgb(${secondColor[0]}, ${secondColor[1]}, ${secondColor[2]})`;
+          onColorExtractSecondary(formattedSecond);
+        }
+      } catch (e) {
+        console.error("Failed to extract color palette:", e);
+      }
+    };
+  }, [currentVideoThumbnail]);
+
+  // Export dominantColor via onColorExtract prop if provided
+  useEffect(() => {
+    if (dominantColor && onColorExtract) {
+      onColorExtract(dominantColor);
+    }
+  }, [dominantColor]);
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SHUFFLE_MODE, String(shuffleMode));
   }, [shuffleMode]);
@@ -609,6 +662,7 @@ export default function YouTubeMusicPlayer() {
               {videos.map((video, index) => (
                 <PlaylistItem
                   key={index}
+                  hoverColor={hoverColor || undefined}
                   onClick={() =>
                     playPlaylist(video.snippet.playlistId || "", index)
                   }
@@ -633,6 +687,7 @@ export default function YouTubeMusicPlayer() {
               {playlists.map((playlist) => (
                 <PlaylistCard
                   key={playlist.id}
+                  hoverColor={hoverColor || undefined}
                   onClick={() => playPlaylist(playlist.id)}
                 >
                   <PlaylistImage

@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
+import React, { useState } from "react";
 
 const LayoutWrapper = styled.div`
   display: flex;
@@ -10,6 +11,7 @@ const LayoutWrapper = styled.div`
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  border-radius: 15px;
 `;
 
 const Header = styled.div`
@@ -77,6 +79,8 @@ const MainContent = styled.div`
 `;
 
 export default () => {
+  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [secondaryColor, setSecondaryColor] = useState<string | null>(null);
   const navi = useNavigate();
   const location = useLocation();
   const hidePlayer =
@@ -189,13 +193,24 @@ export default () => {
                 width: "50%",
                 minWidth: "320px",
                 height: "100%",
-                padding: "1rem",
                 boxSizing: "border-box",
-                backgroundColor: "rgb(13, 15, 18)",
-                borderLeft: "1px solid #333",
+                borderLeft: "none",
+                padding: 0,
+                overflow: "hidden",
+                borderTopRightRadius: "15px", // ✅ 오른쪽 상단 둥글게
+                borderBottomRightRadius: "15px",
+                borderTopLeftRadius: "15px",
+                borderBottomLeftRadius: "15px",
+                background:
+                  dominantColor && secondaryColor
+                    ? `linear-gradient(to bottom, ${dominantColor}, ${secondaryColor})`
+                    : "#151515FF",
               }}
             >
-              <YouTubeMusicPlayer />
+              <YouTubeMusicPlayer
+                onColorExtract={setDominantColor}
+                onColorExtractSecondary={setSecondaryColor}
+              />
             </div>
           )}
         </div>
