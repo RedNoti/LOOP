@@ -1,62 +1,66 @@
-import { useNavigate } from "react-router-dom";
+import styled from "styled-components";
 import { useState } from "react";
 
-import styled from "styled-components";
-
-// 장르 선택 버튼 스타일
-const GenreButton = styled.button`
-  padding: 10px 20px;
-  margin: 5px;
-  border-radius: 30px;
-  border: 1px solid #19315d;
-  background-color: #19315d;
-  color: white;
-  font-weight: bold;
+const AlbumCard = styled.div`
+  width: 200px;
+  padding: 20px;
+  border-radius: 20px;
+  text-align: center;
+  background-color: transparent;
+  transition: background-color 0.3s ease;
   cursor: pointer;
+
   &:hover {
-    background-color: #118bf0;
+    background-color: #0b1f3a; /* hover 시 색상 */
   }
 `;
 
-// 선택된 장르 텍스트 스타일
-const SelectedGenre = styled.div`
-  margin-top: 20px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #19315d;
+const AlbumImage = styled.img`
+  width: 100%;
+  border-radius: 12px;
 `;
 
-const KategorieFunction = () => {
-  const [selectedGenre, setSelectedGenre] = useState<string>("");
+const AlbumTitle = styled.div`
+  margin-top: 10px;
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+`;
 
-  // 장르 선택 함수
-  const handleGenreSelect = (genre: string) => {
-    setSelectedGenre(genre);
-  };
+const AlbumListWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  background: linear-gradient(#776f80, #d7b8b8); /* 배경은 예시야 */
+  padding: 40px 0;
+`;
 
+const albums = [
+  {
+    title: "김치나베",
+    image: "/images/kimchi.png", // 이미지 경로는 네 프로젝트에 맞게!
+  },
+  {
+    title: "제이팝",
+    image: "/images/jpop.png",
+  },
+  {
+    title: "왁타버스 오리지널 & 스피커",
+    image: "/images/waktaverse.png",
+  },
+];
+
+const AlbumList = () => {
   return (
-    <div>
-      <h1>장르를 선택하세요</h1>
-      <div>
-        <GenreButton onClick={() => handleGenreSelect("K-POP")}>
-          K-POP
-        </GenreButton>
-        <GenreButton onClick={() => handleGenreSelect("J-POP")}>
-          J-POP
-        </GenreButton>
-        <GenreButton onClick={() => handleGenreSelect("인디")}>
-          인디
-        </GenreButton>
-        <GenreButton onClick={() => handleGenreSelect("발라드")}>
-          발라드
-        </GenreButton>
-        <GenreButton onClick={() => handleGenreSelect("OST")}>OST</GenreButton>
-      </div>
-      {selectedGenre && (
-        <SelectedGenre>선택된 장르: {selectedGenre}</SelectedGenre>
-      )}
-    </div>
+    <AlbumListWrapper>
+      {albums.map((album) => (
+        <AlbumCard key={album.title}>
+          <AlbumImage src={album.image} alt={album.title} />
+          <AlbumTitle>{album.title}</AlbumTitle>
+        </AlbumCard>
+      ))}
+    </AlbumListWrapper>
   );
 };
 
-export default KategorieFunction;
+export default AlbumList;
