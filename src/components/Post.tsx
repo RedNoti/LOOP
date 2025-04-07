@@ -198,7 +198,7 @@ const Post = ({
       <Actions>
         <LikeBtn onClick={handleLike}>
           <img
-            src={hasLiked ? "/heart2.png" : "/heart.png"}
+            src={hasLiked ? "/heart3.png" : "/heart.png"}
             alt="Like"
             width="15"
           />
