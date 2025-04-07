@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
+import { useMusicPlayer } from "./MusicFunction";
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -257,6 +258,8 @@ export default () => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
+  const { currentPlaylistId, playlists, playPlaylist } = useMusicPlayer();
+  const [attachPlaylist, setAttachPlaylist] = useState(false);
 
   useEffect(() => {
     const loadProfilePhoto = async () => {
@@ -360,6 +363,18 @@ export default () => {
         console.error("프로필 정보 가져오기 실패:", err);
       }
 
+      let playlistInfo = null;
+      if (attachPlaylist && currentPlaylistId) {
+        const playlist = playlists.find((p) => p.id === currentPlaylistId);
+        if (playlist) {
+          playlistInfo = {
+            id: playlist.id,
+            title: playlist.snippet.title,
+            thumbnail: playlist.snippet.thumbnails.medium.url,
+          };
+        }
+      }
+
       const myPost = {
         nickname: profileName,
         userId: user.uid,
@@ -371,6 +386,7 @@ export default () => {
         likeCount: 0,
         commentCount: 0,
         likedBy: [],
+        playlist: playlistInfo,
       };
 
       await addDoc(collection(db, "posts"), myPost);
@@ -449,6 +465,34 @@ export default () => {
               disabled={loading}
             />
           </BottomMenu>
+          <div style={{ marginTop: "10px" }}>
+            <label style={{ color: "white", fontSize: "12px" }}>
+              <input
+                type="checkbox"
+                checked={attachPlaylist}
+                onChange={() => setAttachPlaylist(!attachPlaylist)}
+                style={{ marginRight: "6px" }}
+              />
+              현재 재생목록 첨부
+            </label>
+            {attachPlaylist && currentPlaylistId && (
+              <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <img
+                  src={
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.thumbnails?.medium?.url
+                  }
+                  alt="playlist"
+                  style={{ width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover" }}
+                />
+                <span style={{ color: "white", fontSize: "13px" }}>
+                  {
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.title
+                  }
+                </span>
+              </div>
+            )}
+          </div>
+
         </PostArea>
       </Form>
     </Container>

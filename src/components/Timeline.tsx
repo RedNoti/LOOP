@@ -9,7 +9,7 @@ import {
   query,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
-import Post from "./Post";
+import Post from "../components/Post";
 
 const Container = styled.div`
   flex: 1;
@@ -68,6 +68,7 @@ export default () => {
             email,
             photoUrls,
             photoUrl,
+            playlist, // ✅ 재생목록 필드 추가
           } = doc.data();
 
           return {
@@ -75,9 +76,10 @@ export default () => {
             nickname,
             post,
             userId,
-            email, // ✅ 추가된 부분
+            email,
             photoUrls: photoUrls ?? [],
             photoUrl: photoUrl ?? "",
+            playlist: playlist ?? null, // ✅ null 허용
             id: doc.id,
           };
         });
