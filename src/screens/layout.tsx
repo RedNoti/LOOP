@@ -10,8 +10,6 @@ const LayoutWrapper = styled.div`
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  overflow: hidden;
-  border-radius: 15px;
 `;
 
 const Header = styled.div`
