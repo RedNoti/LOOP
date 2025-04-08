@@ -11,7 +11,7 @@ import {
   increment,
 } from "firebase/firestore";
 import CommentSection from "./Comment";
-import { useMusicPlayer } from "./MusicFunction"; // ✅ 추가
+import { useMusicPlayer } from "../components/MusicFunction"; // ✅ 추가
 
 interface PostProps {
   id: string;
@@ -30,6 +30,11 @@ interface PostProps {
     id: string;
     title: string;
     thumbnail: string;
+    tracks?: {
+      videoId: string;
+      title: string;
+      thumbnail: string;
+    }[];
   } | null;
 }
 
@@ -194,7 +199,14 @@ const Post = ({
 
       {/* 첨부된 재생목록 렌더링 */}
       {playlist && (
-        <PlaylistBox onClick={() => playPlaylist(playlist.id, 0, true)}>
+        <PlaylistBox
+          onClick={() => {
+            if (playlist?.tracks) {
+              const videoIds = playlist.tracks.map((track) => track.videoId);
+              playPlaylist(videoIds.join(","));
+            }
+          }}
+        >
           <PlaylistThumb src={playlist.thumbnail} alt="Playlist Thumbnail" />
           <PlaylistTitle>{playlist.title}</PlaylistTitle>
         </PlaylistBox>

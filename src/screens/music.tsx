@@ -343,6 +343,25 @@ export default function YouTubeMusicPlayer({
     const savedShuffleMode = localStorage.getItem(STORAGE_KEYS.SHUFFLE_MODE);
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
+  useEffect(() => {
+    const fromPost = sessionStorage.getItem("play_from_post");
+    const raw = sessionStorage.getItem("post_playlist");
+
+    if (fromPost === "true" && raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        const videoIds = parsed.tracks.map((t: any) => t.videoId);
+        if (videoIds.length > 0) {
+          playPlaylist(videoIds.join(",")); // or playPlaylist(videoIds, 0)
+        }
+      } catch (e) {
+        console.error("Post playlist parse error", e);
+      } finally {
+        sessionStorage.removeItem("play_from_post");
+        sessionStorage.removeItem("post_playlist");
+      }
+    }
+  }, []);
 
   // 초기 로드 시 로컬 스토리지에서 설정 불러오기
   useEffect(() => {
@@ -387,7 +406,7 @@ export default function YouTubeMusicPlayer({
           STORAGE_KEYS.CURRENT_VIDEO_INDEX,
           String(currentVideoIndex)
         );
-        if (playlistId) {
+        if (playlistId && playlistId !== "undefined") {
           localStorage.setItem(STORAGE_KEYS.LAST_PLAYLIST_ID, playlistId);
         }
       }
@@ -544,36 +563,32 @@ export default function YouTubeMusicPlayer({
 
   return (
     <Container>
-      {currentVideoId && (
-        <YouTube
-          videoId={currentVideoId}
-          key={currentVideoId}
-          opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
-          onReady={(e: YouTubeEvent<YouTubePlayer>) => {
-            playerRef.current = e.target;
-            playerReadyRef.current = true;
+      <YouTube
+        videoId={currentVideoId || ""}
+        key="youtube-player"
+        opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
+        onReady={(e: YouTubeEvent<YouTubePlayer>) => {
+          playerRef.current = e.target;
+          playerReadyRef.current = true;
 
-            const duration = e.target.getDuration();
-            if (typeof duration === "number" && !isNaN(duration)) {
-              setDuration(duration);
-            }
+          const duration = e.target.getDuration();
+          if (typeof duration === "number" && !isNaN(duration)) {
+            setDuration(duration);
+          }
 
-            if (isPlaying) {
-              e.target.playVideo();
-            }
+          // don't force play on onReady; state change will handle it
 
-            const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
-            if (savedVolume !== null) {
-              playerRef.current.setVolume(Number(savedVolume));
-              changeVolume({
-                target: { value: savedVolume },
-              } as React.ChangeEvent<HTMLInputElement>);
-            }
-          }}
-          onStateChange={onStateChange}
-          onEnd={handleTrackEnd}
-        />
-      )}
+          const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
+          if (savedVolume !== null) {
+            playerRef.current.setVolume(Number(savedVolume));
+            changeVolume({
+              target: { value: savedVolume },
+            } as React.ChangeEvent<HTMLInputElement>);
+          }
+        }}
+        onStateChange={onStateChange}
+        onEnd={handleTrackEnd}
+      />
 
       <PlayerWrapper>
         <AlbumArtWrapper>
@@ -666,23 +681,30 @@ export default function YouTubeMusicPlayer({
           <>
             <SectionTitle>🎵 현재 재생목록</SectionTitle>
             <PlaylistItemList>
-              {videos.map((video, index) => (
-                <PlaylistItem
-                  key={index}
-                  hoverColor={hoverColor || undefined}
-                  onClick={() =>
-                    playPlaylist(video.snippet.playlistId || "", index)
-                  }
-                >
-                  <div className="thumbnail">
-                    <img
-                      src={video.snippet.thumbnails.default.url}
-                      alt={video.snippet.title}
-                    />
-                  </div>
-                  <p>{video.snippet.title}</p>
-                </PlaylistItem>
-              ))}
+              {videos
+                .filter(
+                  (video) =>
+                    video.snippet &&
+                    video.snippet.title &&
+                    video.snippet.thumbnails?.default?.url
+                )
+                .map((video, index) => (
+                  <PlaylistItem
+                    key={index}
+                    hoverColor={hoverColor || undefined}
+                    onClick={() =>
+                      playPlaylist(video.snippet.playlistId || "", index)
+                    }
+                  >
+                    <div className="thumbnail">
+                      <img
+                        src={video.snippet.thumbnails.default.url}
+                        alt={video.snippet.title}
+                      />
+                    </div>
+                    <p>{video.snippet.title}</p>
+                  </PlaylistItem>
+                ))}
             </PlaylistItemList>
           </>
         )}

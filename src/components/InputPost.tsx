@@ -1,7 +1,10 @@
 import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
-import { useMusicPlayer } from "./MusicFunction";
+import {
+  useMusicPlayer,
+  fetchPlaylistVideosReturn,
+} from "../components/MusicFunction"; // ✅ 추가
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -367,10 +370,16 @@ export default () => {
       if (attachPlaylist && currentPlaylistId) {
         const playlist = playlists.find((p) => p.id === currentPlaylistId);
         if (playlist) {
+          const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
           playlistInfo = {
             id: playlist.id,
             title: playlist.snippet.title,
             thumbnail: playlist.snippet.thumbnails.medium.url,
+            tracks: playlistTracks.map((video: any) => ({
+              videoId: video.snippet.resourceId.videoId,
+              title: video.snippet.title,
+              thumbnail: video.snippet.thumbnails.default.url,
+            })),
           };
         }
       }
@@ -476,23 +485,36 @@ export default () => {
               현재 재생목록 첨부
             </label>
             {attachPlaylist && currentPlaylistId && (
-              <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  marginTop: "6px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
                 <img
                   src={
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.thumbnails?.medium?.url
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                      ?.thumbnails?.medium?.url
                   }
                   alt="playlist"
-                  style={{ width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover" }}
+                  style={{
+                    width: "60px",
+                    height: "60px",
+                    borderRadius: "8px",
+                    objectFit: "cover",
+                  }}
                 />
                 <span style={{ color: "white", fontSize: "13px" }}>
                   {
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.title
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                      ?.title
                   }
                 </span>
               </div>
             )}
           </div>
-
         </PostArea>
       </Form>
     </Container>
