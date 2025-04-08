@@ -199,11 +199,30 @@ const CommentSection = ({
                       onClick={() =>
                         onEditComment(comment.id!, comment.content)
                       }
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        border: "none",
+                        background: "none",
+                        padding: 0,
+                        marginRight: "8px",
+                      }}
                     >
-                      수정
+                      <img src="/edit.png" alt="수정" width="15" />
                     </ActionButton>
-                    <ActionButton onClick={() => onDeleteComment(comment.id!)}>
-                      삭제
+                    <ActionButton
+                      onClick={() => onDeleteComment(comment.id!)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        border: "none",
+                        background: "none",
+                        padding: 0,
+                      }}
+                    >
+                      <img src="/delete.png" alt="삭제" width="15" />
                     </ActionButton>
                   </>
                 )}
