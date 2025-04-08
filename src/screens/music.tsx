@@ -1,5 +1,5 @@
 import ColorThief from "colorthief/dist/color-thief";
-import React, { useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -308,6 +308,7 @@ export default function YouTubeMusicPlayer({
   onColorExtractSecondary?: (color: string) => void;
   onColorExtractHover?: (color: string) => void;
 }) {
+  const playerReadyRef = useRef<boolean>(false); // ✅ 반드시 여기
   const {
     currentVideoId,
     currentVideoTitle,
@@ -550,9 +551,15 @@ export default function YouTubeMusicPlayer({
           opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
           onReady={(e: YouTubeEvent<YouTubePlayer>) => {
             playerRef.current = e.target;
+            playerReadyRef.current = true;
+
             const duration = e.target.getDuration();
             if (typeof duration === "number" && !isNaN(duration)) {
               setDuration(duration);
+            }
+
+            if (isPlaying) {
+              e.target.playVideo();
             }
 
             const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);

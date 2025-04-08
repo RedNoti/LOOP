@@ -87,22 +87,58 @@ export const useMusicPlayer = () => {
     }
   };
 
-  const playPlaylist = async (playlistId: string, startIndex = 0) => {
-    setCurrentPlaylistId(playlistId); // track current playlist
-    await fetchPlaylistVideos(playlistId);
+  const playPlaylist = async (
+    playlistId: string,
+    startIndex: number = 0,
+    forcePlay: boolean = false
+  ) => {
+    if (!forcePlay && playlistId === currentPlaylistId) return;
 
-    const nextVideoId = videos[startIndex]?.snippet?.resourceId?.videoId;
-    if (nextVideoId) {
-      setCurrentIndex(startIndex);
-      setCurrentVideoId(nextVideoId);
+    const fetchedVideos = await fetchPlaylistVideosReturn(playlistId);
+    if (!fetchedVideos.length) return;
 
-      if (auth.currentUser?.uid) {
-        savePlaybackStateToFirestore(
-          auth.currentUser.uid,
-          playlistId,
-          startIndex
+    const nextVideo = fetchedVideos[startIndex];
+    const nextVideoId =
+      nextVideo?.snippet?.resourceId?.videoId || nextVideo?.id?.videoId;
+    if (!nextVideoId) return;
+
+    setVideos(fetchedVideos);
+    setCurrentIndex(startIndex);
+    setCurrentVideoId(nextVideoId);
+    setCurrentPlaylistId(playlistId);
+    setIsPlaying(true);
+
+    // 🔥 playerRef에서 직접 재생하지 않음!!
+  };
+
+  const fetchPlaylistVideosReturn = async (playlistId: string) => {
+    const token = localStorage.getItem("ytAccessToken");
+    if (!token) return [];
+
+    let nextPageToken = "";
+    const allItems: any[] = [];
+
+    try {
+      do {
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${nextPageToken}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
-      }
+        const data = await response.json();
+        if (data.items) {
+          allItems.push(...data.items);
+        }
+        nextPageToken = data.nextPageToken || "";
+      } while (nextPageToken);
+
+      return allItems;
+    } catch (err) {
+      console.error("❌ 재생목록 영상 fetch 실패:", err);
+      return [];
     }
   };
 
@@ -342,5 +378,6 @@ export const useMusicPlayer = () => {
     changeVolume,
     playPlaylist, // 추가됨
     playerRef, // 추가
+    currentPlaylistId,
   };
 };
