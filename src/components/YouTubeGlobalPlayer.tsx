@@ -8,7 +8,8 @@ const YouTubeGlobalPlayer = () => {
 
   if (!currentVideoId) return null;
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <div style={{ display: "none" }}>
       <YouTube
         videoId={currentVideoId}
