@@ -1,4 +1,3 @@
-// 📄 Post 컴포넌트 - 게시글의 본문, 이미지, 댓글, 좋아요 기능 등을 렌더링합니다.
 import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
@@ -12,7 +11,7 @@ import {
   increment,
 } from "firebase/firestore";
 import CommentSection from "./Comment";
-import { useMusicPlayer } from "./MusicFunction"; // ✅ 추가
+import { useMusicPlayer } from "../components/MusicFunction"; // ✅ 추가
 
 interface PostProps {
   id: string;
@@ -31,6 +30,11 @@ interface PostProps {
     id: string;
     title: string;
     thumbnail: string;
+    tracks?: {
+      videoId: string;
+      title: string;
+      thumbnail: string;
+    }[];
   } | null;
 }
 
@@ -47,11 +51,11 @@ const Post = ({
   comments,
   playlist,
 }: PostProps) => {
-  const [commentList, setCommentList] = useState(comments || []);  // 💡 상태(State) 정의
-  const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
-  const [likes, setLikes] = useState(0);  // 💡 상태(State) 정의
-  const [hasLiked, setHasLiked] = useState(false);  // 💡 상태(State) 정의
-  const [showComments, setShowComments] = useState(false);  // 💡 상태(State) 정의
+  const [commentList, setCommentList] = useState(comments || []);
+  const user = auth.currentUser;
+  const [likes, setLikes] = useState(0);
+  const [hasLiked, setHasLiked] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | undefined>(
     photoUrl
   );
@@ -59,13 +63,13 @@ const Post = ({
     nickname
   );
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [isEditing, setIsEditing] = useState(false);  // 💡 상태(State) 정의
-  const [editedPost, setEditedPost] = useState(post);  // 💡 상태(State) 정의
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPost, setEditedPost] = useState(post);
   const { playPlaylist } = useMusicPlayer(); // ✅ 재생 함수
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
     const fetchPost = async () => {
-      const postRef = doc(db, "posts", id);  // 📄 Firestore 문서 참조
+      const postRef = doc(db, "posts", id);
       const docSnap = await getDoc(postRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -80,9 +84,9 @@ const Post = ({
     fetchPost();
   }, [id, user?.uid, nickname]);
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
     const fetchComments = async () => {
-      const postRef = doc(db, "posts", id);  // 📄 Firestore 문서 참조
+      const postRef = doc(db, "posts", id);
       const docSnap = await getDoc(postRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -94,17 +98,17 @@ const Post = ({
   }, [id]);
 
   const handleLike = async () => {
-    const postRef = doc(db, "posts", id);  // 📄 Firestore 문서 참조
+    const postRef = doc(db, "posts", id);
     if (hasLiked) {
-      await updateDoc(postRef, {  // 📝 Firestore 문서 업데이트
+      await updateDoc(postRef, {
         likeCount: increment(-1),
-        likedBy: arrayRemove(user?.uid),  // ➖ 배열 필드에서 항목 제거
+        likedBy: arrayRemove(user?.uid),
       });
       setLikes(likes - 1);
     } else {
-      await updateDoc(postRef, {  // 📝 Firestore 문서 업데이트
+      await updateDoc(postRef, {
         likeCount: increment(1),
-        likedBy: arrayUnion(user?.uid),  // ➕ 배열 필드에 항목 추가
+        likedBy: arrayUnion(user?.uid),
       });
       setLikes(likes + 1);
     }
@@ -127,14 +131,14 @@ const Post = ({
           }
         }
       }
-      await deleteDoc(doc(db, "posts", id));  // 📄 Firestore 문서 참조
+      await deleteDoc(doc(db, "posts", id));
       alert("게시물이 삭제되었습니다.");
     } catch (error) {
       console.error("삭제 실패:", error);
     }
   };
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
     <Container>
       <Wrapper>
         <ProfileImg
@@ -178,7 +182,7 @@ const Post = ({
             <SaveBtn
               onClick={async () => {
                 try {
-                  await updateDoc(doc(db, "posts", id), { post: editedPost });  // 📄 Firestore 문서 참조
+                  await updateDoc(doc(db, "posts", id), { post: editedPost });
                   setIsEditing(false);
                 } catch (err) {
                   console.error("게시글 수정 오류:", err);
@@ -195,7 +199,14 @@ const Post = ({
 
       {/* 첨부된 재생목록 렌더링 */}
       {playlist && (
-        <PlaylistBox onClick={() => playPlaylist(playlist.id, 0, true)}>
+        <PlaylistBox
+          onClick={() => {
+            if (playlist?.tracks) {
+              const videoIds = playlist.tracks.map((track) => track.videoId);
+              playPlaylist(videoIds.join(","));
+            }
+          }}
+        >
           <PlaylistThumb src={playlist.thumbnail} alt="Playlist Thumbnail" />
           <PlaylistTitle>{playlist.title}</PlaylistTitle>
         </PlaylistBox>
@@ -236,7 +247,7 @@ const Post = ({
           onCommentAdded={async (newComment) => {
             const updatedComments = [...commentList, newComment];
             setCommentList(updatedComments);
-            await updateDoc(doc(db, "posts", id), {  // 📄 Firestore 문서 참조
+            await updateDoc(doc(db, "posts", id), {
               comments: updatedComments,
             });
           }}
@@ -249,7 +260,7 @@ const Post = ({
 export default Post;
 
 // 🎨 스타일 컴포넌트
-const Container = styled.div`  // 🎨 styled-components 스타일 정의
+const Container = styled.div`
   border: 1px solid #444;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -257,33 +268,33 @@ const Container = styled.div`  // 🎨 styled-components 스타일 정의
   background: #222;
 `;
 
-const Wrapper = styled.div`  // 🎨 styled-components 스타일 정의
+const Wrapper = styled.div`
   display: flex;
   align-items: center;
   margin-bottom: 0.5rem;
 `;
 
-const ProfileImg = styled.img`  // 🎨 styled-components 스타일 정의
+const ProfileImg = styled.img`
   border-radius: 50%;
   width: 40px;
   height: 40px;
   margin-right: 0.5rem;
 `;
 
-const UserInfo = styled.div`  // 🎨 styled-components 스타일 정의
+const UserInfo = styled.div`
   color: #ccc;
   display: flex;
   flex-direction: column;
   gap: 5px;
 `;
 
-const UserName = styled.div`  // 🎨 styled-components 스타일 정의
+const UserName = styled.div`
   font-weight: bold;
   font-size: 16px;
   color: #fff;
 `;
 
-const UserMeta = styled.div`  // 🎨 styled-components 스타일 정의
+const UserMeta = styled.div`
   font-size: 12px;
   color: #aaa;
   display: flex;
@@ -292,63 +303,63 @@ const UserMeta = styled.div`  // 🎨 styled-components 스타일 정의
   opacity: 0.5;
 `;
 
-const EditableContent = styled.div`  // 🎨 styled-components 스타일 정의
+const EditableContent = styled.div`
   color: #eee;
   margin-bottom: 0.5rem;
 `;
 
-const Content = styled.div`  // 🎨 styled-components 스타일 정의
+const Content = styled.div`
   margin-bottom: 0.5rem;
 `;
 
-const ImageGallery = styled.div`  // 🎨 styled-components 스타일 정의
+const ImageGallery = styled.div`
   display: flex;
   gap: 0.5rem;
 `;
 
-const Image = styled.img`  // 🎨 styled-components 스타일 정의
+const Image = styled.img`
   width: 100px;
   height: 100px;
   object-fit: cover;
   border-radius: 8px;
 `;
 
-const Actions = styled.div`  // 🎨 styled-components 스타일 정의
+const Actions = styled.div`
   display: flex;
   gap: 1rem;
   margin-bottom: 0.5rem;
   margin: 1rem 0 0.5rem 0;
 `;
 
-const LikeBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const LikeBtn = styled.button`
   background: none;
   border: none;
   color: orange;
   cursor: pointer;
 `;
 
-const CommentBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const CommentBtn = styled.button`
   background: none;
   border: none;
   color: green;
   cursor: pointer;
 `;
 
-const DeleteBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const DeleteBtn = styled.button`
   background: none;
   border: none;
   color: red;
   cursor: pointer;
 `;
 
-const EditBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const EditBtn = styled.button`
   background: none;
   border: none;
   color: blue;
   cursor: pointer;
 `;
 
-const SaveBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const SaveBtn = styled.button`
   background: none;
   border: 1px solid #ccc;
   color: white;
@@ -359,7 +370,7 @@ const SaveBtn = styled.button`  // 🎨 styled-components 스타일 정의
 `;
 
 // ✅ 재생목록 박스 스타일
-const PlaylistBox = styled.div`  // 🎨 styled-components 스타일 정의
+const PlaylistBox = styled.div`
   margin: 10px 0;
   padding: 10px;
   background: #333;
@@ -370,14 +381,14 @@ const PlaylistBox = styled.div`  // 🎨 styled-components 스타일 정의
   gap: 12px;
 `;
 
-const PlaylistThumb = styled.img`  // 🎨 styled-components 스타일 정의
+const PlaylistThumb = styled.img`
   width: 80px;
   height: 80px;
   border-radius: 8px;
   object-fit: cover;
 `;
 
-const PlaylistTitle = styled.p`  // 🎨 styled-components 스타일 정의
+const PlaylistTitle = styled.p`
   color: white;
   font-weight: bold;
   font-size: 14px;

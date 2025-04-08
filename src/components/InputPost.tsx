@@ -1,19 +1,21 @@
-// 📄 Post 컴포넌트 - 게시글의 본문, 이미지, 댓글, 좋아요 기능 등을 렌더링합니다.
 import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
-import { useMusicPlayer } from "./MusicFunction";
+import {
+  useMusicPlayer,
+  fetchPlaylistVideosReturn,
+} from "../components/MusicFunction"; // ✅ 추가
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-const Container = styled.div`  // 🎨 styled-components 스타일 정의
+const Container = styled.div`
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 8px;
 `;
 
-const Form = styled.form`  // 🎨 styled-components 스타일 정의
+const Form = styled.form`
   display: flex;
   gap: 10px;
   padding: 0;
@@ -24,13 +26,13 @@ const Form = styled.form`  // 🎨 styled-components 스타일 정의
   border-radius: 8px;
 `;
 
-const ProfileImage = styled.img`  // 🎨 styled-components 스타일 정의
+const ProfileImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
 `;
 
-const ProfileArea = styled.div`  // 🎨 styled-components 스타일 정의
+const ProfileArea = styled.div`
   width: 50px;
   height: 50px;
   border-radius: 30px;
@@ -38,7 +40,7 @@ const ProfileArea = styled.div`  // 🎨 styled-components 스타일 정의
   overflow: hidden;
 `;
 
-const PostArea = styled.div`  // 🎨 styled-components 스타일 정의
+const PostArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -46,7 +48,7 @@ const PostArea = styled.div`  // 🎨 styled-components 스타일 정의
   height: auto;
 `;
 
-const TextArea = styled.textarea`  // 🎨 styled-components 스타일 정의
+const TextArea = styled.textarea`
   resize: none;
   background-color: black;
   color: white;
@@ -61,14 +63,14 @@ const TextArea = styled.textarea`  // 🎨 styled-components 스타일 정의
   }
 `;
 
-const BottomMenu = styled.div`  // 🎨 styled-components 스타일 정의
+const BottomMenu = styled.div`
   display: flex;
   justify-content: space-between;
   margin-top: 15px;
   border-radius: 30px;
 `;
 
-const AttachPhotoButton = styled.label`  // 🎨 styled-components 스타일 정의
+const AttachPhotoButton = styled.label`
   padding: 5px 20px;
   background-color: #19315d;
   color: white;
@@ -78,11 +80,11 @@ const AttachPhotoButton = styled.label`  // 🎨 styled-components 스타일 정
   cursor: pointer;
 `;
 
-const AttachPhotoInput = styled.input`  // 🎨 styled-components 스타일 정의
+const AttachPhotoInput = styled.input`
   display: none;
 `;
 
-const SubmitButton = styled.input`  // 🎨 styled-components 스타일 정의
+const SubmitButton = styled.input`
   padding: 5px 20px;
   border-radius: 30px;
   border: none;
@@ -97,7 +99,7 @@ const SubmitButton = styled.input`  // 🎨 styled-components 스타일 정의
   }
 `;
 
-const ImagePreviewContainer = styled.div`  // 🎨 styled-components 스타일 정의
+const ImagePreviewContainer = styled.div`
   display: flex;
   gap: 10px;
   margin-top: 10px;
@@ -105,20 +107,20 @@ const ImagePreviewContainer = styled.div`  // 🎨 styled-components 스타일 �
   padding-bottom: 10px;
 `;
 
-const ImagePreviewWrapper = styled.div`  // 🎨 styled-components 스타일 정의
+const ImagePreviewWrapper = styled.div`
   position: relative;
   width: 100px;
   height: 100px;
 `;
 
-const ImagePreview = styled.img`  // 🎨 styled-components 스타일 정의
+const ImagePreview = styled.img`
   width: 100px;
   height: 100px;
   object-fit: cover;
   border-radius: 10px;
 `;
 
-const RemoveImageButton = styled.button`  // 🎨 styled-components 스타일 정의
+const RemoveImageButton = styled.button`
   position: absolute;
   top: 5px;
   right: 5px;
@@ -134,7 +136,7 @@ const RemoveImageButton = styled.button`  // 🎨 styled-components 스타일 �
   cursor: pointer;
 `;
 
-const ImageCountBadge = styled.div`  // 🎨 styled-components 스타일 정의
+const ImageCountBadge = styled.div`
   position: absolute;
   top: 5px;
   left: 5px;
@@ -149,33 +151,33 @@ const ImageCountBadge = styled.div`  // 🎨 styled-components 스타일 정의
   font-size: 12px;
 `;
 
-const Wrapper = styled.div`  // 🎨 styled-components 스타일 정의
+const Wrapper = styled.div`
   display: flex;
   align-items: center;
   margin-bottom: 0.5rem;
 `;
 
-const ProfileImg = styled.img`  // 🎨 styled-components 스타일 정의
+const ProfileImg = styled.img`
   border-radius: 50%;
   width: 40px;
   height: 40px;
   margin-right: 0.5rem;
 `;
 
-const UserInfo = styled.div`  // 🎨 styled-components 스타일 정의
+const UserInfo = styled.div`
   color: #ccc;
   display: flex;
   flex-direction: column;
   gap: 5px;
 `;
 
-const UserName = styled.div`  // 🎨 styled-components 스타일 정의
+const UserName = styled.div`
   font-weight: bold;
   font-size: 16px;
   color: #fff;
 `;
 
-const UserMeta = styled.div`  // 🎨 styled-components 스타일 정의
+const UserMeta = styled.div`
   font-size: 12px;
   color: #aaa;
   display: flex;
@@ -184,63 +186,63 @@ const UserMeta = styled.div`  // 🎨 styled-components 스타일 정의
   opacity: 0.5;
 `;
 
-const EditableContent = styled.div`  // 🎨 styled-components 스타일 정의
+const EditableContent = styled.div`
   color: #eee;
   margin-bottom: 0.5rem;
 `;
 
-const Content = styled.div`  // 🎨 styled-components 스타일 정의
+const Content = styled.div`
   margin-bottom: 0.5rem;
 `;
 
-const ImageGallery = styled.div`  // 🎨 styled-components 스타일 정의
+const ImageGallery = styled.div`
   display: flex;
   gap: 0.5rem;
 `;
 
-const Image = styled.img`  // 🎨 styled-components 스타일 정의
+const Image = styled.img`
   width: 100px;
   height: 100px;
   object-fit: cover;
   border-radius: 8px;
 `;
 
-const Actions = styled.div`  // 🎨 styled-components 스타일 정의
+const Actions = styled.div`
   display: flex;
   gap: 1rem;
   margin-bottom: 0.5rem;
   margin: 1rem 0 0.5rem 0;
 `;
 
-const LikeBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const LikeBtn = styled.button`
   background: none;
   border: none;
   color: orange;
   cursor: pointer;
 `;
 
-const CommentBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const CommentBtn = styled.button`
   background: none;
   border: none;
   color: green;
   cursor: pointer;
 `;
 
-const DeleteBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const DeleteBtn = styled.button`
   background: none;
   border: none;
   color: red;
   cursor: pointer;
 `;
 
-const EditBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const EditBtn = styled.button`
   background: none;
   border: none;
   color: blue;
   cursor: pointer;
 `;
 
-const SaveBtn = styled.button`  // 🎨 styled-components 스타일 정의
+const SaveBtn = styled.button`
   background: none;
   border: 1px solid #ccc;
   color: white;
@@ -260,16 +262,16 @@ export default () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
   const { currentPlaylistId, playlists, playPlaylist } = useMusicPlayer();
-  const [attachPlaylist, setAttachPlaylist] = useState(false);  // 💡 상태(State) 정의
+  const [attachPlaylist, setAttachPlaylist] = useState(false);
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
     const loadProfilePhoto = async () => {
-      const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
+      const user = auth.currentUser;
       if (!user) return;
 
       let photoUrl = user.photoURL || "";
       try {
-        const profileDoc = await getDoc(doc(db, "profiles", user.uid));  // 📄 Firestore 문서 참조
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
         if (profileDoc.exists() && profileDoc.data().photoUrl) {
           photoUrl = profileDoc.data().photoUrl;
         }
@@ -321,7 +323,7 @@ export default () => {
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
+    const user = auth.currentUser;
     if (!user) {
       alert("로그인이 필요합니다.");
       return;
@@ -354,7 +356,7 @@ export default () => {
       let profilePhoto = user.photoURL || "";
 
       try {
-        const profileDoc = await getDoc(doc(db, "profiles", user.uid));  // 📄 Firestore 문서 참조
+        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
         if (profileDoc.exists()) {
           const profileData = profileDoc.data();
           if (profileData.name) profileName = profileData.name;
@@ -368,10 +370,16 @@ export default () => {
       if (attachPlaylist && currentPlaylistId) {
         const playlist = playlists.find((p) => p.id === currentPlaylistId);
         if (playlist) {
+          const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
           playlistInfo = {
             id: playlist.id,
             title: playlist.snippet.title,
             thumbnail: playlist.snippet.thumbnails.medium.url,
+            tracks: playlistTracks.map((video: any) => ({
+              videoId: video.snippet.resourceId.videoId,
+              title: video.snippet.title,
+              thumbnail: video.snippet.thumbnails.default.url,
+            })),
           };
         }
       }
@@ -390,7 +398,7 @@ export default () => {
         playlist: playlistInfo,
       };
 
-      await addDoc(collection(db, "posts"), myPost);  // 📦 Firestore 컬렉션 참조
+      await addDoc(collection(db, "posts"), myPost);
 
       // 상태 초기화
       setPost("");
@@ -411,7 +419,7 @@ export default () => {
     }
   };
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
     <Container>
       <Form onSubmit={onSubmit}>
         <ProfileArea>
@@ -477,23 +485,36 @@ export default () => {
               현재 재생목록 첨부
             </label>
             {attachPlaylist && currentPlaylistId && (
-              <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  marginTop: "6px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
                 <img
                   src={
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.thumbnails?.medium?.url
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                      ?.thumbnails?.medium?.url
                   }
                   alt="playlist"
-                  style={{ width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover" }}
+                  style={{
+                    width: "60px",
+                    height: "60px",
+                    borderRadius: "8px",
+                    objectFit: "cover",
+                  }}
                 />
                 <span style={{ color: "white", fontSize: "13px" }}>
                   {
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet?.title
+                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                      ?.title
                   }
                 </span>
               </div>
             )}
           </div>
-
         </PostArea>
       </Form>
     </Container>
