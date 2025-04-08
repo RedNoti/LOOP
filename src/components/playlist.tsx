@@ -7,8 +7,9 @@ const PlaylistGrid = styled.div`
   gap: 1.5rem;
 `;
 
-const Card = styled.div`
-  background-color: #1e1e1e;
+const Card = styled.div<{ selected: boolean }>`
+  background-color: ${({ selected }) => (selected ? "#333" : "#1e1e1e")};
+  border: ${({ selected }) => (selected ? "2px solid #00f" : "none")};
   border-radius: 12px;
   padding: 1rem;
   cursor: pointer;
@@ -38,7 +39,7 @@ const Title = styled.p`
 `;
 
 export default function Playlist() {
-  const { playlists, playPlaylist } = useMusicPlayer();
+  const { playlists, playPlaylist, currentPlaylistId } = useMusicPlayer();
 
   if (!playlists.length) return null;
 
@@ -49,6 +50,7 @@ export default function Playlist() {
         {playlists.map((playlist) => (
           <Card
             key={playlist.id}
+            selected={playlist.id === currentPlaylistId}
             onClick={() => {
               localStorage.setItem("last_playlist_id", playlist.id);
               localStorage.setItem("current_video_index", "0");

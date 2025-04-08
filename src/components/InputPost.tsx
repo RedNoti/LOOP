@@ -65,9 +65,11 @@ const TextArea = styled.textarea`
 
 const BottomMenu = styled.div`
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 10px;
   margin-top: 15px;
   border-radius: 30px;
+  flex-wrap: wrap;
 `;
 
 const AttachPhotoButton = styled.label`
@@ -252,6 +254,17 @@ const SaveBtn = styled.button`
   border-radius: 4px;
 `;
 
+const AttachPlaylistButton = styled.button`
+  padding: 5px 20px;
+  background-color: #19315d;
+  color: white;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+`;
+
 export default () => {
   const navigate = useNavigate(); // ✅ 페이지 이동 훅
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -337,8 +350,51 @@ export default () => {
     if (loading) return;
     setLoading(true);
 
+    let playlistFileUrl = null;
+
+    let playlistInfo = null;
+    if (attachPlaylist && currentPlaylistId) {
+      const playlist = playlists.find((p) => p.id === currentPlaylistId);
+      if (playlist) {
+        const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
+        playlistInfo = {
+          id: playlist.id,
+          title: playlist.snippet.title,
+          thumbnail: playlist.snippet.thumbnails.medium.url,
+          tracks: playlistTracks.map((video: any) => ({
+            videoId: video.snippet.resourceId.videoId,
+            title: video.snippet.title,
+            thumbnail: video.snippet.thumbnails.default.url,
+          })),
+        };
+      }
+    }
+
+    if (attachPlaylist && playlistInfo) {
+      console.log("📤 업로드할 playlistInfo:", playlistInfo);
+      const blob = new Blob([JSON.stringify(playlistInfo)], {
+        type: "application/json",
+      });
+      const formData = new FormData();
+      formData.append("file", blob, "playlist.json");
+
+      try {
+        const response = await axios.post(
+          "http://uploadloop.kro.kr:4000/postplaylist",
+          formData,
+          {
+            headers: { "Content-Type": "multipart/form-data" },
+          }
+        );
+        console.log("✅ 재생목록 업로드 성공:", response.data);
+        playlistFileUrl = response.data.filename;
+      } catch (err) {
+        console.error("❌ 재생목록 업로드 실패:", err);
+      }
+    }
+
+    let photoUrls: string[] = [];
     try {
-      const photoUrls: string[] = [];
       for (const file of files) {
         const formData = new FormData();
         formData.append("file", file);
@@ -366,24 +422,6 @@ export default () => {
         console.error("프로필 정보 가져오기 실패:", err);
       }
 
-      let playlistInfo = null;
-      if (attachPlaylist && currentPlaylistId) {
-        const playlist = playlists.find((p) => p.id === currentPlaylistId);
-        if (playlist) {
-          const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
-          playlistInfo = {
-            id: playlist.id,
-            title: playlist.snippet.title,
-            thumbnail: playlist.snippet.thumbnails.medium.url,
-            tracks: playlistTracks.map((video: any) => ({
-              videoId: video.snippet.resourceId.videoId,
-              title: video.snippet.title,
-              thumbnail: video.snippet.thumbnails.default.url,
-            })),
-          };
-        }
-      }
-
       const myPost = {
         nickname: profileName,
         userId: user.uid,
@@ -396,6 +434,7 @@ export default () => {
         commentCount: 0,
         likedBy: [],
         playlist: playlistInfo,
+        playlistFileUrl: playlistFileUrl,
       };
 
       await addDoc(collection(db, "posts"), myPost);
@@ -468,53 +507,51 @@ export default () => {
               multiple
               disabled={previews.length >= 5}
             />
+            <AttachPlaylistButton
+              type="button"
+              onClick={() => setAttachPlaylist(!attachPlaylist)}
+              style={{
+                backgroundColor: attachPlaylist ? "#118bf0" : "#19315d",
+              }}
+            >
+              {attachPlaylist ? "재생목록 첨부됨" : "재생목록 첨부"}
+            </AttachPlaylistButton>
             <SubmitButton
               type="submit"
               value={loading ? "제출 중" : "제출하기"}
               disabled={loading}
             />
           </BottomMenu>
-          <div style={{ marginTop: "10px" }}>
-            <label style={{ color: "white", fontSize: "12px" }}>
-              <input
-                type="checkbox"
-                checked={attachPlaylist}
-                onChange={() => setAttachPlaylist(!attachPlaylist)}
-                style={{ marginRight: "6px" }}
-              />
-              현재 재생목록 첨부
-            </label>
-            {attachPlaylist && currentPlaylistId && (
-              <div
+          {attachPlaylist && currentPlaylistId && (
+            <div
+              style={{
+                marginTop: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <img
+                src={
+                  playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                    ?.thumbnails?.medium?.url
+                }
+                alt="playlist"
                 style={{
-                  marginTop: "6px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "8px",
+                  objectFit: "cover",
                 }}
-              >
-                <img
-                  src={
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
-                      ?.thumbnails?.medium?.url
-                  }
-                  alt="playlist"
-                  style={{
-                    width: "60px",
-                    height: "60px",
-                    borderRadius: "8px",
-                    objectFit: "cover",
-                  }}
-                />
-                <span style={{ color: "white", fontSize: "13px" }}>
-                  {
-                    playlists.find((p) => p.id === currentPlaylistId)?.snippet
-                      ?.title
-                  }
-                </span>
-              </div>
-            )}
-          </div>
+              />
+              <span style={{ color: "white", fontSize: "13px" }}>
+                {
+                  playlists.find((p) => p.id === currentPlaylistId)?.snippet
+                    ?.title
+                }
+              </span>
+            </div>
+          )}
         </PostArea>
       </Form>
     </Container>

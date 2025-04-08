@@ -1,4 +1,3 @@
-// 📄 React 컴포넌트 - 기능별 UI를 담당합니다.
 import { useEffect, useState } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig"; // adjust path as needed
@@ -9,6 +8,13 @@ export const playerReadyRef: { current: boolean } = { current: false };
 export const fetchPlaylistVideosReturn = async (playlistId: string) => {
   const token = localStorage.getItem("ytAccessToken");
   if (!token) return [];
+  if (playlistId.includes(",")) {
+    console.warn(
+      "❗ 잘못된 playlistId 형식입니다. 단일 ID여야 합니다:",
+      playlistId
+    );
+    return [];
+  }
 
   let nextPageToken = "";
   const allItems: any[] = [];
@@ -43,7 +49,8 @@ const savePlaybackStateToFirestore = async (
   videoIndex: number
 ) => {
   try {
-    await setDoc(doc(db, "playbackStates", userId), {  // 📄 Firestore 문서 참조
+    await setDoc(doc(db, "playbackStates", userId), {
+      // 📄 Firestore 문서 참조
       playlistId,
       videoIndex,
       timestamp: Date.now(),
@@ -55,7 +62,7 @@ const savePlaybackStateToFirestore = async (
 
 const loadPlaybackStateFromFirestore = async (userId: string) => {
   try {
-    const docSnap = await getDoc(doc(db, "playbackStates", userId));  // 📄 Firestore 문서 참조
+    const docSnap = await getDoc(doc(db, "playbackStates", userId)); // 📄 Firestore 문서 참조
     if (docSnap.exists()) {
       return docSnap.data();
     }
@@ -65,23 +72,65 @@ const loadPlaybackStateFromFirestore = async (userId: string) => {
   return null;
 };
 
+export function playPlaylistFromFile(json: {
+  id: string;
+  title: string;
+  thumbnail: string;
+  tracks: {
+    videoId: string;
+    title: string;
+    thumbnail: string;
+  }[];
+}) {
+  const videos = json.tracks.map((track) => ({
+    id: { videoId: track.videoId },
+    snippet: {
+      title: track.title,
+      thumbnails: {
+        default: {
+          url: track.thumbnail,
+        },
+      },
+      playlistId: json.id,
+    },
+  }));
+
+  localStorage.setItem("musicPlayerLastPlaylistId", json.id);
+  localStorage.setItem("musicPlayerCurrentVideoIndex", "0");
+
+  // 상태를 전역에서 관리하는 방식으로 전달
+  window.dispatchEvent(
+    new CustomEvent("play_playlist_from_file", {
+      detail: {
+        videos,
+        playlistMeta: {
+          id: json.id,
+          title: json.title,
+          thumbnail: json.thumbnail,
+        },
+      },
+    })
+  );
+}
+
 export const useMusicPlayer = () => {
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState(false);  // 💡 상태(State) 정의
-  const [volume, setVolume] = useState(() => {  // 💡 상태(State) 정의
+  const [isPlaying, setIsPlaying] = useState(false); // 💡 상태(State) 정의
+  const [volume, setVolume] = useState(() => {
+    // 💡 상태(State) 정의
     const saved = localStorage.getItem("musicPlayerVolume");
     return saved ? parseInt(saved) : 50;
   });
-  const [isLoading, setIsLoading] = useState(false);  // 💡 상태(State) 정의
+  const [isLoading, setIsLoading] = useState(false); // 💡 상태(State) 정의
   const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(
     null
   );
-  const [playbackRestored, setPlaybackRestored] = useState(false);  // 💡 상태(State) 정의
+  const [playbackRestored, setPlaybackRestored] = useState(false); // 💡 상태(State) 정의
 
   console.log("🎧 videos:", videos);
   console.log("▶️ currentVideoId:", currentVideoId);
@@ -150,9 +199,10 @@ export const useMusicPlayer = () => {
     setCurrentPlaylistId(playlistId);
 
     // Firebase에 재생 상태 저장
-    if (auth.currentUser?.uid) {  // 🔐 현재 로그인된 사용자 정보 참조
+    if (auth.currentUser?.uid) {
+      // 🔐 현재 로그인된 사용자 정보 참조
       savePlaybackStateToFirestore(
-        auth.currentUser.uid,  // 🔐 현재 로그인된 사용자 정보 참조
+        auth.currentUser.uid, // 🔐 현재 로그인된 사용자 정보 참조
         playlistId,
         startIndex
       ); // 이 부분을 수정
@@ -162,13 +212,58 @@ export const useMusicPlayer = () => {
     localStorage.setItem("current_video_index", String(startIndex));
   };
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  const playPlaylistFromFile = (playlistData: any) => {
+    console.log("📥 playPlaylistFromFile 호출됨:", playlistData);
+    const videoItems = playlistData.tracks.map((track: any) => ({
+      snippet: {
+        title: track.title,
+        thumbnails: {
+          high: { url: track.thumbnail },
+        },
+        resourceId: {
+          videoId: track.videoId,
+        },
+      },
+    }));
+
+    setVideos(videoItems);
+    setCurrentIndex(0);
+    setCurrentVideoId(videoItems[0]?.snippet?.resourceId?.videoId || null);
+    setCurrentPlaylistId(playlistData.id); // json.id → playlistData.id
+
+    setPlaylists((prev) => {
+      const exists = prev.some((p) => p.id === playlistData.id);
+      if (!exists) {
+        return [
+          ...prev,
+          {
+            id: playlistData.id,
+            snippet: {
+              title: playlistData.title,
+              thumbnails: { high: { url: playlistData.thumbnail } },
+            },
+          },
+        ];
+      }
+      return prev;
+    });
+
+    if (playerRef.current?.loadVideoById) {
+      playerRef.current.loadVideoById(
+        videoItems[0]?.snippet?.resourceId?.videoId
+      );
+    }
+  };
+
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const tryRestorePlayback = async () => {
-      if (!auth.currentUser?.uid || playlists.length === 0 || playbackRestored)  // 🔐 현재 로그인된 사용자 정보 참조
+      if (!auth.currentUser?.uid || playlists.length === 0 || playbackRestored)
+        // 🔐 현재 로그인된 사용자 정보 참조
         return;
 
       // 1. Firebase 우선 복원
-      const saved = await loadPlaybackStateFromFirestore(auth.currentUser.uid);  // 🔐 현재 로그인된 사용자 정보 참조
+      const saved = await loadPlaybackStateFromFirestore(auth.currentUser.uid); // 🔐 현재 로그인된 사용자 정보 참조
       if (
         saved?.playlistId &&
         playlists.some((p) => p.id === saved.playlistId)
@@ -195,6 +290,57 @@ export const useMusicPlayer = () => {
 
     tryRestorePlayback();
   }, [playlists]);
+
+  useEffect(() => {
+    const handlePlayPlaylistFromFile = (event: any) => {
+      const { videos, playlistMeta } = event.detail;
+      setVideos(videos);
+      setCurrentIndex(0);
+      setCurrentVideoId(videos[0]?.id?.videoId || null);
+      setCurrentPlaylistId(playlistMeta?.id || null);
+      setPlaylists((prev) => {
+        const exists = prev.some((p) => p.id === playlistMeta.id);
+        if (!exists) {
+          return [
+            {
+              id: playlistMeta.id,
+              snippet: {
+                title: playlistMeta.title,
+                thumbnails: { high: { url: playlistMeta.thumbnail } },
+              },
+            },
+            ...prev,
+          ];
+        }
+        return prev.map((p) =>
+          p.id === playlistMeta.id
+            ? {
+                ...p,
+                snippet: {
+                  title: playlistMeta.title,
+                  thumbnails: { high: { url: playlistMeta.thumbnail } },
+                },
+              }
+            : p
+        );
+      });
+
+      if (playerRef.current?.loadVideoById) {
+        playerRef.current.loadVideoById(videos[0]?.id?.videoId);
+      }
+    };
+
+    window.addEventListener(
+      "play_playlist_from_file",
+      handlePlayPlaylistFromFile
+    );
+    return () => {
+      window.removeEventListener(
+        "play_playlist_from_file",
+        handlePlayPlaylistFromFile
+      );
+    };
+  }, []);
 
   const onReady = (event: any) => {
     playerRef.current = event.target;
@@ -310,7 +456,8 @@ export const useMusicPlayer = () => {
     }
   };
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const initialize = async () => {
       const refreshed = await refreshAccessToken();
       if (!refreshed) {
@@ -409,6 +556,7 @@ export const useMusicPlayer = () => {
 
   return {
     playlists,
+    setPlaylists,
     videos,
     currentVideoId,
     isLoading,
@@ -427,8 +575,10 @@ export const useMusicPlayer = () => {
     nextTrack,
     prevTrack,
     changeVolume,
-    playPlaylist, // 추가됨
-    playerRef, // 추가
+    playPlaylist,
+    playPlaylistFromFile, // 추가된 항목
+    playerRef,
     currentPlaylistId,
+    setVideos,
   };
 };

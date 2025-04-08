@@ -9,6 +9,8 @@ import {
   arrayUnion,
   arrayRemove,
   increment,
+  addDoc,
+  collection,
 } from "firebase/firestore";
 import CommentSection from "./Comment";
 import { useMusicPlayer } from "../components/MusicFunction"; // ✅ 추가
@@ -36,6 +38,7 @@ interface PostProps {
       thumbnail: string;
     }[];
   } | null;
+  playlistFileUrl?: string;
 }
 
 const defaultProfileImg =
@@ -50,6 +53,7 @@ const Post = ({
   photoUrl,
   comments,
   playlist,
+  playlistFileUrl,
 }: PostProps) => {
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
@@ -65,7 +69,8 @@ const Post = ({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
-  const { playPlaylist } = useMusicPlayer(); // ✅ 재생 함수
+  const { playPlaylist, playPlaylistFromFile } = useMusicPlayer(); // ✅ 재생 함수
+  const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null); // 새로운 상태 추가
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -96,6 +101,23 @@ const Post = ({
 
     fetchComments();
   }, [id]);
+
+  useEffect(() => {
+    const fetchPlaylistFile = async () => {
+      if (playlistFileUrl) {
+        try {
+          const res = await fetch(
+            `http://uploadloop.kro.kr:4000/postplaylist/${playlistFileUrl}`
+          );
+          const data = await res.json();
+          setFetchedPlaylist(data);
+        } catch (err) {
+          console.error("재생목록 JSON 불러오기 실패:", err);
+        }
+      }
+    };
+    fetchPlaylistFile();
+  }, [playlistFileUrl]); // 플레이리스트 JSON을 가져오는 useEffect 추가
 
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
@@ -129,6 +151,17 @@ const Post = ({
           } catch (error) {
             console.error("서버 이미지 삭제 실패:", error);
           }
+        }
+      }
+      if (playlistFileUrl) {
+        try {
+          await fetch("http://uploadloop.kro.kr:4000/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: `/postplaylist/${playlistFileUrl}` }),
+          });
+        } catch (error) {
+          console.error("서버 JSON 파일 삭제 실패:", error);
         }
       }
       await deleteDoc(doc(db, "posts", id));
@@ -197,18 +230,27 @@ const Post = ({
         )}
       </EditableContent>
 
-      {/* 첨부된 재생목록 렌더링 */}
-      {playlist && (
+      {playlistFileUrl && fetchedPlaylist && (
         <PlaylistBox
           onClick={() => {
-            if (playlist?.tracks) {
-              const videoIds = playlist.tracks.map((track) => track.videoId);
-              playPlaylist(videoIds.join(","));
+            if (fetchedPlaylist?.tracks?.length > 0) {
+              // Store in sessionStorage for player to pick up
+              sessionStorage.setItem("play_from_post", "true");
+              sessionStorage.setItem(
+                "post_playlist",
+                JSON.stringify(fetchedPlaylist)
+              );
+
+              // Dispatch event for immediate playing if player is already loaded
+              window.dispatchEvent(new CustomEvent("post_playlist_selected"));
             }
           }}
         >
-          <PlaylistThumb src={playlist.thumbnail} alt="Playlist Thumbnail" />
-          <PlaylistTitle>{playlist.title}</PlaylistTitle>
+          <PlaylistThumb
+            src={fetchedPlaylist?.thumbnail}
+            alt="Playlist Thumbnail"
+          />
+          <PlaylistTitle>{fetchedPlaylist?.title}</PlaylistTitle>
         </PlaylistBox>
       )}
 

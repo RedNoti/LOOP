@@ -11,7 +11,10 @@ import {
   Repeat,
   Shuffle,
 } from "lucide-react";
-import { useMusicPlayer } from "../components/MusicFunction";
+import {
+  useMusicPlayer,
+  playPlaylistFromFile,
+} from "../components/MusicFunction";
 
 const Container = styled.div`
   color: white;
@@ -324,6 +327,8 @@ export default function YouTubeMusicPlayer({
     videos,
     playlists,
     playPlaylist,
+    setPlaylists,
+    setVideos,
   } = useMusicPlayer();
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -344,23 +349,61 @@ export default function YouTubeMusicPlayer({
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
   useEffect(() => {
-    const fromPost = sessionStorage.getItem("play_from_post");
-    const raw = sessionStorage.getItem("post_playlist");
+    const handlePostPlaylist = () => {
+      const fromPost = sessionStorage.getItem("play_from_post");
+      const raw = sessionStorage.getItem("post_playlist");
 
-    if (fromPost === "true" && raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        const videoIds = parsed.tracks.map((t: any) => t.videoId);
-        if (videoIds.length > 0) {
-          playPlaylist(videoIds.join(",")); // or playPlaylist(videoIds, 0)
+      if (fromPost === "true" && raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.tracks?.length > 0) {
+            const syntheticPlaylists = [
+              {
+                id: parsed.id,
+                snippet: {
+                  title: parsed.title || "임시 재생목록",
+                  thumbnails: {
+                    medium: {
+                      url: parsed.thumbnail,
+                    },
+                  },
+                },
+              },
+            ];
+
+            const syntheticVideos = parsed.tracks.map((track: any) => ({
+              id: { videoId: track.videoId },
+              snippet: {
+                title: track.title,
+                playlistId: parsed.id,
+                thumbnails: {
+                  default: {
+                    url: track.thumbnail,
+                  },
+                },
+              },
+            }));
+
+            setPlaylists(syntheticPlaylists);
+            setVideos(videos); // setVideos는 이미 useState로 선언된 상태 업데이트 함수입니다.
+            playPlaylist(parsed.id, 0);
+          }
+        } catch (e) {
+          console.error("Post playlist parse error", e);
+        } finally {
+          sessionStorage.removeItem("play_from_post");
+          sessionStorage.removeItem("post_playlist");
         }
-      } catch (e) {
-        console.error("Post playlist parse error", e);
-      } finally {
-        sessionStorage.removeItem("play_from_post");
-        sessionStorage.removeItem("post_playlist");
       }
-    }
+    };
+
+    // Execute immediately on mount
+    handlePostPlaylist();
+
+    // Also listen for custom event
+    const handler = () => handlePostPlaylist();
+    window.addEventListener("post_playlist_selected", handler);
+    return () => window.removeEventListener("post_playlist_selected", handler);
   }, []);
 
   // 초기 로드 시 로컬 스토리지에서 설정 불러오기
@@ -565,7 +608,7 @@ export default function YouTubeMusicPlayer({
     <Container>
       <YouTube
         videoId={currentVideoId || ""}
-        key="youtube-player"
+        key={currentVideoId || "fallback"} // ✅ 이렇게 바꿔야 함!
         opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
         onReady={(e: YouTubeEvent<YouTubePlayer>) => {
           playerRef.current = e.target;
