@@ -1,3 +1,4 @@
+// 📄 Profile 화면 - 사용자 프로필을 수정하고 미리보기할 수 있는 화면입니다.
 import React, { useState, useRef } from "react";
 import { auth } from "../firebaseConfig";
 import { useProfileFunctions } from "../components/ProfileFunction";
@@ -17,21 +18,21 @@ interface StylesDictionary {
   [key: string]: React.CSSProperties;
 }
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   width: 100%;
   height: 100vh; /* 전체 화면 기준 유지 */
   overflow: hidden;
 `;
 
-const ContentArea = styled.div`
+const ContentArea = styled.div`  // 🎨 styled-components 스타일 정의
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 `;
 
-const ScrollableContent = styled.div`
+const ScrollableContent = styled.div`  // 🎨 styled-components 스타일 정의
   flex: 1;
   overflow-y: auto;
   padding: 40px 20px;
@@ -81,7 +82,7 @@ const ProfileEditor = () => {
     handleFileChange,
     handleDeletePhoto,
   } = useProfileFunctions();
-  const [hoverDelete, setHoverDelete] = useState(false);
+  const [hoverDelete, setHoverDelete] = useState(false);  // 💡 상태(State) 정의
 
   // 인라인 스타일 객체 - 컴포넌트의 모든 스타일 정의
   const styles: StylesDictionary = {
@@ -381,8 +382,8 @@ const ProfileEditor = () => {
     },
   };
 
-  React.useEffect(() => {
-    const user = auth.currentUser;
+  React.useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
     if (user) {
       setProfile((prev) => ({
         ...prev,
@@ -419,12 +420,12 @@ const ProfileEditor = () => {
 
     handleResize();
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);  // 🔚 컴포넌트의 JSX 반환 시작
   }, []);
 
   // 프로필 저장 성공 페이지 렌더링
   if (isSubmitted) {
-    return (
+    return (  // 🔚 컴포넌트의 JSX 반환 시작
       <div style={styles.container}>
         <div style={styles.contentWrapper}>
           <div style={styles.successContainer}>
@@ -442,7 +443,7 @@ const ProfileEditor = () => {
                 <img
                   src={
                     profile.photoUrl === ""
-                      ? auth.currentUser?.photoURL ||
+                      ? auth.currentUser?.photoURL ||  // 🔐 현재 로그인된 사용자 정보 참조
                         "https://via.placeholder.com/150"
                       : profile.photoUrl
                   }
@@ -508,7 +509,7 @@ const ProfileEditor = () => {
     );
   }
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <ContentArea>
         <ScrollableContent>
@@ -564,7 +565,7 @@ const ProfileEditor = () => {
                       <img
                         src={
                           profile.photoUrl === ""
-                            ? auth.currentUser?.photoURL ||
+                            ? auth.currentUser?.photoURL ||  // 🔐 현재 로그인된 사용자 정보 참조
                               "https://via.placeholder.com/150"
                             : profile.photoUrl
                         }
@@ -625,7 +626,7 @@ const ProfileEditor = () => {
                         <img
                           src={
                             profile.photoUrl === ""
-                              ? auth.currentUser?.photoURL ||
+                              ? auth.currentUser?.photoURL ||  // 🔐 현재 로그인된 사용자 정보 참조
                                 "https://via.placeholder.com/150"
                               : profile.photoUrl
                           }

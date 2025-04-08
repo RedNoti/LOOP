@@ -1,7 +1,8 @@
+// 📄 KategorieFunction 컴포넌트 - 특정 카테고리(장르 등)의 플레이리스트를 보여주는 기능입니다.
 import styled from "styled-components";
 import { useState } from "react";
 
-const AlbumCard = styled.div`
+const AlbumCard = styled.div`  // 🎨 styled-components 스타일 정의
   width: 200px;
   padding: 20px;
   border-radius: 20px;
@@ -15,19 +16,19 @@ const AlbumCard = styled.div`
   }
 `;
 
-const AlbumImage = styled.img`
+const AlbumImage = styled.img`  // 🎨 styled-components 스타일 정의
   width: 100%;
   border-radius: 12px;
 `;
 
-const AlbumTitle = styled.div`
+const AlbumTitle = styled.div`  // 🎨 styled-components 스타일 정의
   margin-top: 10px;
   font-size: 18px;
   font-weight: bold;
   color: white;
 `;
 
-const AlbumListWrapper = styled.div`
+const AlbumListWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   justify-content: center;
   gap: 30px;
@@ -51,7 +52,7 @@ const albums = [
 ];
 
 const AlbumList = () => {
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <AlbumListWrapper>
       {albums.map((album) => (
         <AlbumCard key={album.title}>

@@ -1,3 +1,4 @@
+// 📄 Profile 화면 - 사용자 프로필을 수정하고 미리보기할 수 있는 화면입니다.
 import { useState, useRef, useEffect } from "react";
 import { auth, onAuthStateChanged } from "../firebaseConfig";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -70,14 +71,14 @@ export const useProfileFunctions = () => {
     location: "",
   });
 
-  const [showPreview, setShowPreview] = useState(true);
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);  // 💡 상태(State) 정의
+  const [isSubmitted, setIsSubmitted] = useState(false);  // 💡 상태(State) 정의
 
-  const [hoverPhoto, setHoverPhoto] = useState(false);
-  const [hoverCancel, setHoverCancel] = useState(false);
-  const [hoverSave, setHoverSave] = useState(false);
-  const [hoverToggle, setHoverToggle] = useState(false);
-  const [hoverBackToEdit, setHoverBackToEdit] = useState(false);
+  const [hoverPhoto, setHoverPhoto] = useState(false);  // 💡 상태(State) 정의
+  const [hoverCancel, setHoverCancel] = useState(false);  // 💡 상태(State) 정의
+  const [hoverSave, setHoverSave] = useState(false);  // 💡 상태(State) 정의
+  const [hoverToggle, setHoverToggle] = useState(false);  // 💡 상태(State) 정의
+  const [hoverBackToEdit, setHoverBackToEdit] = useState(false);  // 💡 상태(State) 정의
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,9 +90,9 @@ export const useProfileFunctions = () => {
   };
 
   const saveProfileToFirestore = async () => {
-    const user = auth.currentUser;
+    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
     if (user) {
-      await setDoc(doc(db, "profiles", user.uid), profile);
+      await setDoc(doc(db, "profiles", user.uid), profile);  // 📄 Firestore 문서 참조
     }
   };
 
@@ -176,9 +177,9 @@ export const useProfileFunctions = () => {
   };
 
   const loadProfileFromFirestore = async () => {
-    const user = auth.currentUser;
+    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
     if (user) {
-      const docSnap = await getDoc(doc(db, "profiles", user.uid));
+      const docSnap = await getDoc(doc(db, "profiles", user.uid));  // 📄 Firestore 문서 참조
       if (docSnap.exists()) {
         const data = docSnap.data() as ProfileData;
         setPreviousProfile(data);
@@ -198,14 +199,14 @@ export const useProfileFunctions = () => {
     }
   };
 
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     const unsubscribe = onAuthStateChanged(auth, (user: any) => {
       if (user) {
         loadProfileFromFirestore();
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribe();  // 🔚 컴포넌트의 JSX 반환 시작
   }, []);
 
   return {

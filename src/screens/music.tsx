@@ -1,3 +1,4 @@
+// 📄 Music 화면 - 유튜브 음악 플레이어 UI와 재생 기능을 제공합니다.
 import ColorThief from "colorthief/dist/color-thief";
 import React, { useRef, useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { useMusicPlayer } from "../components/MusicFunction";
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   color: white;
   padding: 2rem;
   height: 100%;
@@ -23,7 +24,7 @@ const Container = styled.div`
   position: relative;
 `;
 
-const PlayerWrapper = styled.div`
+const PlayerWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -33,7 +34,7 @@ const PlayerWrapper = styled.div`
   padding-bottom: 1rem;
 `;
 
-const AlbumArtWrapper = styled.div`
+const AlbumArtWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   position: relative;
   width: 240px;
   aspect-ratio: 1 / 1;
@@ -43,7 +44,7 @@ const AlbumArtWrapper = styled.div`
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 `;
 
-const AlbumArt = styled.img`
+const AlbumArt = styled.img`  // 🎨 styled-components 스타일 정의
   position: absolute;
   top: 50%;
   left: 50%;
@@ -58,7 +59,7 @@ const AlbumArt = styled.img`
   }
 `;
 
-const Title = styled.h2`
+const Title = styled.h2`  // 🎨 styled-components 스타일 정의
   font-size: 1.25rem;
   font-weight: 600;
   text-align: center;
@@ -68,7 +69,7 @@ const Title = styled.h2`
   white-space: nowrap;
 `;
 
-const Controls = styled.div`
+const Controls = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   gap: 2rem;
   justify-content: center;
@@ -87,7 +88,7 @@ const Controls = styled.div`
   }
 `;
 
-const ProgressBarWrapper = styled.div`
+const ProgressBarWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -95,14 +96,14 @@ const ProgressBarWrapper = styled.div`
   margin-top: 1rem;
 `;
 
-const ProgressTime = styled.span`
+const ProgressTime = styled.span`  // 🎨 styled-components 스타일 정의
   font-size: 0.75rem;
   color: #bbb;
   width: 30px;
   text-align: center;
 `;
 
-const ProgressBar = styled.input`
+const ProgressBar = styled.input`  // 🎨 styled-components 스타일 정의
   flex: 1;
   appearance: none;
   height: 4px;
@@ -123,7 +124,7 @@ const ProgressBar = styled.input`
   }
 `;
 
-const PlayerControlsWrapper = styled.div`
+const PlayerControlsWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   margin-top: 1.5rem;
   display: flex;
   align-items: center;
@@ -131,13 +132,13 @@ const PlayerControlsWrapper = styled.div`
   justify-content: space-between;
 `;
 
-const VolumeWrapper = styled.div`
+const VolumeWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   gap: 0.75rem;
 `;
 
-const VolumeSlider = styled.input`
+const VolumeSlider = styled.input`  // 🎨 styled-components 스타일 정의
   width: 100px;
   height: 6px;
   appearance: none;
@@ -166,13 +167,13 @@ const VolumeSlider = styled.input`
   }
 `;
 
-const PlaybackControlsWrapper = styled.div`
+const PlaybackControlsWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   gap: 0.75rem;
 `;
 
-const PlaybackControlButton = styled.button<{ active?: boolean }>`
+const PlaybackControlButton = styled.button<{ active?: boolean }>`  // 🎨 styled-components 스타일 정의
   background: none;
   border: none;
   color: ${(props) => (props.active ? "#1db954" : "white")};
@@ -184,7 +185,7 @@ const PlaybackControlButton = styled.button<{ active?: boolean }>`
   }
 `;
 
-const SectionTitle = styled.h3`
+const SectionTitle = styled.h3`  // 🎨 styled-components 스타일 정의
   margin-top: 2rem;
   margin-bottom: 1rem;
   font-size: 1rem;
@@ -192,7 +193,7 @@ const SectionTitle = styled.h3`
   color: white;
 `;
 
-const PlaylistItemList = styled.ul`
+const PlaylistItemList = styled.ul`  // 🎨 styled-components 스타일 정의
   list-style: none;
   padding: 0;
   margin-top: 1rem;
@@ -201,7 +202,7 @@ const PlaylistItemList = styled.ul`
   gap: 0.5rem;
 `;
 
-const PlaylistItem = styled.li<{ hoverColor?: string }>`
+const PlaylistItem = styled.li<{ hoverColor?: string }>`  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -240,14 +241,14 @@ const PlaylistItem = styled.li<{ hoverColor?: string }>`
   }
 `;
 
-const PlaylistGrid = styled.div`
+const PlaylistGrid = styled.div`  // 🎨 styled-components 스타일 정의
   width: 100%;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1.5rem;
 `;
 
-const PlaylistCard = styled.div<{ hoverColor?: string }>`
+const PlaylistCard = styled.div<{ hoverColor?: string }>`  // 🎨 styled-components 스타일 정의
   cursor: pointer;
   border-radius: 12px;
   padding: 1rem;
@@ -261,7 +262,7 @@ const PlaylistCard = styled.div<{ hoverColor?: string }>`
   }
 `;
 
-const PlaylistImage = styled.img`
+const PlaylistImage = styled.img`  // 🎨 styled-components 스타일 정의
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
@@ -269,7 +270,7 @@ const PlaylistImage = styled.img`
   margin-bottom: 0.75rem;
 `;
 
-const ScrollableContent = styled.div`
+const ScrollableContent = styled.div`  // 🎨 styled-components 스타일 정의
   overflow-y: auto;
   flex: 1;
 `;
@@ -326,10 +327,10 @@ export default function YouTubeMusicPlayer({
     playPlaylist,
   } = useMusicPlayer();
 
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [sliderValue, setSliderValue] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);  // 💡 상태(State) 정의
+  const [duration, setDuration] = useState(0);  // 💡 상태(State) 정의
+  const [isSeeking, setIsSeeking] = useState(false);  // 💡 상태(State) 정의
+  const [sliderValue, setSliderValue] = useState(0);  // 💡 상태(State) 정의
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [hoverColor, setHoverColor] = useState<string | null>(null);
 
@@ -343,7 +344,7 @@ export default function YouTubeMusicPlayer({
     const savedShuffleMode = localStorage.getItem(STORAGE_KEYS.SHUFFLE_MODE);
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     const fromPost = sessionStorage.getItem("play_from_post");
     const raw = sessionStorage.getItem("post_playlist");
 
@@ -364,7 +365,7 @@ export default function YouTubeMusicPlayer({
   }, []);
 
   // 초기 로드 시 로컬 스토리지에서 설정 불러오기
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     // 마지막 재생 플레이리스트 정보 불러오기
     const savedPlaylistId = localStorage.getItem(STORAGE_KEYS.LAST_PLAYLIST_ID);
     const savedVideoIndex = localStorage.getItem(
@@ -377,17 +378,17 @@ export default function YouTubeMusicPlayer({
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
 
-      return () => clearTimeout(timer);
+      return () => clearTimeout(timer);  // 🔚 컴포넌트의 JSX 반환 시작
     }
   }, [playlists.length]);
 
   // 볼륨 값이 변경될 때 로컬 스토리지 업데이트
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     localStorage.setItem(STORAGE_KEYS.VOLUME, String(volume));
   }, [volume]);
 
   // 현재 재생 비디오가 변경될 때 로컬 스토리지 업데이트
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     if (currentVideoId && currentVideoTitle && currentVideoThumbnail) {
       localStorage.setItem(STORAGE_KEYS.LAST_VIDEO_ID, currentVideoId);
       localStorage.setItem(STORAGE_KEYS.LAST_VIDEO_TITLE, currentVideoTitle);
@@ -414,12 +415,12 @@ export default function YouTubeMusicPlayer({
   }, [currentVideoId, currentVideoTitle, currentVideoThumbnail, videos]);
 
   // 반복 모드가 변경될 때 로컬 스토리지 업데이트
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
   }, [repeatMode]);
 
   // Extract dominant color from album art when thumbnail changes
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     if (!currentVideoThumbnail) return;
 
     const img = new Image();
@@ -456,16 +457,16 @@ export default function YouTubeMusicPlayer({
   }, [currentVideoThumbnail]);
 
   // Export dominantColor via onColorExtract prop if provided
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     if (dominantColor && onColorExtract) {
       onColorExtract(dominantColor);
     }
   }, [dominantColor]);
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     localStorage.setItem(STORAGE_KEYS.SHUFFLE_MODE, String(shuffleMode));
   }, [shuffleMode]);
 
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     const interval = setInterval(() => {
       // 시킹 중에는 현재 시간 업데이트 건너뛰기
       if (!isSeeking && playerRef.current) {
@@ -477,7 +478,7 @@ export default function YouTubeMusicPlayer({
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(interval);  // 🔚 컴포넌트의 JSX 반환 시작
   }, [playerRef, isSeeking]);
 
   const handleSeekStart = () => {
@@ -561,7 +562,7 @@ export default function YouTubeMusicPlayer({
     }
   };
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <YouTube
         videoId={currentVideoId || ""}

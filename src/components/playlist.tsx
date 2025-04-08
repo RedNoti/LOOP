@@ -1,13 +1,14 @@
+// 📄 Playlist 컴포넌트 - 사용자의 재생목록들을 보여주는 리스트 UI입니다.
 import styled from "styled-components";
 import { useMusicPlayer } from "./MusicFunction";
 
-const PlaylistGrid = styled.div`
+const PlaylistGrid = styled.div`  // 🎨 styled-components 스타일 정의
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1.5rem;
 `;
 
-const Card = styled.div`
+const Card = styled.div`  // 🎨 styled-components 스타일 정의
   background-color: #1e1e1e;
   border-radius: 12px;
   padding: 1rem;
@@ -20,7 +21,7 @@ const Card = styled.div`
   }
 `;
 
-const Thumbnail = styled.img`
+const Thumbnail = styled.img`  // 🎨 styled-components 스타일 정의
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 8px;
@@ -28,7 +29,7 @@ const Thumbnail = styled.img`
   margin-bottom: 0.75rem;
 `;
 
-const Title = styled.p`
+const Title = styled.p`  // 🎨 styled-components 스타일 정의
   color: white;
   font-size: 0.9rem;
   font-weight: 500;
@@ -42,19 +43,12 @@ export default function Playlist() {
 
   if (!playlists.length) return null;
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <>
       <h3 style={{ color: "white", marginBottom: "1rem" }}>내 재생목록</h3>
       <PlaylistGrid>
         {playlists.map((playlist) => (
-          <Card
-            key={playlist.id}
-            onClick={() => {
-              localStorage.setItem("last_playlist_id", playlist.id);
-              localStorage.setItem("current_video_index", "0");
-              playPlaylist(playlist.id);
-            }}
-          >
+          <Card key={playlist.id} onClick={() => playPlaylist(playlist.id)}>
             <Thumbnail
               src={playlist.snippet.thumbnails.medium.url}
               alt={playlist.snippet.title}

@@ -1,8 +1,9 @@
+// 📄 Home 화면 - 타임라인을 보여주는 메인 피드입니다.
 // home.tsx
 import styled from "styled-components";
 import Timeline from "../components/Timeline";
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   width: 100%;
   height: 100%;
@@ -10,7 +11,7 @@ const Container = styled.div`
   margin-left: 5px;
 `;
 
-const ContentArea = styled.div`
+const ContentArea = styled.div`  // 🎨 styled-components 스타일 정의
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -25,7 +26,7 @@ const ContentArea = styled.div`
 `;
 
 export default () => {
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <ContentArea>
         <div>

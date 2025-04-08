@@ -1,6 +1,7 @@
+// 📄 LoadingScreen 컴포넌트 - 로그인 전 로딩 중 표시되는 애니메이션 화면입니다.
 import styled, { keyframes } from "styled-components";
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   height: 100vh;
   background-color: rgb(0, 0, 0);
   display: flex;
@@ -15,7 +16,7 @@ const BounceAnim = keyframes`
     100%{transform: scale(1);}
 `;
 // dot
-const Dot = styled.div`
+const Dot = styled.div`  // 🎨 styled-components 스타일 정의
   background-color: white;
   width: 8px;
   height: 8px;
@@ -34,7 +35,7 @@ const Dot = styled.div`
 `;
 
 export default () => {
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <Dot />
       <Dot />

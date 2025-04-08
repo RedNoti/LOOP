@@ -1,3 +1,4 @@
+// 📄 Google 로그인 버튼 컴포넌트 - 구글 OAuth로 회원가입 처리합니다.
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -5,7 +6,7 @@ import { auth } from "../firebaseConfig";
 import { FirebaseError } from "firebase/app";
 import { useState, useEffect } from "react";
 
-const Button = styled.div`
+const Button = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   justify-content: center;
   align-items: center;
@@ -17,8 +18,8 @@ const Button = styled.div`
   font-weight: 600;
   cursor: pointer;
 `;
-const Title = styled.p``;
-const Icon = styled.img`
+const Title = styled.p``;  // 🎨 styled-components 스타일 정의
+const Icon = styled.img`  // 🎨 styled-components 스타일 정의
   width: 12px;
   height: 12px;
 `;
@@ -49,7 +50,7 @@ export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
     }
   };
 
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     const token = localStorage.getItem("ytAccessToken");
     if (!token) return;
 
@@ -75,7 +76,7 @@ export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
     fetchPlaylists();
   }, []);
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <div>
       <Button onClick={onClick}>
         <Icon src={`${process.env.PUBLIC_URL}/google-icon.png`} />

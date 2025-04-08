@@ -1,5 +1,6 @@
+// 📄 Signup 화면 - Firebase를 통한 회원가입을 처리합니다.
 // Signup page를 구성
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";  // 🧾 Firebase 이메일 회원가입
 import { useState } from "react";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
@@ -7,7 +8,7 @@ import { FirebaseError } from "firebase/app";
 import { error } from "console";
 import { Link, useNavigate } from "react-router-dom";
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -15,25 +16,25 @@ const Container = styled.div`
   max-width: 400px;
   padding: 30px;
 `;
-const Title = styled.h1`
+const Title = styled.h1`  // 🎨 styled-components 스타일 정의
   font-size: 25px;
   font-weight: bold;
 `;
 // 로고 이미지
-const LogoImg = styled.img`
+const LogoImg = styled.img`  // 🎨 styled-components 스타일 정의
   width: 300px;
   height: 150px;
 `;
 
 // Text 입력 필드 구역
-const Form = styled.form`
+const Form = styled.form`  // 🎨 styled-components 스타일 정의
   margin-top: 30px;
   gap: 10px;
   display: flex;
   flex-direction: column;
 `;
 // Text 입력칸
-const Input = styled.input`
+const Input = styled.input`  // 🎨 styled-components 스타일 정의
   border-radius: 5px;
   border: none;
   padding: 5px 20px;
@@ -45,11 +46,11 @@ const Input = styled.input`
     margin-top: 20px;
   }
 `;
-const SubTitle = styled.p`
+const SubTitle = styled.p`  // 🎨 styled-components 스타일 정의
   font-size: 9px;
 `;
 // 회원가입 버튼 컴포넌트
-const SignupBtn = styled.div`
+const SignupBtn = styled.div`  // 🎨 styled-components 스타일 정의
   padding: 10px 20px;
   border-radius: 20px;
   background-color: #19315d;
@@ -61,7 +62,7 @@ const SignupBtn = styled.div`
   cursor: pointer;
   margin-top: 20px;
 `;
-const ErrorMsg = styled.div`
+const ErrorMsg = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   justify-content: center;
   margin: 5px 0px;
@@ -71,7 +72,7 @@ const ErrorMsg = styled.div`
 `;
 
 // 로그인 페이지로 이동 안내
-const Guide = styled.span`
+const Guide = styled.span`  // 🎨 styled-components 스타일 정의
   font-size: 10px;
   text-align: center;
   a {
@@ -127,7 +128,7 @@ export default () => {
       setLoading(true);
       // b-2. 회원정보(닉네임,이메일,암호)를 모아서 서버(Firebase)에 전달(API)
       // 잠깐만 기다려..! 가입완료될 때까지만!
-      const credential = await createUserWithEmailAndPassword(
+      const credential = await createUserWithEmailAndPassword(  // 🧾 Firebase 이메일 회원가입
         auth,
         email,
         password
@@ -153,7 +154,7 @@ export default () => {
     }
   };
   // Page Design Rndering (화면 디자인)
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <LogoImg src={`${process.env.PUBLIC_URL}/Sonac_Title.png`} />
       {/* <Title>회원 가입 하기</Title> */}

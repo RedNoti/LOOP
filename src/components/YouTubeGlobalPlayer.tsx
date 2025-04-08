@@ -1,3 +1,4 @@
+// 📄 YouTubeGlobalPlayer 컴포넌트 - 유튜브 음악을 전역에서 재생시키는 숨겨진 플레이어입니다.
 import React from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import { useMusicPlayer, playerRef } from "./MusicFunction";
@@ -7,7 +8,7 @@ const YouTubeGlobalPlayer = () => {
 
   if (!currentVideoId) return null;
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <div style={{ display: "none" }}>
       <YouTube
         videoId={currentVideoId}

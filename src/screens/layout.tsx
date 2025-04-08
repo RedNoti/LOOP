@@ -1,3 +1,4 @@
+// 📄 Layout 컴포넌트 - 페이지 전체 구조를 관리하고 내비게이션 및 플레이어 영역을 렌더링합니다.
 // layout.tsx
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
@@ -5,14 +6,14 @@ import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
 import React, { useEffect, useState } from "react";
 
-const LayoutWrapper = styled.div`
+const LayoutWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
 `;
 
-const Header = styled.div`
+const Header = styled.div`  // 🎨 styled-components 스타일 정의
   height: 70px;
   flex-shrink: 0;
   display: flex;
@@ -21,19 +22,19 @@ const Header = styled.div`
   background-color: black;
 `;
 
-const Logo = styled.img`
+const Logo = styled.img`  // 🎨 styled-components 스타일 정의
   width: clamp(100px, 12vw, 150px);
   height: auto;
   object-fit: contain;
 `;
 
-const Body = styled.div`
+const Body = styled.div`  // 🎨 styled-components 스타일 정의
   height: calc(100vh - 70px);
   display: flex;
   overflow: hidden;
 `;
 
-const Navigator = styled.div`
+const Navigator = styled.div`  // 🎨 styled-components 스타일 정의
   width: 60px;
   display: flex;
   flex-direction: column;
@@ -48,7 +49,7 @@ const Navigator = styled.div`
   flex-shrink: 0;
 `;
 
-const MenuItem = styled.div`
+const MenuItem = styled.div`  // 🎨 styled-components 스타일 정의
   border-radius: 50%;
   width: 35px;
   height: 35px;
@@ -63,7 +64,7 @@ const MenuItem = styled.div`
   }
 `;
 
-const BottomMenu = styled.div`
+const BottomMenu = styled.div`  // 🎨 styled-components 스타일 정의
   margin-top: auto;
   flex-shrink: 0;
   display: flex;
@@ -71,12 +72,12 @@ const BottomMenu = styled.div`
   align-items: center;
 `;
 
-const MainContent = styled.div`
+const MainContent = styled.div`  // 🎨 styled-components 스타일 정의
   flex: 1;
   overflow: hidden;
 `;
 
-const GradientOverlay = styled.div<{ color1: string; color2: string }>`
+const GradientOverlay = styled.div<{ color1: string; color2: string }>`  // 🎨 styled-components 스타일 정의
   position: absolute;
   top: 0;
   right: 0;
@@ -125,7 +126,7 @@ export default () => {
     }
   };
 
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     if (dominantColor && secondaryColor) {
       const newLayer = {
         id: Date.now(),
@@ -139,7 +140,7 @@ export default () => {
     }
   }, [dominantColor, secondaryColor]);
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <LayoutWrapper>
       <Header>
         <Logo src="/uplogo.png" alt="uplogo" />

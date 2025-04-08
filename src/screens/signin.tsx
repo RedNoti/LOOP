@@ -1,4 +1,5 @@
-import { signInWithEmailAndPassword } from "firebase/auth";
+// 📄 Signin 화면 - 이메일 및 비밀번호 기반 로그인 기능을 제공합니다.
+import { signInWithEmailAndPassword } from "firebase/auth";  // 🔑 이메일 로그인 처리
 import { useState } from "react";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
@@ -7,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import EmailSignUpButton from "../components/EmailSignUpButton";
 import GoogleSignUpButton from "../components/GoogleSignUpButton";
 
-const Container = styled.div`
+const Container = styled.div`  // 🎨 styled-components 스타일 정의
   background-color: rgb(0, 0, 0, 0.5);
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -21,26 +22,26 @@ const Container = styled.div`
   }
 `;
 
-const Title = styled.h1`
+const Title = styled.h1`  // 🎨 styled-components 스타일 정의
   font-size: 30px;
   font-weight: bold;
   margin-bottom: 20px;
 `;
 
-const LogoImg = styled.img`
+const LogoImg = styled.img`  // 🎨 styled-components 스타일 정의
   width: 100%;
   max-width: 350px;
   height: auto;
 `;
 
-const Form = styled.form`
+const Form = styled.form`  // 🎨 styled-components 스타일 정의
   margin-top: 30px;
   gap: 10px;
   display: flex;
   flex-direction: column;
 `;
 
-const Input = styled.input`
+const Input = styled.input`  // 🎨 styled-components 스타일 정의
   border-radius: 5px;
   border: none;
   padding: 5px 20px;
@@ -53,11 +54,11 @@ const Input = styled.input`
   }
 `;
 
-const SubTitle = styled.p`
+const SubTitle = styled.p`  // 🎨 styled-components 스타일 정의
   font-size: 9px;
 `;
 
-const SigninBtn = styled.div`
+const SigninBtn = styled.div`  // 🎨 styled-components 스타일 정의
   padding: 10px 20px;
   border-radius: 20px;
   background-color: #19315d;
@@ -70,7 +71,7 @@ const SigninBtn = styled.div`
   margin-top: 20px;
 `;
 
-const ErrorMsg = styled.div`
+const ErrorMsg = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   justify-content: center;
   margin: 5px 0px;
@@ -79,7 +80,7 @@ const ErrorMsg = styled.div`
   font-weight: bold;
 `;
 
-const Guide = styled.span`
+const Guide = styled.span`  // 🎨 styled-components 스타일 정의
   font-size: 10px;
   text-align: center;
   display: flex;
@@ -91,7 +92,7 @@ const Guide = styled.span`
   }
 `;
 
-const Divider = styled.p`
+const Divider = styled.p`  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   font-size: 10px;
@@ -162,7 +163,7 @@ export default () => {
     }
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);  // 🔑 이메일 로그인 처리
       navi("/");
     } catch (error) {
       if (error instanceof FirebaseError) {
@@ -173,7 +174,7 @@ export default () => {
     }
   };
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <>
       <YoutubeBackground />
       <Container>

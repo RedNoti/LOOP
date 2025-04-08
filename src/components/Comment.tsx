@@ -1,3 +1,4 @@
+// 📄 Comment 컴포넌트 - 게시글에 달린 댓글을 표시하고 입력할 수 있는 기능을 담당합니다.
 import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
@@ -10,23 +11,23 @@ import {
   addDoc,
 } from "firebase/firestore";
 
-const CommentWrapper = styled.div`
+const CommentWrapper = styled.div`  // 🎨 styled-components 스타일 정의
   margin-top: 10px;
 `;
 
-const CommentCount = styled.div`
+const CommentCount = styled.div`  // 🎨 styled-components 스타일 정의
   font-size: 13px;
   color: #aaa;
   margin-bottom: 5px;
 `;
 
-const InputArea = styled.div`
+const InputArea = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   gap: 5px;
   margin-bottom: 10px;
 `;
 
-const CommentInput = styled.textarea`
+const CommentInput = styled.textarea`  // 🎨 styled-components 스타일 정의
   flex: 1;
   height: 50px;
   resize: none;
@@ -35,7 +36,7 @@ const CommentInput = styled.textarea`
   font-size: 14px;
 `;
 
-const AddButton = styled.button`
+const AddButton = styled.button`  // 🎨 styled-components 스타일 정의
   height: 50px;
   background-color: #2196f3;
   color: white;
@@ -45,18 +46,18 @@ const AddButton = styled.button`
   cursor: pointer;
 `;
 
-const CommentList = styled.div`
+const CommentList = styled.div`  // 🎨 styled-components 스타일 정의
   display: flex;
   flex-direction: column;
   gap: 4px;
 `;
 
-const CommentItem = styled.div`
+const CommentItem = styled.div`  // 🎨 styled-components 스타일 정의
   font-size: 14px;
   color: #eaeaea;
 `;
 
-const ActionButton = styled.button`
+const ActionButton = styled.button`  // 🎨 styled-components 스타일 정의
   height: 30px;
   margin-left: 5px;
   padding: 0 8px;
@@ -89,15 +90,15 @@ const CommentSection = ({
   initialCount,
   onCommentAdded,
 }: CommentSectionProps) => {
-  const user = auth.currentUser;
-  const [newComment, setNewComment] = useState("");
+  const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
+  const [newComment, setNewComment] = useState("");  // 💡 상태(State) 정의
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState("");
+  const [editingContent, setEditingContent] = useState("");  // 💡 상태(State) 정의
 
-  useEffect(() => {
+  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
     const loadComments = async () => {
-      const commentsRef = collection(db, "posts", postId, "comments");
+      const commentsRef = collection(db, "posts", postId, "comments");  // 📦 Firestore 컬렉션 참조
       const commentSnapshot = await getDocs(commentsRef);
       const loadedComments = commentSnapshot.docs.map((doc) => ({
         ...(doc.data() as Comment),
@@ -121,7 +122,7 @@ const CommentSection = ({
 
     try {
       const docRef = await addDoc(
-        collection(db, "posts", postId, "comments"),
+        collection(db, "posts", postId, "comments"),  // 📦 Firestore 컬렉션 참조
         commentData
       );
       commentData.id = docRef.id;
@@ -135,7 +136,7 @@ const CommentSection = ({
 
   const onDeleteComment = async (commentId: string) => {
     try {
-      await deleteDoc(doc(db, "posts", postId, "comments", commentId));
+      await deleteDoc(doc(db, "posts", postId, "comments", commentId));  // 📄 Firestore 문서 참조
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     } catch (error) {
       console.error("댓글 삭제 오류:", error);
@@ -151,7 +152,7 @@ const CommentSection = ({
     if (!editingCommentId || !editingContent.trim()) return;
 
     try {
-      const ref = doc(db, "posts", postId, "comments", editingCommentId);
+      const ref = doc(db, "posts", postId, "comments", editingCommentId);  // 📄 Firestore 문서 참조
       await setDoc(ref, { content: editingContent }, { merge: true });
       setComments((prev) =>
         prev.map((comment) =>
@@ -167,7 +168,7 @@ const CommentSection = ({
     }
   };
 
-  return (
+  return (  // 🔚 컴포넌트의 JSX 반환 시작
     <CommentWrapper>
       <CommentCount>댓글 {comments.length}개</CommentCount>
       <InputArea>
