@@ -47,7 +47,14 @@ export default function Playlist() {
       <h3 style={{ color: "white", marginBottom: "1rem" }}>내 재생목록</h3>
       <PlaylistGrid>
         {playlists.map((playlist) => (
-          <Card key={playlist.id} onClick={() => playPlaylist(playlist.id)}>
+          <Card
+            key={playlist.id}
+            onClick={() => {
+              localStorage.setItem("last_playlist_id", playlist.id);
+              localStorage.setItem("current_video_index", "0");
+              playPlaylist(playlist.id);
+            }}
+          >
             <Thumbnail
               src={playlist.snippet.thumbnails.medium.url}
               alt={playlist.snippet.title}

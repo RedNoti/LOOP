@@ -3,13 +3,13 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
+import React, { useEffect, useState } from "react";
 
 const LayoutWrapper = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  overflow: hidden;
 `;
 
 const Header = styled.div`
@@ -76,7 +76,42 @@ const MainContent = styled.div`
   overflow: hidden;
 `;
 
+const GradientOverlay = styled.div<{ color1: string; color2: string }>`
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 15px;
+  background: linear-gradient(
+    to bottom,
+    ${(props) => props.color1},
+    ${(props) => props.color2}
+  );
+  opacity: 1;
+  animation: fadeIn 0.8s ease;
+
+  &.fading {
+    opacity: 0;
+    animation: fadeIn 0.8s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+`;
+
 export default () => {
+  const [gradientLayers, setGradientLayers] = useState<
+    { id: number; color1: string; color2: string }[]
+  >([]);
+  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [secondaryColor, setSecondaryColor] = useState<string | null>(null);
   const navi = useNavigate();
   const location = useLocation();
   const hidePlayer =
@@ -89,6 +124,20 @@ export default () => {
       navi("/signin");
     }
   };
+
+  useEffect(() => {
+    if (dominantColor && secondaryColor) {
+      const newLayer = {
+        id: Date.now(),
+        color1: dominantColor,
+        color2: secondaryColor,
+      };
+      setGradientLayers((prev) => {
+        const updated = [...prev, newLayer];
+        return updated.slice(-1); // ✅ 최신 1개만 유지
+      });
+    }
+  }, [dominantColor, secondaryColor]);
 
   return (
     <LayoutWrapper>
@@ -189,13 +238,31 @@ export default () => {
                 width: "50%",
                 minWidth: "320px",
                 height: "100%",
-                padding: "1rem",
                 boxSizing: "border-box",
-                backgroundColor: "rgb(13, 15, 18)",
-                borderLeft: "1px solid #333",
+                borderLeft: "none",
+                padding: 0,
+                overflow: "hidden",
+                borderTopRightRadius: "15px",
+                borderBottomRightRadius: "15px",
+                borderTopLeftRadius: "15px",
+                borderBottomLeftRadius: "15px",
+                position: "relative", // ✅ needed for overlay
               }}
             >
-              <YouTubeMusicPlayer />
+              {gradientLayers.map((layer, index) => (
+                <GradientOverlay
+                  key={layer.id}
+                  className={
+                    index === gradientLayers.length - 1 ? "fading" : ""
+                  }
+                  color1={layer.color1}
+                  color2={layer.color2}
+                />
+              ))}
+              <YouTubeMusicPlayer
+                onColorExtract={setDominantColor}
+                onColorExtractSecondary={setSecondaryColor}
+              />
             </div>
           )}
         </div>

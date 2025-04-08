@@ -10,7 +10,8 @@ import {
   arrayRemove,
   increment,
 } from "firebase/firestore";
-import CommentSection from "./Comment"; // 대소문자 확인!
+import CommentSection from "./Comment";
+import { useMusicPlayer } from "../components/MusicFunction"; // ✅ 추가
 
 interface PostProps {
   id: string;
@@ -25,6 +26,16 @@ interface PostProps {
     content: string;
     createdAt: number;
   }[];
+  playlist?: {
+    id: string;
+    title: string;
+    thumbnail: string;
+    tracks?: {
+      videoId: string;
+      title: string;
+      thumbnail: string;
+    }[];
+  } | null;
 }
 
 const defaultProfileImg =
@@ -38,6 +49,7 @@ const Post = ({
   createdAt,
   photoUrl,
   comments,
+  playlist,
 }: PostProps) => {
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
@@ -53,6 +65,7 @@ const Post = ({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
+  const { playPlaylist } = useMusicPlayer(); // ✅ 재생 함수
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -110,9 +123,7 @@ const Post = ({
           try {
             await fetch("http://uploadloop.kro.kr:4000/delete", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ url: `/postphoto/${filename}` }),
             });
           } catch (error) {
@@ -153,6 +164,7 @@ const Post = ({
           </div>
         )}
       </Wrapper>
+
       <EditableContent>
         {isEditing ? (
           <>
@@ -184,6 +196,22 @@ const Post = ({
           <Content>{post}</Content>
         )}
       </EditableContent>
+
+      {/* 첨부된 재생목록 렌더링 */}
+      {playlist && (
+        <PlaylistBox
+          onClick={() => {
+            if (playlist?.tracks) {
+              const videoIds = playlist.tracks.map((track) => track.videoId);
+              playPlaylist(videoIds.join(","));
+            }
+          }}
+        >
+          <PlaylistThumb src={playlist.thumbnail} alt="Playlist Thumbnail" />
+          <PlaylistTitle>{playlist.title}</PlaylistTitle>
+        </PlaylistBox>
+      )}
+
       {photoUrls.length > 0 && (
         <ImageGallery>
           {photoUrls.map((url, index) => (
@@ -195,10 +223,11 @@ const Post = ({
           ))}
         </ImageGallery>
       )}
+
       <Actions>
         <LikeBtn onClick={handleLike}>
           <img
-            src={hasLiked ? "/heart2.png" : "/heart.png"}
+            src={hasLiked ? "/heart3.png" : "/heart.png"}
             alt="Like"
             width="15"
           />
@@ -230,7 +259,7 @@ const Post = ({
 
 export default Post;
 
-// 스타일 생략 or 아래처럼 간단한 예시
+// 🎨 스타일 컴포넌트
 const Container = styled.div`
   border: 1px solid #444;
   padding: 1rem;
@@ -338,4 +367,29 @@ const SaveBtn = styled.button`
   margin-top: 0.5rem;
   padding: 4px 10px;
   border-radius: 4px;
+`;
+
+// ✅ 재생목록 박스 스타일
+const PlaylistBox = styled.div`
+  margin: 10px 0;
+  padding: 10px;
+  background: #333;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 12px;
+`;
+
+const PlaylistThumb = styled.img`
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+`;
+
+const PlaylistTitle = styled.p`
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
 `;

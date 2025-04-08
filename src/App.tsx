@@ -104,7 +104,11 @@ export default App;
 
 // 공통적으로 전역에서 사용할 Global CSS Style
 const GlobalStyle = createGlobalStyle`
-  ${reset}
+${reset}
+html, body, #root {
+  height: 100%;
+}
+
   body{
     background-color:rgb(0, 0, 0);
     color: white;

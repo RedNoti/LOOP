@@ -5,6 +5,37 @@ import { db, auth } from "../firebaseConfig"; // adjust path as needed
 export const playerRef: { current: any } = { current: null };
 export const playerReadyRef: { current: boolean } = { current: false };
 
+export const fetchPlaylistVideosReturn = async (playlistId: string) => {
+  const token = localStorage.getItem("ytAccessToken");
+  if (!token) return [];
+
+  let nextPageToken = "";
+  const allItems: any[] = [];
+
+  try {
+    do {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${nextPageToken}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (data.items) {
+        allItems.push(...data.items);
+      }
+      nextPageToken = data.nextPageToken || "";
+    } while (nextPageToken);
+
+    return allItems;
+  } catch (err) {
+    console.error("❌ 재생목록 영상 fetch 실패:", err);
+    return [];
+  }
+};
+
 const savePlaybackStateToFirestore = async (
   userId: string,
   playlistId: string,
@@ -87,41 +118,80 @@ export const useMusicPlayer = () => {
     }
   };
 
-  const playPlaylist = async (playlistId: string, startIndex = 0) => {
-    setCurrentPlaylistId(playlistId); // track current playlist
-    await fetchPlaylistVideos(playlistId);
+  const playPlaylist = async (
+    playlistId: string,
+    startIndex: number = 0,
+    forcePlay: boolean = false
+  ) => {
+    if (
+      !forcePlay &&
+      playlistId === currentPlaylistId &&
+      startIndex === currentIndex
+    )
+      return;
 
-    const nextVideoId = videos[startIndex]?.snippet?.resourceId?.videoId;
-    if (nextVideoId) {
-      setCurrentIndex(startIndex);
-      setCurrentVideoId(nextVideoId);
+    const fetchedVideos = await fetchPlaylistVideosReturn(playlistId);
+    if (!fetchedVideos.length) return;
 
-      if (auth.currentUser?.uid) {
-        savePlaybackStateToFirestore(
-          auth.currentUser.uid,
-          playlistId,
-          startIndex
-        );
-      }
+    // stop currently playing video before loading new one
+    if (playerRef.current?.stopVideo) {
+      playerRef.current.stopVideo();
     }
+
+    const nextVideo = fetchedVideos[startIndex];
+    const nextVideoId =
+      nextVideo?.snippet?.resourceId?.videoId || nextVideo?.id?.videoId;
+    if (!nextVideoId) return;
+
+    setVideos(fetchedVideos);
+    setCurrentIndex(startIndex);
+    setCurrentVideoId(nextVideoId);
+    setCurrentPlaylistId(playlistId);
+
+    // Firebase에 재생 상태 저장
+    if (auth.currentUser?.uid) {
+      savePlaybackStateToFirestore(
+        auth.currentUser.uid,
+        playlistId,
+        startIndex
+      ); // 이 부분을 수정
+    }
+
+    localStorage.setItem("last_playlist_id", playlistId);
+    localStorage.setItem("current_video_index", String(startIndex));
   };
 
   useEffect(() => {
     const tryRestorePlayback = async () => {
-      if (auth.currentUser?.uid && playlists.length > 0 && !playbackRestored) {
-        const saved = await loadPlaybackStateFromFirestore(
-          auth.currentUser.uid
-        );
-        if (saved?.playlistId) {
-          const index = saved.videoIndex || 0;
-          await playPlaylist(saved.playlistId, index);
-          setPlaybackRestored(true);
-        } else {
-          // fallback: load first playlist only if no saved playback exists
-          await fetchPlaylistVideos(playlists[0].id);
-        }
+      if (!auth.currentUser?.uid || playlists.length === 0 || playbackRestored)
+        return;
+
+      // 1. Firebase 우선 복원
+      const saved = await loadPlaybackStateFromFirestore(auth.currentUser.uid);
+      if (
+        saved?.playlistId &&
+        playlists.some((p) => p.id === saved.playlistId)
+      ) {
+        await playPlaylist(saved.playlistId, saved.videoIndex || 0);
+        setPlaybackRestored(true);
+        return;
       }
+
+      // 2. Firebase 복원 실패 → 로컬스토리지 시도
+      const localPlaylistId = localStorage.getItem("last_playlist_id");
+      const localIndex = parseInt(
+        localStorage.getItem("current_video_index") || "0"
+      );
+      if (localPlaylistId && playlists.some((p) => p.id === localPlaylistId)) {
+        await playPlaylist(localPlaylistId, localIndex);
+      } else {
+        // 3. 아무 것도 없으면 첫 플레이리스트
+        await fetchPlaylistVideos(playlists[0].id);
+      }
+
+      setPlaybackRestored(true);
     };
+
     tryRestorePlayback();
   }, [playlists]);
 
@@ -130,13 +200,20 @@ export const useMusicPlayer = () => {
     playerReadyRef.current = true;
     playerRef.current.setVolume(volume);
 
-    const fallbackId = currentVideoId;
-    const videoId =
-      videos[currentIndex]?.snippet?.resourceId?.videoId || fallbackId;
-    if (videoId) {
-      playerRef.current.loadVideoById(videoId);
-      setIsPlaying(true);
+    const duration = event.target.getDuration();
+    if (typeof duration === "number" && !isNaN(duration)) {
+      setIsLoading(false);
     }
+
+    const savedVolume = localStorage.getItem("musicPlayerVolume");
+    if (savedVolume !== null) {
+      playerRef.current.setVolume(Number(savedVolume));
+      changeVolume({
+        target: { value: savedVolume },
+      } as React.ChangeEvent<HTMLInputElement>);
+    }
+
+    // Do not load video here to avoid duplicate playback.
   };
 
   const onStateChange = (event: any) => {
@@ -157,8 +234,17 @@ export const useMusicPlayer = () => {
 
   const playPause = () => {
     if (!playerReadyRef.current || !playerRef.current) return;
-    isPlaying ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
-    setIsPlaying(!isPlaying);
+
+    const player = playerRef.current;
+    const state = player.getPlayerState?.(); // 현재 플레이어 상태 가져오기
+
+    if (state === 1) {
+      player.pauseVideo();
+      setIsPlaying(false);
+    } else {
+      player.playVideo();
+      setIsPlaying(true);
+    }
   };
 
   const nextTrack = () => {
@@ -342,5 +428,6 @@ export const useMusicPlayer = () => {
     changeVolume,
     playPlaylist, // 추가됨
     playerRef, // 추가
+    currentPlaylistId,
   };
 };
