@@ -2,7 +2,8 @@
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
 
-const Button = styled.div`  // 🎨 styled-components 스타일 정의
+const Button = styled.div`
+  // 🎨 styled-components 스타일 정의
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,7 +20,8 @@ const Button = styled.div`  // 🎨 styled-components 스타일 정의
   }
 `;
 
-const Title = styled.p` ✅ 텍스트 색 명시  // 🎨 styled-components 스타일 정의
+const Title = styled.p`
+  //✅ 텍스트 색 명시  // 🎨 styled-components 스타일 정의
 `;
 
 export default () => {
@@ -31,7 +33,8 @@ export default () => {
     navigation("/signup");
   };
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <Button onClick={onClick}>
       <Title>이메일로 가입하기</Title>
     </Button>

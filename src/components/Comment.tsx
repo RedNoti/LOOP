@@ -11,64 +11,6 @@ import {
   addDoc,
 } from "firebase/firestore";
 
-const CommentWrapper = styled.div`  // 🎨 styled-components 스타일 정의
-  margin-top: 10px;
-`;
-
-const CommentCount = styled.div`  // 🎨 styled-components 스타일 정의
-  font-size: 13px;
-  color: #aaa;
-  margin-bottom: 5px;
-`;
-
-const InputArea = styled.div`  // 🎨 styled-components 스타일 정의
-  display: flex;
-  gap: 5px;
-  margin-bottom: 10px;
-`;
-
-const CommentInput = styled.textarea`  // 🎨 styled-components 스타일 정의
-  flex: 1;
-  height: 50px;
-  resize: none;
-  border-radius: 5px;
-  padding: 5px;
-  font-size: 14px;
-`;
-
-const AddButton = styled.button`  // 🎨 styled-components 스타일 정의
-  height: 50px;
-  background-color: #2196f3;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-`;
-
-const CommentList = styled.div`  // 🎨 styled-components 스타일 정의
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-`;
-
-const CommentItem = styled.div`  // 🎨 styled-components 스타일 정의
-  font-size: 14px;
-  color: #eaeaea;
-`;
-
-const ActionButton = styled.button`  // 🎨 styled-components 스타일 정의
-  height: 30px;
-  margin-left: 5px;
-  padding: 0 8px;
-  background-color: #555;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 12px;
-`;
-
 interface Comment {
   userId: string;
   nickname: string;
@@ -90,15 +32,16 @@ const CommentSection = ({
   initialCount,
   onCommentAdded,
 }: CommentSectionProps) => {
-  const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
-  const [newComment, setNewComment] = useState("");  // 💡 상태(State) 정의
+  const user = auth.currentUser; // 🔐 현재 로그인된 사용자 정보 참조
+  const [newComment, setNewComment] = useState(""); // 💡 상태(State) 정의
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState("");  // 💡 상태(State) 정의
+  const [editingContent, setEditingContent] = useState(""); // 💡 상태(State) 정의
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const loadComments = async () => {
-      const commentsRef = collection(db, "posts", postId, "comments");  // 📦 Firestore 컬렉션 참조
+      const commentsRef = collection(db, "posts", postId, "comments"); // 📦 Firestore 컬렉션 참조
       const commentSnapshot = await getDocs(commentsRef);
       const loadedComments = commentSnapshot.docs.map((doc) => ({
         ...(doc.data() as Comment),
@@ -122,7 +65,7 @@ const CommentSection = ({
 
     try {
       const docRef = await addDoc(
-        collection(db, "posts", postId, "comments"),  // 📦 Firestore 컬렉션 참조
+        collection(db, "posts", postId, "comments"), // 📦 Firestore 컬렉션 참조
         commentData
       );
       commentData.id = docRef.id;
@@ -136,7 +79,7 @@ const CommentSection = ({
 
   const onDeleteComment = async (commentId: string) => {
     try {
-      await deleteDoc(doc(db, "posts", postId, "comments", commentId));  // 📄 Firestore 문서 참조
+      await deleteDoc(doc(db, "posts", postId, "comments", commentId)); // 📄 Firestore 문서 참조
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     } catch (error) {
       console.error("댓글 삭제 오류:", error);
@@ -152,7 +95,7 @@ const CommentSection = ({
     if (!editingCommentId || !editingContent.trim()) return;
 
     try {
-      const ref = doc(db, "posts", postId, "comments", editingCommentId);  // 📄 Firestore 문서 참조
+      const ref = doc(db, "posts", postId, "comments", editingCommentId); // 📄 Firestore 문서 참조
       await setDoc(ref, { content: editingContent }, { merge: true });
       setComments((prev) =>
         prev.map((comment) =>
@@ -168,7 +111,8 @@ const CommentSection = ({
     }
   };
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <CommentWrapper>
       <CommentCount>댓글 {comments.length}개</CommentCount>
       <InputArea>
@@ -234,5 +178,67 @@ const CommentSection = ({
     </CommentWrapper>
   );
 };
+
+// 🎨 styled-components 스타일 정의
+const CommentWrapper = styled.div`
+  margin-top: 10px;
+`;
+
+const CommentCount = styled.div`
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 5px;
+`;
+
+const InputArea = styled.div`
+  display: flex;
+  gap: 5px;
+  margin-bottom: 10px;
+`;
+
+const CommentInput = styled.textarea`
+  /* flex: 1; <- 제거 또는 주석 처리 */
+  height: 50px;
+  resize: none;
+  border-radius: 5px;
+  padding: 5px;
+  font-size: 14px;
+  width: 50%;       /*일단 텍스트 입력 칸 전체 반띵 % 고정정 */
+  background-color: #b0b0b0;
+  box-sizing: border-box; /* padding, border가 width에 포함되도록 설정 (선택 사항) */
+`;
+
+const AddButton = styled.button`
+  height: 50px;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+`;
+
+const CommentList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const CommentItem = styled.div`
+  font-size: 14px;
+  color: #eaeaea;
+`;
+
+const ActionButton = styled.button`
+  height: 30px;
+  margin-left: 5px;
+  padding: 0 8px;
+  background-color: #555;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+`;
 
 export default CommentSection;
