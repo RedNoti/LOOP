@@ -9,11 +9,9 @@ import {
   arrayUnion,
   arrayRemove,
   increment,
-  addDoc,
-  collection,
 } from "firebase/firestore";
 import CommentSection from "./Comment";
-import { useMusicPlayer } from "../components/MusicFunction"; // ✅ 추가
+import { useMusicPlayer } from "../components/MusicFunction";
 
 interface PostProps {
   id: string;
@@ -27,6 +25,7 @@ interface PostProps {
     nickname: string;
     content: string;
     createdAt: number;
+    id?: string;
   }[];
   playlist?: {
     id: string;
@@ -69,8 +68,8 @@ const Post = ({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
-  const { playPlaylist, playPlaylistFromFile } = useMusicPlayer(); // ✅ 재생 함수
-  const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null); // 새로운 상태 추가
+  const { playPlaylist } = useMusicPlayer();
+  const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -117,7 +116,7 @@ const Post = ({
       }
     };
     fetchPlaylistFile();
-  }, [playlistFileUrl]); // 플레이리스트 JSON을 가져오는 useEffect 추가
+  }, [playlistFileUrl]);
 
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
@@ -234,14 +233,11 @@ const Post = ({
         <PlaylistBox
           onClick={() => {
             if (fetchedPlaylist?.tracks?.length > 0) {
-              // Store in sessionStorage for player to pick up
               sessionStorage.setItem("play_from_post", "true");
               sessionStorage.setItem(
                 "post_playlist",
                 JSON.stringify(fetchedPlaylist)
               );
-
-              // Dispatch event for immediate playing if player is already loaded
               window.dispatchEvent(new CustomEvent("post_playlist_selected"));
             }
           }}
@@ -293,6 +289,15 @@ const Post = ({
               comments: updatedComments,
             });
           }}
+          onCommentDeleted={async (deletedCommentId) => {
+            const updatedComments = commentList.filter(
+              (c) => c.id !== deletedCommentId
+            );
+            setCommentList(updatedComments);
+            await updateDoc(doc(db, "posts", id), {
+              comments: updatedComments,
+            });
+          }}
         />
       )}
     </Container>
@@ -301,7 +306,7 @@ const Post = ({
 
 export default Post;
 
-// 🎨 스타일 컴포넌트
+// 🎨 스타일 생략 없이 그대로 유지 (아래는 동일)
 const Container = styled.div`
   border: 1px solid #444;
   padding: 1rem;
@@ -411,7 +416,6 @@ const SaveBtn = styled.button`
   border-radius: 4px;
 `;
 
-// ✅ 재생목록 박스 스타일
 const PlaylistBox = styled.div`
   margin: 10px 0;
   padding: 10px;

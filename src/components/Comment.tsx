@@ -1,4 +1,4 @@
-// 📄 Comment 컴포넌트 - 게시글에 달린 댓글을 표시하고 입력할 수 있는 기능을 담당합니다.
+// Comment.tsx
 import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
@@ -24,6 +24,7 @@ interface CommentSectionProps {
   initialComments: Comment[];
   initialCount: number;
   onCommentAdded?: (newComment: Comment) => void;
+  onCommentDeleted?: (deletedCommentId: string) => void; // ✅ 추가
 }
 
 const CommentSection = ({
@@ -31,17 +32,17 @@ const CommentSection = ({
   initialComments,
   initialCount,
   onCommentAdded,
+  onCommentDeleted,
 }: CommentSectionProps) => {
-  const user = auth.currentUser; // 🔐 현재 로그인된 사용자 정보 참조
-  const [newComment, setNewComment] = useState(""); // 💡 상태(State) 정의
+  const user = auth.currentUser;
+  const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState(""); // 💡 상태(State) 정의
+  const [editingContent, setEditingContent] = useState("");
 
   useEffect(() => {
-    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const loadComments = async () => {
-      const commentsRef = collection(db, "posts", postId, "comments"); // 📦 Firestore 컬렉션 참조
+      const commentsRef = collection(db, "posts", postId, "comments");
       const commentSnapshot = await getDocs(commentsRef);
       const loadedComments = commentSnapshot.docs.map((doc) => ({
         ...(doc.data() as Comment),
@@ -49,7 +50,6 @@ const CommentSection = ({
       }));
       setComments(loadedComments);
     };
-
     loadComments();
   }, [postId]);
 
@@ -65,7 +65,7 @@ const CommentSection = ({
 
     try {
       const docRef = await addDoc(
-        collection(db, "posts", postId, "comments"), // 📦 Firestore 컬렉션 참조
+        collection(db, "posts", postId, "comments"),
         commentData
       );
       commentData.id = docRef.id;
@@ -79,8 +79,9 @@ const CommentSection = ({
 
   const onDeleteComment = async (commentId: string) => {
     try {
-      await deleteDoc(doc(db, "posts", postId, "comments", commentId)); // 📄 Firestore 문서 참조
+      await deleteDoc(doc(db, "posts", postId, "comments", commentId));
       setComments((prev) => prev.filter((c) => c.id !== commentId));
+      if (onCommentDeleted) onCommentDeleted(commentId); // ✅ 외부로 알림
     } catch (error) {
       console.error("댓글 삭제 오류:", error);
     }
@@ -95,7 +96,7 @@ const CommentSection = ({
     if (!editingCommentId || !editingContent.trim()) return;
 
     try {
-      const ref = doc(db, "posts", postId, "comments", editingCommentId); // 📄 Firestore 문서 참조
+      const ref = doc(db, "posts", postId, "comments", editingCommentId);
       await setDoc(ref, { content: editingContent }, { merge: true });
       setComments((prev) =>
         prev.map((comment) =>
@@ -112,7 +113,6 @@ const CommentSection = ({
   };
 
   return (
-    // 🔚 컴포넌트의 JSX 반환 시작
     <CommentWrapper>
       <CommentCount>댓글 {comments.length}개</CommentCount>
       <InputArea>
@@ -143,29 +143,10 @@ const CommentSection = ({
                       onClick={() =>
                         onEditComment(comment.id!, comment.content)
                       }
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        cursor: "pointer",
-                        border: "none",
-                        background: "none",
-                        padding: 0,
-                        marginRight: "8px",
-                      }}
                     >
                       <img src="/edit.png" alt="수정" width="15" />
                     </ActionButton>
-                    <ActionButton
-                      onClick={() => onDeleteComment(comment.id!)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        cursor: "pointer",
-                        border: "none",
-                        background: "none",
-                        padding: 0,
-                      }}
-                    >
+                    <ActionButton onClick={() => onDeleteComment(comment.id!)}>
                       <img src="/delete.png" alt="삭제" width="15" />
                     </ActionButton>
                   </>
@@ -179,35 +160,30 @@ const CommentSection = ({
   );
 };
 
-// 🎨 styled-components 스타일 정의
+// 스타일 생략 - 기존 그대로 유지
 const CommentWrapper = styled.div`
   margin-top: 10px;
 `;
-
 const CommentCount = styled.div`
   font-size: 13px;
   color: #aaa;
   margin-bottom: 5px;
 `;
-
 const InputArea = styled.div`
   display: flex;
   gap: 5px;
   margin-bottom: 10px;
 `;
-
 const CommentInput = styled.textarea`
-  /* flex: 1; <- 제거 또는 주석 처리 */
   height: 50px;
   resize: none;
   border-radius: 5px;
   padding: 5px;
   font-size: 14px;
-  width: 50%;       /*일단 텍스트 입력 칸 전체 반띵 % 고정정 */
+  width: 50%;
   background-color: #b0b0b0;
-  box-sizing: border-box; /* padding, border가 width에 포함되도록 설정 (선택 사항) */
+  box-sizing: border-box;
 `;
-
 const AddButton = styled.button`
   height: 50px;
   background-color: #2196f3;
@@ -217,18 +193,15 @@ const AddButton = styled.button`
   border-radius: 5px;
   cursor: pointer;
 `;
-
 const CommentList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
 `;
-
 const CommentItem = styled.div`
   font-size: 14px;
   color: #eaeaea;
 `;
-
 const ActionButton = styled.button`
   height: 30px;
   margin-left: 5px;
