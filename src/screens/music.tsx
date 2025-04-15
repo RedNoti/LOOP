@@ -11,10 +11,7 @@ import {
   Repeat,
   Shuffle,
 } from "lucide-react";
-import {
-  useMusicPlayer,
-  playPlaylistFromFile,
-} from "../components/MusicFunction";
+import { useMusicPlayer } from "../components/MusicFunction";
 
 const Container = styled.div`
   color: white;
@@ -338,7 +335,6 @@ export default function YouTubeMusicPlayer({
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [hoverColor, setHoverColor] = useState<string | null>(null);
 
-  // 새로운 state 추가
   const [repeatMode, setRepeatMode] = useState<RepeatMode>(() => {
     const savedRepeatMode = localStorage.getItem(STORAGE_KEYS.REPEAT_MODE);
     return savedRepeatMode ? parseInt(savedRepeatMode) : RepeatMode.NO_REPEAT;
@@ -397,10 +393,8 @@ export default function YouTubeMusicPlayer({
       }
     };
 
-    // Execute immediately on mount
     handlePostPlaylist();
 
-    // Also listen for custom event
     const handler = () => handlePostPlaylist();
     window.addEventListener("post_playlist_selected", handler);
     return () => window.removeEventListener("post_playlist_selected", handler);
@@ -538,7 +532,7 @@ export default function YouTubeMusicPlayer({
       playerRef.current.seekTo(sliderValue, true);
       setCurrentTime(sliderValue);
 
-      // 현재 재생 상태 확인 (1은 재생 중)
+      // 현재 재생 상태 확인 (1일 경우 재생 중)
       const playerState = playerRef.current.getPlayerState();
 
       // 만약 재생 중이었다면, 계속 재생
@@ -593,7 +587,7 @@ export default function YouTubeMusicPlayer({
     }
   };
 
-  // 트랙 종료 시 핸들러 수정 (onEnd 함수를 직접 대체할 수 있지만, 이 예제에서는 래핑)
+  // 트랙 종료 시 핸들러 수정
   const handleTrackEnd = () => {
     if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
       // 한 곡 반복 모드면 현재 곡을 다시 재생
@@ -608,19 +602,19 @@ export default function YouTubeMusicPlayer({
     <Container>
       <YouTube
         videoId={currentVideoId || ""}
-        key={currentVideoId || "fallback"} // ✅ 이렇게 바꿔야 함!
+        key={currentVideoId || "fallback"}
+        //비디오는 숨기고 자동재생 설정만 적용
         opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
+        //유튜브 플레이어 준비될때 불러오는 로직
         onReady={(e: YouTubeEvent<YouTubePlayer>) => {
           playerRef.current = e.target;
           playerReadyRef.current = true;
-
+          //비디오 전체 길이를 가져옴
           const duration = e.target.getDuration();
           if (typeof duration === "number" && !isNaN(duration)) {
             setDuration(duration);
           }
-
-          // don't force play on onReady; state change will handle it
-
+          //로컬 저장소에 볼륨값 저장
           const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
           if (savedVolume !== null) {
             playerRef.current.setVolume(Number(savedVolume));
@@ -632,13 +626,14 @@ export default function YouTubeMusicPlayer({
         onStateChange={onStateChange}
         onEnd={handleTrackEnd}
       />
-
+      {/*음악 앨범아트 부분 그래픽*/}
       <PlayerWrapper>
         <AlbumArtWrapper>
           <AlbumArt src={currentVideoThumbnail} alt="album" />
         </AlbumArtWrapper>
         <Title>{currentVideoTitle}</Title>
 
+        {/*음악 이전곡 다음곡 버튼*/}
         <Controls>
           <button onClick={prevTrack}>
             <SkipBack size={28} />
@@ -651,6 +646,7 @@ export default function YouTubeMusicPlayer({
           </button>
         </Controls>
 
+        {/*남은 시간*/}
         <ProgressBarWrapper>
           <ProgressTime>{formatTime(currentTime)}</ProgressTime>
           <ProgressBar
@@ -667,6 +663,7 @@ export default function YouTubeMusicPlayer({
           <ProgressTime>{formatTime(duration)}</ProgressTime>
         </ProgressBarWrapper>
 
+        {/*볼륨 조절바*/}
         <PlayerControlsWrapper>
           <VolumeWrapper>
             <Volume2 size={16} />
@@ -682,6 +679,7 @@ export default function YouTubeMusicPlayer({
             />
           </VolumeWrapper>
 
+          {/*반복,한곡재생 버튼*/}
           <PlaybackControlsWrapper>
             <PlaybackControlButton
               active={shuffleMode}
@@ -719,9 +717,11 @@ export default function YouTubeMusicPlayer({
         </PlayerControlsWrapper>
       </PlayerWrapper>
 
+      {/*스크롤 영역에 있는 내용*/}
       <ScrollableContent>
         {videos.length > 0 && (
           <>
+            {/*재생목록 (재생중인 음악 리스트)*/}
             <SectionTitle>🎵 현재 재생목록</SectionTitle>
             <PlaylistItemList>
               {videos
@@ -752,6 +752,7 @@ export default function YouTubeMusicPlayer({
           </>
         )}
 
+        {/*계정에 저장된 재생목록*/}
         {playlists.length > 0 && (
           <>
             <SectionTitle>📁 내 재생목록</SectionTitle>

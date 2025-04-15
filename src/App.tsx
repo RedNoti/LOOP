@@ -15,6 +15,7 @@ import KategorieFunction from "./components/KategorieFunction";
 import InputPostScreen from "./screens/InputPostScreen"; // 상단 import
 import YouTubeMusicPlayer from "./screens/music";
 import YouTubeGlobalPlayer from "./components/YouTubeGlobalPlayer";
+import { MusicProvider } from "./components/MusicFunction";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -91,12 +92,14 @@ function App() {
   return loading ? (
     <LoadingScreen />
   ) : (
-    <Container className="App">
-      <GlobalStyle />
-      {window.location.pathname !== "/signin" &&
-        window.location.pathname !== "/signup" && <YouTubeGlobalPlayer />}
-      <RouterProvider router={router}></RouterProvider>
-    </Container>
+    <MusicProvider>
+      <Container className="App">
+        <GlobalStyle />
+        {window.location.pathname !== "/signin" &&
+          window.location.pathname !== "/signup" && <YouTubeGlobalPlayer />}
+        <RouterProvider router={router}></RouterProvider>
+      </Container>
+    </MusicProvider>
   );
 }
 

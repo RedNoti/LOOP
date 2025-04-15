@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig"; // adjust path as needed
 
@@ -41,6 +41,25 @@ export const fetchPlaylistVideosReturn = async (playlistId: string) => {
     console.error("❌ 재생목록 영상 fetch 실패:", err);
     return [];
   }
+};
+
+export const MusicContext = createContext<ReturnType<
+  typeof useMusicPlayer
+> | null>(null);
+
+export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
+  const music = useMusicPlayer();
+  return (
+    <MusicContext.Provider value={music}>{children}</MusicContext.Provider>
+  );
+};
+
+export const useMusic = () => {
+  const context = useContext(MusicContext);
+  if (!context) {
+    throw new Error("useMusic must be used within a MusicProvider");
+  }
+  return context;
 };
 
 const savePlaybackStateToFirestore = async (
