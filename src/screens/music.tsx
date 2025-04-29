@@ -308,6 +308,8 @@ export default function YouTubeMusicPlayer({
   onColorExtractSecondary?: (color: string) => void;
   onColorExtractHover?: (color: string) => void;
 }) {
+  // 하단 탭 상태 (playlist | lyrics)
+  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics">("playlist");
   const playerReadyRef = useRef<boolean>(false); // ✅ 반드시 여기
   const {
     currentVideoId,
@@ -719,7 +721,7 @@ export default function YouTubeMusicPlayer({
 
       {/*스크롤 영역에 있는 내용*/}
       <ScrollableContent>
-        {videos.length > 0 && (
+        {activeTab === "playlist" && videos.length > 0 && (
           <>
             {/*재생목록 (재생중인 음악 리스트)*/}
             <SectionTitle>🎵 현재 재생목록</SectionTitle>
@@ -752,28 +754,55 @@ export default function YouTubeMusicPlayer({
           </>
         )}
 
-        {/*계정에 저장된 재생목록*/}
-        {playlists.length > 0 && (
+        {activeTab === "lyrics" && (
           <>
-            <SectionTitle>📁 내 재생목록</SectionTitle>
-            <PlaylistGrid>
-              {playlists.map((playlist) => (
-                <PlaylistCard
-                  key={playlist.id}
-                  hoverColor={hoverColor || undefined}
-                  onClick={() => playPlaylist(playlist.id)}
-                >
-                  <PlaylistImage
-                    src={playlist.snippet.thumbnails.medium.url}
-                    alt={playlist.snippet.title}
-                  />
-                  <p>{playlist.snippet.title}</p>
-                </PlaylistCard>
-              ))}
-            </PlaylistGrid>
+            <SectionTitle>📜 가사</SectionTitle>
+            <p
+              style={{
+                whiteSpace: "pre-wrap",
+                color: "#ddd",
+                fontSize: "0.875rem",
+              }}
+            >
+              {/* TODO: Lyrics.tsx와 연동 예정 */}
+              가사 표시 영역입니다.
+            </p>
           </>
         )}
       </ScrollableContent>
+      {/* 하단 버튼 영역: 음악 플레이어 너비에 맞춰 유동적으로 */}
+      <div
+        style={{
+          width: "100%",
+          textAlign: "center",
+          padding: "0.75rem 1rem",
+          background: "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
+          fontSize: "0.875rem",
+          display: "flex",
+          justifyContent: "space-around",
+          color: "#fff",
+          marginTop: "auto",
+        }}
+      >
+        <span
+          style={{
+            cursor: "pointer",
+            opacity: activeTab === "playlist" ? 1 : 0.5,
+          }}
+          onClick={() => setActiveTab("playlist")}
+        >
+          다음 트랙
+        </span>
+        <span
+          style={{
+            cursor: "pointer",
+            opacity: activeTab === "lyrics" ? 1 : 0.5,
+          }}
+          onClick={() => setActiveTab("lyrics")}
+        >
+          가사
+        </span>
+      </div>
     </Container>
   );
 }
