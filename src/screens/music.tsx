@@ -1,5 +1,6 @@
 import ColorThief from "colorthief/dist/color-thief";
 import React, { useRef, useEffect, useState } from "react";
+import Lyrics from "../components/Lyrics";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -272,6 +273,7 @@ const PlaylistImage = styled.img`
 const ScrollableContent = styled.div`
   overflow-y: auto;
   flex: 1;
+  padding-bottom: 100px; // 💡 하단 버튼 영역 확보
 `;
 
 function formatTime(seconds: number) {
@@ -719,69 +721,16 @@ export default function YouTubeMusicPlayer({
         </PlayerControlsWrapper>
       </PlayerWrapper>
 
-      {/*스크롤 영역에 있는 내용*/}
-      <ScrollableContent>
-        {activeTab === "playlist" && videos.length > 0 && (
-          <>
-            {/*재생목록 (재생중인 음악 리스트)*/}
-            <SectionTitle>🎵 현재 재생목록</SectionTitle>
-            <PlaylistItemList>
-              {videos
-                .filter(
-                  (video) =>
-                    video.snippet &&
-                    video.snippet.title &&
-                    video.snippet.thumbnails?.default?.url
-                )
-                .map((video, index) => (
-                  <PlaylistItem
-                    key={index}
-                    hoverColor={hoverColor || undefined}
-                    onClick={() =>
-                      playPlaylist(video.snippet.playlistId || "", index)
-                    }
-                  >
-                    <div className="thumbnail">
-                      <img
-                        src={video.snippet.thumbnails.default.url}
-                        alt={video.snippet.title}
-                      />
-                    </div>
-                    <p>{video.snippet.title}</p>
-                  </PlaylistItem>
-                ))}
-            </PlaylistItemList>
-          </>
-        )}
-
-        {activeTab === "lyrics" && (
-          <>
-            <SectionTitle>📜 가사</SectionTitle>
-            <p
-              style={{
-                whiteSpace: "pre-wrap",
-                color: "#ddd",
-                fontSize: "0.875rem",
-              }}
-            >
-              {/* TODO: Lyrics.tsx와 연동 예정 */}
-              가사 표시 영역입니다.
-            </p>
-          </>
-        )}
-      </ScrollableContent>
-      {/* 하단 버튼 영역: 음악 플레이어 너비에 맞춰 유동적으로 */}
+      {/* 상단 버튼 영역: 음악 플레이어와 재생목록 사이 고정 */}
       <div
         style={{
           width: "100%",
-          textAlign: "center",
-          padding: "0.75rem 1rem",
-          background: "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
           fontSize: "0.875rem",
           display: "flex",
           justifyContent: "space-around",
           color: "#fff",
-          marginTop: "auto",
+          padding: "0.75rem 1rem 0.5rem",
+          background: "transparent", // ✅ 배경 제거
         }}
       >
         <span
@@ -803,6 +752,79 @@ export default function YouTubeMusicPlayer({
           가사
         </span>
       </div>
+
+      {/*스크롤 영역에 있는 내용*/}
+      <ScrollableContent>
+        {activeTab === "playlist" && (
+          <>
+            {videos.length > 0 && (
+              <>
+                <SectionTitle>🎵 현재 재생목록</SectionTitle>
+                <PlaylistItemList>
+                  {videos
+                    .filter(
+                      (video) =>
+                        video.snippet &&
+                        video.snippet.title &&
+                        video.snippet.thumbnails?.default?.url
+                    )
+                    .map((video, index) => (
+                      <PlaylistItem
+                        key={index}
+                        hoverColor={hoverColor || undefined}
+                        onClick={() =>
+                          playPlaylist(video.snippet.playlistId || "", index)
+                        }
+                      >
+                        <div className="thumbnail">
+                          <img
+                            src={video.snippet.thumbnails.default.url}
+                            alt={video.snippet.title}
+                          />
+                        </div>
+                        <p>{video.snippet.title}</p>
+                      </PlaylistItem>
+                    ))}
+                </PlaylistItemList>
+              </>
+            )}
+
+            {playlists.length > 0 && (
+              <>
+                <SectionTitle>📁 내 재생목록</SectionTitle>
+                <PlaylistGrid>
+                  {playlists.map((playlist) => (
+                    <PlaylistCard
+                      key={playlist.id}
+                      hoverColor={hoverColor || undefined}
+                      onClick={() => playPlaylist(playlist.id)}
+                    >
+                      <PlaylistImage
+                        src={playlist.snippet.thumbnails.medium.url}
+                        alt={playlist.snippet.title}
+                      />
+                      <p>{playlist.snippet.title}</p>
+                    </PlaylistCard>
+                  ))}
+                </PlaylistGrid>
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === "lyrics" && (
+          <>
+            <SectionTitle>📜 가사</SectionTitle>
+            <Lyrics
+              title={currentVideoTitle || ""}
+              artist={
+                videos.find((v) => v.id.videoId === currentVideoId)?.snippet
+                  ?.channelTitle || "unknown"
+              }
+            />
+          </>
+        )}
+      </ScrollableContent>
     </Container>
   );
 }
