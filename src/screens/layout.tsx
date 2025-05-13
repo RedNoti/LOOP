@@ -242,7 +242,15 @@ export default () => {
 
         <div style={{ display: "flex", width: "100%", height: "100%" }}>
           <MainContent>
-            <Outlet />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "100%",
+              }}
+            >
+              <Outlet />
+            </div>
           </MainContent>
           {!hidePlayer && (
             <div

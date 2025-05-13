@@ -16,12 +16,31 @@ import { useMusicPlayer } from "../components/MusicFunction";
 
 const Container = styled.div`
   color: white;
-  padding: 2rem;
-  min-height: 100vh;
-  overflow-y: auto;
+  height: 100vh;
+  height: 100dvh; /* 모바일에서 더 정확한 뷰포트 높이 */
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   position: relative;
+  box-sizing: border-box;
+`;
+
+const ContentWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+`;
+
+const PlayerSection = styled.div`
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  padding: 0 1rem;
 `;
 
 const PlayerWrapper = styled.div`
@@ -29,6 +48,7 @@ const PlayerWrapper = styled.div`
   flex-direction: column;
   align-items: center;
   padding-bottom: 1rem;
+  flex-shrink: 0;
 `;
 
 const AlbumArtWrapper = styled.div`
@@ -186,30 +206,72 @@ const PlaybackControlButton = styled.button<{ active?: boolean }>`
 `;
 
 const SectionTitle = styled.h3`
-  margin-top: 2rem;
-  margin-bottom: 1rem;
+  margin: 0;
   font-size: 1rem;
   font-weight: 500;
   color: white;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
 `;
 
 const PlaylistItemList = styled.ul`
   list-style: none;
-  padding: 0;
-  margin-top: 1rem;
+  padding: 0 1rem 2rem 1rem;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* 스크롤 성능 최적화 */
+  will-change: scroll-position;
+
+  /* 스크롤바 스타일링 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+  }
+
+  /* 스크롤 바운딩 설정 */
+  scroll-behavior: smooth;
+
+  /* 모바일에서 관성 스크롤 활성화 */
+  -webkit-overflow-scrolling: touch;
+
+  &::after {
+    content: "";
+    display: block;
+    height: 24px;
+    flex-shrink: 0;
+  }
 `;
 
 const PlaylistItem = styled.li<{ hoverColor?: string }>`
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem;
+  padding: 0.5rem 1rem;
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s;
+  flex-shrink: 0;
 
   &:hover {
     background-color: ${(props) => props.hoverColor || "#1f1f1f"};
@@ -238,6 +300,7 @@ const PlaylistItem = styled.li<{ hoverColor?: string }>`
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
   }
 `;
 
@@ -271,9 +334,103 @@ const PlaylistImage = styled.img`
 `;
 
 const ScrollableContent = styled.div`
-  overflow-y: auto;
   flex: 1;
-  padding-bottom: 100px; // 💡 하단 버튼 영역 확보
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+
+  /* 스크롤바 스타일링 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+  }
+`;
+
+const BottomFixed = styled.div`
+  width: 100%;
+  padding: 1rem 0 0 0;
+  background-color: transparent;
+  border-top: none;
+  flex-shrink: 0;
+  position: relative;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 120px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+`;
+
+const TabButtons = styled.div<{ hasActiveTab: boolean }>`
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-around;
+  padding: 0.75rem 1rem 0.5rem;
+  transform: ${(props) =>
+    props.hasActiveTab ? "translateY(-12px)" : "translateY(0)"};
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 1010;
+  background-color: inherit;
+  flex-shrink: 0;
+`;
+
+const TabContentWrapper = styled.div<{ $isExpanded: boolean }>`
+  height: ${(props) => {
+    if (!props.$isExpanded) return "0";
+    return `clamp(300px, 55vh, min(70vh, 700px))`;
+  }};
+  opacity: ${(props) => (props.$isExpanded ? 1 : 0)};
+  transform: translateY(${(props) => (props.$isExpanded ? "0%" : "100%")});
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s ease,
+    height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+
+  @media (max-width: 768px) {
+    height: ${(props) => {
+      if (!props.$isExpanded) return "0";
+      return `clamp(250px, 60vh, 500px)`;
+    }};
+  }
+
+  @media (max-height: 600px) {
+    height: ${(props) => {
+      if (!props.$isExpanded) return "0";
+      return `calc(100vh - 180px)`;
+    }};
+  }
+`;
+
+const TabContent = styled.div<{ $isActive: boolean }>`
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  opacity: ${(props) => (props.$isActive ? 1 : 0)};
+  transform: translateY(${(props) => (props.$isActive ? "0" : "10px")});
+  transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+  display: flex;
+  flex-direction: column;
 `;
 
 function formatTime(seconds: number) {
@@ -314,7 +471,7 @@ export default function YouTubeMusicPlayer({
   const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
     null
   );
-  const playerReadyRef = useRef<boolean>(false); // ✅ 반드시 여기
+  const playerReadyRef = useRef<boolean>(false);
   const {
     currentVideoId,
     currentVideoTitle,
@@ -387,7 +544,7 @@ export default function YouTubeMusicPlayer({
             }));
 
             setPlaylists(syntheticPlaylists);
-            setVideos(videos); // setVideos는 이미 useState로 선언된 상태 업데이트 함수입니다.
+            setVideos(syntheticVideos);
             playPlaylist(parsed.id, 0);
           }
         } catch (e) {
@@ -408,7 +565,6 @@ export default function YouTubeMusicPlayer({
 
   // 초기 로드 시 로컬 스토리지에서 설정 불러오기
   useEffect(() => {
-    // 마지막 재생 플레이리스트 정보 불러오기
     const savedPlaylistId = localStorage.getItem(STORAGE_KEYS.LAST_PLAYLIST_ID);
     const savedVideoIndex = localStorage.getItem(
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
@@ -439,7 +595,6 @@ export default function YouTubeMusicPlayer({
         currentVideoThumbnail
       );
 
-      // 현재 비디오의 인덱스와 플레이리스트 ID 찾기
       const currentVideoIndex = videos.findIndex(
         (v) => v.id.videoId === currentVideoId
       );
@@ -481,7 +636,6 @@ export default function YouTubeMusicPlayer({
           setDominantColor(formattedMain);
           if (onColorExtract) onColorExtract(formattedMain);
 
-          // ✅ hover color 계산
           const desaturated = mainColor.map((c) => Math.floor(c * 0.6));
           const formattedHover = `rgb(${desaturated[0]}, ${desaturated[1]}, ${desaturated[2]})`;
           setHoverColor(formattedHover);
@@ -498,19 +652,18 @@ export default function YouTubeMusicPlayer({
     };
   }, [currentVideoThumbnail]);
 
-  // Export dominantColor via onColorExtract prop if provided
   useEffect(() => {
     if (dominantColor && onColorExtract) {
       onColorExtract(dominantColor);
     }
   }, [dominantColor]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SHUFFLE_MODE, String(shuffleMode));
   }, [shuffleMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // 시킹 중에는 현재 시간 업데이트 건너뛰기
       if (!isSeeking && playerRef.current) {
         const time = playerRef.current.getCurrentTime();
         if (typeof time === "number" && !isNaN(time)) {
@@ -528,36 +681,29 @@ export default function YouTubeMusicPlayer({
   };
 
   const handleSeekChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // 드래그 중에만 슬라이더 값 업데이트
     setSliderValue(parseFloat(event.target.value));
   };
 
   const handleSeek = () => {
     if (playerRef.current) {
-      // 실제 비디오 시간 변경
       playerRef.current.seekTo(sliderValue, true);
       setCurrentTime(sliderValue);
 
-      // 현재 재생 상태 확인 (1일 경우 재생 중)
       const playerState = playerRef.current.getPlayerState();
 
-      // 만약 재생 중이었다면, 계속 재생
       if (playerState === 1 || isPlaying) {
         playerRef.current.playVideo();
       }
     }
 
-    // 시킹 종료
     setIsSeeking(false);
   };
 
-  // 재생 바의 진행 상태를 보여주는 스타일 계산
   const progressPercentage = duration > 0 ? (sliderValue / duration) * 100 : 0;
   const progressStyle = {
     background: `linear-gradient(to right, #1db954 ${progressPercentage}%, #444 ${progressPercentage}%)`,
   };
 
-  // 반복 모드 토글 함수
   const toggleRepeatMode = () => {
     setRepeatMode((prevMode) => {
       switch (prevMode) {
@@ -573,7 +719,6 @@ export default function YouTubeMusicPlayer({
     });
   };
 
-  // 셔플 모드 토글 함수
   const toggleShuffleMode = () => {
     setShuffleMode((prevMode) => !prevMode);
   };
@@ -593,10 +738,8 @@ export default function YouTubeMusicPlayer({
     }
   };
 
-  // 트랙 종료 시 핸들러 수정
   const handleTrackEnd = () => {
     if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
-      // 한 곡 반복 모드면 현재 곡을 다시 재생
       playerRef.current.seekTo(0, true);
       playerRef.current.playVideo();
     } else {
@@ -606,210 +749,193 @@ export default function YouTubeMusicPlayer({
 
   return (
     <Container>
-      <YouTube
-        videoId={currentVideoId || ""}
-        key={currentVideoId || "fallback"}
-        //비디오는 숨기고 자동재생 설정만 적용
-        opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
-        //유튜브 플레이어 준비될때 불러오는 로직
-        onReady={(e: YouTubeEvent<YouTubePlayer>) => {
-          playerRef.current = e.target;
-          playerReadyRef.current = true;
-          //비디오 전체 길이를 가져옴
-          const duration = e.target.getDuration();
-          if (typeof duration === "number" && !isNaN(duration)) {
-            setDuration(duration);
-          }
-          //로컬 저장소에 볼륨값 저장
-          const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
-          if (savedVolume !== null) {
-            playerRef.current.setVolume(Number(savedVolume));
-            changeVolume({
-              target: { value: savedVolume },
-            } as React.ChangeEvent<HTMLInputElement>);
-          }
-        }}
-        onStateChange={onStateChange}
-        onEnd={handleTrackEnd}
-      />
-      {/*음악 앨범아트 부분 그래픽*/}
-      <PlayerWrapper>
-        <AlbumArtWrapper>
-          <AlbumArt src={currentVideoThumbnail} alt="album" />
-        </AlbumArtWrapper>
-        <Title>{currentVideoTitle}</Title>
+      <ContentWrapper>
+        <YouTube
+          videoId={currentVideoId || ""}
+          key={currentVideoId || "fallback"}
+          opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
+          onReady={(e: YouTubeEvent<YouTubePlayer>) => {
+            playerRef.current = e.target;
+            playerReadyRef.current = true;
+            const duration = e.target.getDuration();
+            if (typeof duration === "number" && !isNaN(duration)) {
+              setDuration(duration);
+            }
+            const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
+            if (savedVolume !== null) {
+              playerRef.current.setVolume(Number(savedVolume));
+              changeVolume({
+                target: { value: savedVolume },
+              } as React.ChangeEvent<HTMLInputElement>);
+            }
+          }}
+          onStateChange={onStateChange}
+          onEnd={handleTrackEnd}
+        />
+        {activeTab === null && (
+          <PlayerSection>
+            <PlayerWrapper>
+              <AlbumArtWrapper>
+                <AlbumArt src={currentVideoThumbnail} alt="album" />
+              </AlbumArtWrapper>
+              <Title>{currentVideoTitle}</Title>
 
-        {/*음악 이전곡 다음곡 버튼*/}
-        <Controls>
-          <button onClick={prevTrack}>
-            <SkipBack size={28} />
-          </button>
-          <button onClick={playPause}>
-            {isPlaying ? <Pause size={28} /> : <Play size={28} />}
-          </button>
-          <button onClick={handleNextTrack}>
-            <SkipForward size={28} />
-          </button>
-        </Controls>
+              <Controls>
+                <button onClick={prevTrack}>
+                  <SkipBack size={28} />
+                </button>
+                <button onClick={playPause}>
+                  {isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                </button>
+                <button onClick={handleNextTrack}>
+                  <SkipForward size={28} />
+                </button>
+              </Controls>
 
-        {/*남은 시간*/}
-        <ProgressBarWrapper>
-          <ProgressTime>{formatTime(currentTime)}</ProgressTime>
-          <ProgressBar
-            type="range"
-            min="0"
-            max={duration}
-            value={sliderValue}
-            style={progressStyle}
-            onMouseDown={handleSeekStart}
-            onChange={handleSeekChange}
-            onMouseUp={handleSeek}
-            onTouchEnd={handleSeek}
-          />
-          <ProgressTime>{formatTime(duration)}</ProgressTime>
-        </ProgressBarWrapper>
+              <ProgressBarWrapper>
+                <ProgressTime>{formatTime(currentTime)}</ProgressTime>
+                <ProgressBar
+                  type="range"
+                  min="0"
+                  max={duration}
+                  value={sliderValue}
+                  style={progressStyle}
+                  onMouseDown={handleSeekStart}
+                  onChange={handleSeekChange}
+                  onMouseUp={handleSeek}
+                  onTouchEnd={handleSeek}
+                />
+                <ProgressTime>{formatTime(duration)}</ProgressTime>
+              </ProgressBarWrapper>
 
-        {/*볼륨 조절바*/}
-        <PlayerControlsWrapper>
-          <VolumeWrapper>
-            <Volume2 size={16} />
-            <VolumeSlider
-              type="range"
-              min="0"
-              max="100"
-              value={volume}
-              onChange={changeVolume}
+              <PlayerControlsWrapper>
+                <VolumeWrapper>
+                  <Volume2 size={16} />
+                  <VolumeSlider
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={volume}
+                    onChange={changeVolume}
+                    style={{
+                      background: `linear-gradient(to right, #1db954 ${volume}%, #444 ${volume}%)`,
+                    }}
+                  />
+                </VolumeWrapper>
+
+                <PlaybackControlsWrapper>
+                  <PlaybackControlButton
+                    active={shuffleMode}
+                    onClick={toggleShuffleMode}
+                    title="Shuffle Play"
+                  >
+                    <Shuffle size={16} />
+                  </PlaybackControlButton>
+                  <PlaybackControlButton
+                    active={repeatMode !== RepeatMode.NO_REPEAT}
+                    onClick={toggleRepeatMode}
+                    title={
+                      repeatMode === RepeatMode.NO_REPEAT
+                        ? "No Repeat"
+                        : repeatMode === RepeatMode.REPEAT_ALL
+                        ? "Repeat All"
+                        : "Repeat One"
+                    }
+                  >
+                    <Repeat size={16} />
+                    {repeatMode === RepeatMode.REPEAT_ONE && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          position: "absolute",
+                          marginTop: "-8px",
+                          marginLeft: "-6px",
+                        }}
+                      >
+                        1
+                      </span>
+                    )}
+                  </PlaybackControlButton>
+                </PlaybackControlsWrapper>
+              </PlayerControlsWrapper>
+            </PlayerWrapper>
+          </PlayerSection>
+        )}
+
+        <BottomFixed>
+          <TabButtons hasActiveTab={activeTab !== null}>
+            <span
               style={{
-                background: `linear-gradient(to right, #1db954 ${volume}%, #444 ${volume}%)`,
+                cursor: "pointer",
+                opacity: activeTab === "playlist" ? 1 : 0.5,
               }}
-            />
-          </VolumeWrapper>
-
-          {/*반복,한곡재생 버튼*/}
-          <PlaybackControlsWrapper>
-            <PlaybackControlButton
-              active={shuffleMode}
-              onClick={toggleShuffleMode}
-              title="Shuffle Play"
-            >
-              <Shuffle size={16} />
-            </PlaybackControlButton>
-            <PlaybackControlButton
-              active={repeatMode !== RepeatMode.NO_REPEAT}
-              onClick={toggleRepeatMode}
-              title={
-                repeatMode === RepeatMode.NO_REPEAT
-                  ? "No Repeat"
-                  : repeatMode === RepeatMode.REPEAT_ALL
-                  ? "Repeat All"
-                  : "Repeat One"
+              onClick={() =>
+                setActiveTab((prev) =>
+                  prev === "playlist" ? null : "playlist"
+                )
               }
             >
-              <Repeat size={16} />
-              {repeatMode === RepeatMode.REPEAT_ONE && (
-                <span
-                  style={{
-                    fontSize: "10px",
-                    position: "absolute",
-                    marginTop: "-8px",
-                    marginLeft: "-6px",
-                  }}
-                >
-                  1
-                </span>
-              )}
-            </PlaybackControlButton>
-          </PlaybackControlsWrapper>
-        </PlayerControlsWrapper>
-      </PlayerWrapper>
-
-      {/* 하단 탭 인터랙션 영역: 자연스러운 플로우와 항상 표시 */}
-      <div style={{ width: "100%" }}>
-        <div
-          style={{
-            fontSize: "0.875rem",
-            display: "flex",
-            justifyContent: "space-around",
-            padding: "0.75rem 1rem 0.5rem",
-            transform: activeTab ? "translateY(-12px)" : "translateY(0)",
-            transition: "transform 0.3s ease",
-          }}
-        >
-          <span
-            style={{
-              cursor: "pointer",
-              opacity: activeTab === "playlist" ? 1 : 0.5,
-            }}
-            onClick={() =>
-              setActiveTab((prev) => (prev === "playlist" ? null : "playlist"))
-            }
-          >
-            다음 트랙
-          </span>
-          <span
-            style={{
-              cursor: "pointer",
-              opacity: activeTab === "lyrics" ? 1 : 0.5,
-            }}
-            onClick={() =>
-              setActiveTab((prev) => (prev === "lyrics" ? null : "lyrics"))
-            }
-          >
-            가사
-          </span>
-        </div>
-
-        {activeTab && (
-          <div
-            style={{
-              transition: "all 0.3s ease",
-              transform: "translateY(0)",
-              opacity: 1,
-              overflow: "hidden",
-            }}
-          >
-            <ScrollableContent>
+              다음 트랙
+            </span>
+            <span
+              style={{
+                cursor: "pointer",
+                opacity: activeTab === "lyrics" ? 1 : 0.5,
+              }}
+              onClick={() =>
+                setActiveTab((prev) => (prev === "lyrics" ? null : "lyrics"))
+              }
+            >
+              가사
+            </span>
+          </TabButtons>
+          <TabContentWrapper $isExpanded={activeTab !== null}>
+            <TabContent $isActive={activeTab !== null}>
               {activeTab === "playlist" && (
                 <>
                   <SectionTitle>🎵 현재 재생목록</SectionTitle>
-                  <PlaylistItemList>
-                    {videos.map((video, index) => (
-                      <PlaylistItem
-                        key={index}
-                        hoverColor={hoverColor || undefined}
-                        onClick={() =>
-                          playPlaylist(video.snippet.playlistId || "", index)
-                        }
-                      >
-                        <div className="thumbnail">
-                          <img
-                            src={video.snippet.thumbnails.default.url}
-                            alt={video.snippet.title}
-                          />
-                        </div>
-                        <p>{video.snippet.title}</p>
-                      </PlaylistItem>
-                    ))}
-                  </PlaylistItemList>
+                  <ScrollableContent>
+                    <PlaylistItemList>
+                      {videos.map((video, index) => (
+                        <PlaylistItem
+                          key={index}
+                          hoverColor={hoverColor || undefined}
+                          onClick={() =>
+                            playPlaylist(video.snippet.playlistId || "", index)
+                          }
+                        >
+                          <div className="thumbnail">
+                            <img
+                              src={video.snippet.thumbnails.default.url}
+                              alt={video.snippet.title}
+                            />
+                          </div>
+                          <p>{video.snippet.title}</p>
+                        </PlaylistItem>
+                      ))}
+                    </PlaylistItemList>
+                  </ScrollableContent>
                 </>
               )}
 
               {activeTab === "lyrics" && (
                 <>
                   <SectionTitle>📜 가사</SectionTitle>
-                  <Lyrics
-                    title={currentVideoTitle || ""}
-                    artist={
-                      videos.find((v) => v.id.videoId === currentVideoId)
-                        ?.snippet?.channelTitle || "unknown"
-                    }
-                  />
+                  <ScrollableContent>
+                    <Lyrics
+                      title={currentVideoTitle || ""}
+                      artist={
+                        videos.find((v) => v.id.videoId === currentVideoId)
+                          ?.snippet?.channelTitle || "unknown"
+                      }
+                    />
+                  </ScrollableContent>
                 </>
               )}
-            </ScrollableContent>
-          </div>
-        )}
-      </div>
+            </TabContent>
+          </TabContentWrapper>
+        </BottomFixed>
+      </ContentWrapper>
     </Container>
   );
 }
