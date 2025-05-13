@@ -3,7 +3,7 @@
 import styled from "styled-components";
 import Timeline from "../components/Timeline";
 
-const Container = styled.div`  // 🎨 styled-components 스타일 정의
+const Container = styled.div`
   display: flex;
   width: 100%;
   height: 100%;
@@ -11,7 +11,7 @@ const Container = styled.div`  // 🎨 styled-components 스타일 정의
   margin-left: 5px;
 `;
 
-const ContentArea = styled.div`  // 🎨 styled-components 스타일 정의
+const ContentArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -26,7 +26,8 @@ const ContentArea = styled.div`  // 🎨 styled-components 스타일 정의
 `;
 
 export default () => {
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <ContentArea>
         <div>

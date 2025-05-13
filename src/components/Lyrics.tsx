@@ -49,44 +49,13 @@ export default function Lyrics({
         return;
       }
 
-      const accessToken = "YOUR_GENIUS_ACCESS_TOKEN"; // 여기에 토큰 입력
-      const query = encodeURIComponent(title);
-
       try {
-        const searchRes = await fetch(
-          `https://api.genius.com/search?q=${query}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
+        const res = await fetch(
+          `/api/lyrics?title=${encodeURIComponent(title)}`
         );
-
-        const searchData = await searchRes.json();
-        const songPath = searchData.response.hits[0]?.result?.path;
-
-        if (!songPath) {
-          setLyrics("가사를 찾을 수 없습니다.");
-          setLoading(false);
-          return;
-        }
-
-        const pageRes = await fetch(`https://genius.com${songPath}`);
-        const html = await pageRes.text();
-
-        const match = html.match(
-          /<div[^>]+data-lyrics-container="true"[^>]*>(.*?)<\/div>/
-        );
-        if (match) {
-          const rawLyrics = match
-            .map((block) =>
-              block
-                .replace(/<br\s*\/?>/gi, "\n")
-                .replace(/<[^>]+>/g, "")
-                .trim()
-            )
-            .join("\n\n");
-          setLyrics(rawLyrics);
+        const data = await res.json();
+        if (data.lyrics) {
+          setLyrics(data.lyrics);
         } else {
           setLyrics("가사를 찾을 수 없습니다.");
         }

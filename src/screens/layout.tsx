@@ -6,14 +6,16 @@ import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
 import React, { useEffect, useState } from "react";
 
-const LayoutWrapper = styled.div`  // 🎨 styled-components 스타일 정의
+const LayoutWrapper = styled.div`
+  // 🎨 styled-components 스타일 정의
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
 `;
 
-const Header = styled.div`  // 🎨 styled-components 스타일 정의
+const Header = styled.div`
+  // 🎨 styled-components 스타일 정의
   height: 70px;
   flex-shrink: 0;
   display: flex;
@@ -22,19 +24,22 @@ const Header = styled.div`  // 🎨 styled-components 스타일 정의
   background-color: black;
 `;
 
-const Logo = styled.img`  // 🎨 styled-components 스타일 정의
+const Logo = styled.img`
+  // 🎨 styled-components 스타일 정의
   width: clamp(100px, 12vw, 150px);
   height: auto;
   object-fit: contain;
 `;
 
-const Body = styled.div`  // 🎨 styled-components 스타일 정의
+const Body = styled.div`
+  // 🎨 styled-components 스타일 정의
   height: calc(100vh - 70px);
   display: flex;
   overflow: hidden;
 `;
 
-const Navigator = styled.div`  // 🎨 styled-components 스타일 정의
+const Navigator = styled.div`
+  // 🎨 styled-components 스타일 정의
   width: 60px;
   display: flex;
   flex-direction: column;
@@ -49,7 +54,8 @@ const Navigator = styled.div`  // 🎨 styled-components 스타일 정의
   flex-shrink: 0;
 `;
 
-const MenuItem = styled.div`  // 🎨 styled-components 스타일 정의
+const MenuItem = styled.div`
+  // 🎨 styled-components 스타일 정의
   border-radius: 50%;
   width: 35px;
   height: 35px;
@@ -64,7 +70,8 @@ const MenuItem = styled.div`  // 🎨 styled-components 스타일 정의
   }
 `;
 
-const BottomMenu = styled.div`  // 🎨 styled-components 스타일 정의
+const BottomMenu = styled.div`
+  // 🎨 styled-components 스타일 정의
   margin-top: auto;
   flex-shrink: 0;
   display: flex;
@@ -72,12 +79,14 @@ const BottomMenu = styled.div`  // 🎨 styled-components 스타일 정의
   align-items: center;
 `;
 
-const MainContent = styled.div`  // 🎨 styled-components 스타일 정의
+const MainContent = styled.div`
+  // 🎨 styled-components 스타일 정의
   flex: 1;
   overflow: hidden;
 `;
 
-const GradientOverlay = styled.div<{ color1: string; color2: string }>`  // 🎨 styled-components 스타일 정의
+const GradientOverlay = styled.div<{ color1: string; color2: string }>`
+  // 🎨 styled-components 스타일 정의
   position: absolute;
   top: 0;
   right: 0;
@@ -126,7 +135,8 @@ export default () => {
     }
   };
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     if (dominantColor && secondaryColor) {
       const newLayer = {
         id: Date.now(),
@@ -140,7 +150,8 @@ export default () => {
     }
   }, [dominantColor, secondaryColor]);
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <LayoutWrapper>
       <Header>
         <Logo src="/uplogo.png" alt="uplogo" />
@@ -236,7 +247,7 @@ export default () => {
           {!hidePlayer && (
             <div
               style={{
-                width: "50%",
+                width: "33.33%",
                 minWidth: "320px",
                 height: "100%",
                 boxSizing: "border-box",

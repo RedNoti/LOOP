@@ -17,8 +17,8 @@ import { useMusicPlayer } from "../components/MusicFunction";
 const Container = styled.div`
   color: white;
   padding: 2rem;
-  height: 100%;
-  overflow: visuable;
+  min-height: 100vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -28,9 +28,6 @@ const PlayerWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 10;
   padding-bottom: 1rem;
 `;
 
@@ -61,12 +58,15 @@ const AlbumArt = styled.img`
 
 const Title = styled.h2`
   font-size: 1.25rem;
+  line-height: 1.25rem;
   font-weight: 600;
   text-align: center;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-bottom: 10px;
+  padding: 4px 0;
 `;
 
 const Controls = styled.div`
@@ -310,8 +310,10 @@ export default function YouTubeMusicPlayer({
   onColorExtractSecondary?: (color: string) => void;
   onColorExtractHover?: (color: string) => void;
 }) {
-  // 하단 탭 상태 (playlist | lyrics)
-  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics">("playlist");
+  // 하단 탭 상태 (playlist | lyrics | null)
+  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
+    null
+  );
   const playerReadyRef = useRef<boolean>(false); // ✅ 반드시 여기
   const {
     currentVideoId,
@@ -721,54 +723,57 @@ export default function YouTubeMusicPlayer({
         </PlayerControlsWrapper>
       </PlayerWrapper>
 
-      {/* 상단 버튼 영역: 음악 플레이어와 재생목록 사이 고정 */}
-      <div
-        style={{
-          width: "100%",
-          fontSize: "0.875rem",
-          display: "flex",
-          justifyContent: "space-around",
-          color: "#fff",
-          padding: "0.75rem 1rem 0.5rem",
-          background: "transparent", // ✅ 배경 제거
-        }}
-      >
-        <span
+      {/* 하단 탭 인터랙션 영역: 자연스러운 플로우와 항상 표시 */}
+      <div style={{ width: "100%" }}>
+        <div
           style={{
-            cursor: "pointer",
-            opacity: activeTab === "playlist" ? 1 : 0.5,
+            fontSize: "0.875rem",
+            display: "flex",
+            justifyContent: "space-around",
+            padding: "0.75rem 1rem 0.5rem",
+            transform: activeTab ? "translateY(-12px)" : "translateY(0)",
+            transition: "transform 0.3s ease",
           }}
-          onClick={() => setActiveTab("playlist")}
         >
-          다음 트랙
-        </span>
-        <span
-          style={{
-            cursor: "pointer",
-            opacity: activeTab === "lyrics" ? 1 : 0.5,
-          }}
-          onClick={() => setActiveTab("lyrics")}
-        >
-          가사
-        </span>
-      </div>
+          <span
+            style={{
+              cursor: "pointer",
+              opacity: activeTab === "playlist" ? 1 : 0.5,
+            }}
+            onClick={() =>
+              setActiveTab((prev) => (prev === "playlist" ? null : "playlist"))
+            }
+          >
+            다음 트랙
+          </span>
+          <span
+            style={{
+              cursor: "pointer",
+              opacity: activeTab === "lyrics" ? 1 : 0.5,
+            }}
+            onClick={() =>
+              setActiveTab((prev) => (prev === "lyrics" ? null : "lyrics"))
+            }
+          >
+            가사
+          </span>
+        </div>
 
-      {/*스크롤 영역에 있는 내용*/}
-      <ScrollableContent>
-        {activeTab === "playlist" && (
-          <>
-            {videos.length > 0 && (
-              <>
-                <SectionTitle>🎵 현재 재생목록</SectionTitle>
-                <PlaylistItemList>
-                  {videos
-                    .filter(
-                      (video) =>
-                        video.snippet &&
-                        video.snippet.title &&
-                        video.snippet.thumbnails?.default?.url
-                    )
-                    .map((video, index) => (
+        {activeTab && (
+          <div
+            style={{
+              transition: "all 0.3s ease",
+              transform: "translateY(0)",
+              opacity: 1,
+              overflow: "hidden",
+            }}
+          >
+            <ScrollableContent>
+              {activeTab === "playlist" && (
+                <>
+                  <SectionTitle>🎵 현재 재생목록</SectionTitle>
+                  <PlaylistItemList>
+                    {videos.map((video, index) => (
                       <PlaylistItem
                         key={index}
                         hoverColor={hoverColor || undefined}
@@ -785,46 +790,26 @@ export default function YouTubeMusicPlayer({
                         <p>{video.snippet.title}</p>
                       </PlaylistItem>
                     ))}
-                </PlaylistItemList>
-              </>
-            )}
+                  </PlaylistItemList>
+                </>
+              )}
 
-            {playlists.length > 0 && (
-              <>
-                <SectionTitle>📁 내 재생목록</SectionTitle>
-                <PlaylistGrid>
-                  {playlists.map((playlist) => (
-                    <PlaylistCard
-                      key={playlist.id}
-                      hoverColor={hoverColor || undefined}
-                      onClick={() => playPlaylist(playlist.id)}
-                    >
-                      <PlaylistImage
-                        src={playlist.snippet.thumbnails.medium.url}
-                        alt={playlist.snippet.title}
-                      />
-                      <p>{playlist.snippet.title}</p>
-                    </PlaylistCard>
-                  ))}
-                </PlaylistGrid>
-              </>
-            )}
-          </>
+              {activeTab === "lyrics" && (
+                <>
+                  <SectionTitle>📜 가사</SectionTitle>
+                  <Lyrics
+                    title={currentVideoTitle || ""}
+                    artist={
+                      videos.find((v) => v.id.videoId === currentVideoId)
+                        ?.snippet?.channelTitle || "unknown"
+                    }
+                  />
+                </>
+              )}
+            </ScrollableContent>
+          </div>
         )}
-
-        {activeTab === "lyrics" && (
-          <>
-            <SectionTitle>📜 가사</SectionTitle>
-            <Lyrics
-              title={currentVideoTitle || ""}
-              artist={
-                videos.find((v) => v.id.videoId === currentVideoId)?.snippet
-                  ?.channelTitle || "unknown"
-              }
-            />
-          </>
-        )}
-      </ScrollableContent>
+      </div>
     </Container>
   );
 }
