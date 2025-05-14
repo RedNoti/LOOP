@@ -42,7 +42,163 @@ export const fetchPlaylistVideosReturn = async (playlistId: string) => {
     return [];
   }
 };
+//--------
+export const detectVideoLanguage = (
+  title: string,
+  channelTitle?: string
+): string => {
+  const text = `${title} ${channelTitle || ""}`.toLowerCase();
 
+  // 한국어 감지
+  if (/[\uAC00-\uD7AF]/.test(title)) return "ko";
+
+  // 일본어 감지 (히라가나, 가타카나 포함)
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(title)) return "ja";
+
+  // 중국어 감지
+  if (
+    /[\u4E00-\u9FFF]/.test(title) &&
+    !/[\u3040-\u309F\u30A0-\u30FF]/.test(title)
+  )
+    return "zh";
+
+  // 특정 키워드로 언어 추정
+  const koreanKeywords = ["korean", "한국", "kpop", "k-pop"];
+  const japaneseKeywords = ["japanese", "日本", "jpop", "j-pop", "anime"];
+  const chineseKeywords = ["chinese", "中国", "cpop", "c-pop", "mandarin"];
+
+  if (koreanKeywords.some((keyword) => text.includes(keyword))) return "ko";
+  if (japaneseKeywords.some((keyword) => text.includes(keyword))) return "ja";
+  if (chineseKeywords.some((keyword) => text.includes(keyword))) return "zh";
+
+  return "en";
+};
+export const fetchVideoInLanguage = async (
+  videoId: string,
+  language: string
+) => {
+  const token = localStorage.getItem("ytAccessToken");
+  if (!token) return null;
+
+  const languageMap: { [key: string]: string } = {
+    ko: "ko-KR",
+    ja: "ja-JP",
+    zh: "zh-CN",
+    en: "en-US",
+  };
+
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&hl=${
+        languageMap[language] || "en-US"
+      }`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+    return data.items?.[0] || null;
+  } catch (error) {
+    console.error(`언어 ${language}로 비디오 정보 가져오기 실패:`, error);
+    return null;
+  }
+};
+export const fetchPlaylistVideosReturnWithLanguage = async (
+  playlistId: string
+) => {
+  const token = localStorage.getItem("ytAccessToken");
+  if (!token) return [];
+
+  if (playlistId.includes(",")) {
+    console.warn(
+      "❗ 잘못된 playlistId 형식입니다. 단일 ID여야 합니다:",
+      playlistId
+    );
+    return [];
+  }
+
+  let nextPageToken = "";
+  const allItems: any[] = [];
+
+  try {
+    do {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${nextPageToken}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+
+      if (data.items) {
+        // 각 비디오의 언어 감지 및 현지화
+        const processedItems = await Promise.all(
+          data.items.map(async (item: any) => {
+            const originalTitle = item.snippet.title;
+            const channelTitle = item.snippet.channelTitle;
+            const videoId =
+              item.snippet.resourceId?.videoId || item.id?.videoId;
+
+            // 언어 감지
+            const detectedLang = detectVideoLanguage(
+              originalTitle,
+              channelTitle
+            );
+
+            // 영어가 아닌 언어로 감지되면 해당 언어로 정보 가져오기
+            if (detectedLang !== "en") {
+              const localizedVideo = await fetchVideoInLanguage(
+                videoId,
+                detectedLang
+              );
+
+              if (localizedVideo) {
+                return {
+                  ...item,
+                  snippet: {
+                    ...item.snippet,
+                    title: localizedVideo.snippet.title,
+                    originalTitle: originalTitle,
+                    detectedLanguage: detectedLang,
+                    localizedChannelTitle: localizedVideo.snippet.channelTitle,
+                  },
+                };
+              }
+            }
+
+            // 현지화 실패 또는 영어인 경우 원본 유지
+            return {
+              ...item,
+              snippet: {
+                ...item.snippet,
+                originalTitle: originalTitle,
+                detectedLanguage: detectedLang,
+              },
+            };
+          })
+        );
+
+        allItems.push(...processedItems);
+      }
+
+      nextPageToken = data.nextPageToken || "";
+    } while (nextPageToken);
+
+    console.log(
+      `📋 총 ${allItems.length}개 비디오 로드 완료 (언어별 현지화 적용)`
+    );
+    return allItems;
+  } catch (err) {
+    console.error("❌ 재생목록 영상 fetch 실패:", err);
+    return [];
+  }
+};
+//-------
 export const MusicContext = createContext<ReturnType<
   typeof useMusicPlayer
 > | null>(null);
