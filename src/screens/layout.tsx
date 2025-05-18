@@ -1,5 +1,4 @@
-// 📄 Layout 컴포넌트 - 페이지 전체 구조를 관리하고 내비게이션 및 플레이어 영역을 렌더링합니다.
-// layout.tsx
+//구버전-OLD_VERSION
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
