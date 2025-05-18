@@ -81,7 +81,8 @@ const BottomMenu = styled.div`
 const MainContent = styled.div`
   // 🎨 styled-components 스타일 정의
   flex: 1;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 `;
 
 const GradientOverlay = styled.div<{ color1: string; color2: string }>`
