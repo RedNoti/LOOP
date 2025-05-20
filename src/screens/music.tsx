@@ -12,7 +12,11 @@ import {
   Repeat,
   Shuffle,
 } from "lucide-react";
-import { useMusicPlayer } from "../components/MusicFunction";
+import {
+  useMusicPlayer,
+  playerRef,
+  playerReadyRef,
+} from "../components/MusicFunction";
 
 const Container = styled.div<{ $isCollapsed: boolean }>`
   color: white;
@@ -407,7 +411,6 @@ export default function YouTubeMusicPlayer({
   const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
     null
   );
-  const playerReadyRef = useRef<boolean>(false);
   const {
     currentVideoId,
     currentVideoTitle,
@@ -419,7 +422,6 @@ export default function YouTubeMusicPlayer({
     prevTrack,
     nextTrack,
     changeVolume,
-    playerRef,
     videos,
     playlists,
     playPlaylist,

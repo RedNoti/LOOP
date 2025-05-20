@@ -8,6 +8,7 @@ import {
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import React from "react";
 
 const Container = styled.div`
   padding: 1rem;
@@ -265,6 +266,18 @@ const AttachPlaylistButton = styled.button`
   border: none;
 `;
 
+interface Playlist {
+  id: string;
+  snippet: {
+    title: string;
+    thumbnails: {
+      high?: { url: string };
+      medium?: { url: string };
+      default?: { url: string };
+    };
+  };
+}
+
 export default () => {
   const navigate = useNavigate(); // ✅ 페이지 이동 훅
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -274,7 +287,7 @@ export default () => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
-  const { currentPlaylistId, playlists } = useMusic(); // useMusicPlayer 대신 useMusic 사용
+  const { currentPlaylistId, playlists, videos } = useMusic();
   const [attachPlaylist, setAttachPlaylist] = useState(false);
 
   useEffect(() => {
@@ -295,6 +308,12 @@ export default () => {
     };
     loadProfilePhoto();
   }, []);
+
+  useEffect(() => {
+    console.log("현재 재생목록 ID:", currentPlaylistId);
+    console.log("재생목록 목록:", playlists);
+    console.log("현재 비디오:", videos);
+  }, [currentPlaylistId, playlists, videos]);
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -351,47 +370,63 @@ export default () => {
     setLoading(true);
 
     let playlistFileUrl = null;
-
     let playlistInfo = null;
+
     if (attachPlaylist && currentPlaylistId) {
-      const playlist = playlists.find((p) => p.id === currentPlaylistId);
+      console.log("재생목록 첨부 시작:", currentPlaylistId);
+      const playlist = playlists.find(
+        (p: Playlist) => p.id === currentPlaylistId
+      );
       if (playlist) {
-        const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
-        playlistInfo = {
-          id: playlist.id,
-          title: playlist.snippet.title,
-          thumbnail: playlist.snippet.thumbnails.medium.url,
-          tracks: playlistTracks.map((video: any) => ({
-            videoId: video.snippet.resourceId.videoId,
-            title: video.snippet.title,
-            thumbnail: video.snippet.thumbnails.default.url,
-          })),
-        };
-      }
-    }
+        console.log("재생목록 찾음:", playlist);
+        try {
+          const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
+          console.log("재생목록 트랙 가져옴:", playlistTracks.length);
 
-    if (attachPlaylist && playlistInfo) {
-      console.log("📤 업로드할 playlistInfo:", playlistInfo);
-      const blob = new Blob([JSON.stringify(playlistInfo)], {
-        type: "application/json",
-      });
-      const formData = new FormData();
-      formData.append("file", blob, "playlist.json");
+          playlistInfo = {
+            id: playlist.id,
+            title: playlist.snippet.title,
+            thumbnail:
+              playlist.snippet.thumbnails.high?.url ||
+              playlist.snippet.thumbnails.medium?.url ||
+              playlist.snippet.thumbnails.default?.url,
+            tracks: playlistTracks.map((video: any) => ({
+              videoId: video.snippet.resourceId.videoId,
+              title: video.snippet.title,
+              thumbnail:
+                video.snippet.thumbnails.high?.url ||
+                video.snippet.thumbnails.medium?.url ||
+                video.snippet.thumbnails.default?.url,
+            })),
+          };
 
-      try {
-        const response = await axios.post(
-          "http://uploadloop.kro.kr:4000/postplaylist",
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-        console.log("✅ 재생목록 업로드 성공:", response.data);
-        playlistFileUrl = response.data.filename;
-      } catch (err) {
-        console.error("❌ 재생목록 업로드 실패:", err);
+          console.log("재생목록 정보 생성됨:", playlistInfo);
+
+          // 재생목록 정보를 JSON 파일로 저장
+          const blob = new Blob([JSON.stringify(playlistInfo)], {
+            type: "application/json",
+          });
+          const formData = new FormData();
+          formData.append("file", blob, "playlist.json");
+
+          const response = await axios.post(
+            "http://uploadloop.kro.kr:4000/postplaylist",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+          console.log("재생목록 업로드 성공:", response.data);
+          playlistFileUrl = response.data.filename;
+        } catch (err) {
+          console.error("재생목록 처리 중 오류:", err);
+          alert("재생목록 첨부에 실패했습니다.");
+        }
+      } else {
+        console.error("재생목록을 찾을 수 없음:", currentPlaylistId);
+        alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
       }
     }
 
@@ -447,12 +482,13 @@ export default () => {
       setPost("");
       setFiles([]);
       setPreviews([]);
+      setAttachPlaylist(false);
       if (textAreaRef.current) {
         textAreaRef.current.style.height = "auto";
         textAreaRef.current.value = "";
       }
 
-      // ✅ 타임라인으로 이동
+      // 타임라인으로 이동
       navigate("/");
     } catch (e) {
       console.error("게시물 작성 중 오류:", e);
@@ -513,12 +549,30 @@ export default () => {
             />
             <AttachPlaylistButton
               type="button"
-              onClick={() => setAttachPlaylist(!attachPlaylist)}
+              onClick={() => {
+                console.log("클릭 시 현재 재생목록 ID:", currentPlaylistId);
+                console.log("클릭 시 재생목록 목록:", playlists);
+
+                if (!currentPlaylistId) {
+                  alert("현재 재생 중인 재생목록이 없습니다.");
+                  return;
+                }
+
+                const currentPlaylist = playlists.find(
+                  (p: Playlist) => p.id === currentPlaylistId
+                );
+                if (!currentPlaylist) {
+                  alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
+                  return;
+                }
+
+                setAttachPlaylist(!attachPlaylist);
+              }}
               style={{
                 backgroundColor: attachPlaylist ? "#118bf0" : "#19315d",
               }}
             >
-              {attachPlaylist ? "재생목록 첨부됨" : "재생목록 첨부"}
+              {attachPlaylist ? "재생목록 첨부됨" : "현재 재생목록 첨부"}
             </AttachPlaylistButton>
             <SubmitButton
               type="submit"
@@ -533,27 +587,90 @@ export default () => {
                 display: "flex",
                 alignItems: "center",
                 gap: "10px",
+                padding: "8px",
+                backgroundColor: "#2a2a2a",
+                borderRadius: "8px",
               }}
             >
-              <img
-                src={
-                  playlists.find((p) => p.id === currentPlaylistId)?.snippet
-                    ?.thumbnails?.medium?.url
+              {(() => {
+                const currentPlaylist = playlists.find(
+                  (p: Playlist) => p.id === currentPlaylistId
+                );
+                console.log("표시할 재생목록:", currentPlaylist);
+
+                if (!currentPlaylist) {
+                  return <></>;
                 }
-                alt="playlist"
-                style={{
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "8px",
-                  objectFit: "cover",
-                }}
-              />
-              <span style={{ color: "white", fontSize: "13px" }}>
-                {
-                  playlists.find((p) => p.id === currentPlaylistId)?.snippet
-                    ?.title
-                }
-              </span>
+
+                return (
+                  <React.Fragment>
+                    <div
+                      style={{
+                        width: "60px",
+                        height: "60px",
+                        borderRadius: "8px",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        position: "relative",
+                        background: "#111",
+                        padding: 0,
+                        margin: 0,
+                        border: "none",
+                        boxSizing: "border-box",
+                        display: "block",
+                      }}
+                    >
+                      <img
+                        src={
+                          currentPlaylist.snippet?.thumbnails?.high?.url ||
+                          currentPlaylist.snippet?.thumbnails?.medium?.url ||
+                          currentPlaylist.snippet?.thumbnails?.default?.url
+                        }
+                        alt="playlist"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          objectPosition: "center",
+                          display: "block",
+                          borderRadius: "8px",
+                          margin: 0,
+                          padding: 0,
+                          border: "none",
+                          boxSizing: "border-box",
+                          transform: "scale(1.18)",
+                          transition: "transform 0.2s",
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "white",
+                          fontSize: "13px",
+                          fontWeight: "bold",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {currentPlaylist.snippet?.title}
+                      </span>
+                      <span style={{ color: "#aaa", fontSize: "12px" }}>
+                        현재 재생 중인 재생목록
+                      </span>
+                    </div>
+                  </React.Fragment>
+                );
+              })()}
             </div>
           )}
         </PostArea>

@@ -293,7 +293,11 @@ const Post = ({
                     id: fetchedPlaylist.id,
                     snippet: {
                       title: fetchedPlaylist.title,
-                      thumbnails: { high: { url: fetchedPlaylist.thumbnail } },
+                      thumbnails: {
+                        high: { url: fetchedPlaylist.thumbnail },
+                        medium: { url: fetchedPlaylist.thumbnail },
+                        default: { url: fetchedPlaylist.thumbnail },
+                      },
                     },
                   };
                   existingPlaylists.push(newPlaylist);
@@ -317,6 +321,8 @@ const Post = ({
                           title: track.title,
                           thumbnails: {
                             default: { url: track.thumbnail },
+                            medium: { url: track.thumbnail },
+                            high: { url: track.thumbnail },
                           },
                           playlistId: fetchedPlaylist.id,
                         },
@@ -336,6 +342,13 @@ const Post = ({
             <PlaylistThumbSmall
               src={fetchedPlaylist?.thumbnail}
               alt="Playlist Thumbnail"
+              style={{
+                width: "20px",
+                height: "20px",
+                borderRadius: "4px",
+                objectFit: "cover",
+                marginRight: "4px",
+              }}
             />
             <span
               style={{

@@ -219,19 +219,16 @@ export const MusicPlayerProvider = ({
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(() => {
     return sessionStorage.getItem("currentVideoId");
   });
-  const [playlists, setPlaylists] = useState<any[]>([]);
-  const [currentPlaylist, setCurrentPlaylist] = useState<any>(null);
-  const [currentVideo, setCurrentVideo] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState<boolean>(() => {
-    return sessionStorage.getItem("isMuted") === "true";
+  const [playlists, setPlaylists] = useState<any[]>(() => {
+    const savedPlaylists = sessionStorage.getItem("playlists");
+    return savedPlaylists ? JSON.parse(savedPlaylists) : [];
   });
-  const [volume, setVolume] = useState<number>(() => {
-    const savedVolume = sessionStorage.getItem("volume");
-    return savedVolume ? parseFloat(savedVolume) : 100;
+  const [videos, setVideos] = useState<any[]>(() => {
+    const savedVideos = sessionStorage.getItem("musicPlayerVideos");
+    return savedVideos ? JSON.parse(savedVideos) : [];
   });
 
+  // 상태가 변경될 때마다 sessionStorage에 저장
   useEffect(() => {
     if (currentPlaylistId) {
       sessionStorage.setItem("currentPlaylistId", currentPlaylistId);
@@ -239,35 +236,54 @@ export const MusicPlayerProvider = ({
   }, [currentPlaylistId]);
 
   useEffect(() => {
-    sessionStorage.setItem("isPlaying", isPlaying.toString());
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (currentVideoId) {
-      sessionStorage.setItem("currentVideoId", currentVideoId);
+    if (videos.length > 0) {
+      sessionStorage.setItem("musicPlayerVideos", JSON.stringify(videos));
     }
-  }, [currentVideoId]);
+  }, [videos]);
 
   useEffect(() => {
-    sessionStorage.setItem("isMuted", isMuted.toString());
-  }, [isMuted]);
-
-  useEffect(() => {
-    sessionStorage.setItem("volume", volume.toString());
-  }, [volume]);
+    if (playlists.length > 0) {
+      sessionStorage.setItem("playlists", JSON.stringify(playlists));
+    }
+  }, [playlists]);
 
   const music = useMusicPlayer();
   return (
-    <MusicContext.Provider value={music}>{children}</MusicContext.Provider>
+    <MusicContext.Provider
+      value={{ ...music, currentPlaylistId, playlists, videos }}
+    >
+      {children}
+    </MusicContext.Provider>
   );
 };
 
+// Playlist 인터페이스 추가
+interface Playlist {
+  id: string;
+  snippet: {
+    title: string;
+    thumbnails: {
+      high?: { url: string };
+      medium?: { url: string };
+      default?: { url: string };
+    };
+  };
+}
+
+// useMusic 훅 수정
 export const useMusic = () => {
   const context = useContext(MusicContext);
   if (!context) {
     throw new Error("useMusic must be used within a MusicPlayerProvider");
   }
-  return context;
+  return {
+    ...context,
+    currentPlaylistId: sessionStorage.getItem("currentPlaylistId"),
+    playlists: JSON.parse(
+      sessionStorage.getItem("playlists") || "[]"
+    ) as Playlist[],
+    videos: JSON.parse(sessionStorage.getItem("musicPlayerVideos") || "[]"),
+  };
 };
 
 const savePlaybackStateToFirestore = async (
