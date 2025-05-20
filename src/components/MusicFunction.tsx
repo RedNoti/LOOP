@@ -203,7 +203,59 @@ export const MusicContext = createContext<ReturnType<
   typeof useMusicPlayer
 > | null>(null);
 
-export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
+export const MusicPlayerProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(
+    () => {
+      return sessionStorage.getItem("currentPlaylistId");
+    }
+  );
+  const [isPlaying, setIsPlaying] = useState<boolean>(() => {
+    return sessionStorage.getItem("isPlaying") === "true";
+  });
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(() => {
+    return sessionStorage.getItem("currentVideoId");
+  });
+  const [playlists, setPlaylists] = useState<any[]>([]);
+  const [currentPlaylist, setCurrentPlaylist] = useState<any>(null);
+  const [currentVideo, setCurrentVideo] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState<boolean>(() => {
+    return sessionStorage.getItem("isMuted") === "true";
+  });
+  const [volume, setVolume] = useState<number>(() => {
+    const savedVolume = sessionStorage.getItem("volume");
+    return savedVolume ? parseFloat(savedVolume) : 100;
+  });
+
+  useEffect(() => {
+    if (currentPlaylistId) {
+      sessionStorage.setItem("currentPlaylistId", currentPlaylistId);
+    }
+  }, [currentPlaylistId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("isPlaying", isPlaying.toString());
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (currentVideoId) {
+      sessionStorage.setItem("currentVideoId", currentVideoId);
+    }
+  }, [currentVideoId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("isMuted", isMuted.toString());
+  }, [isMuted]);
+
+  useEffect(() => {
+    sessionStorage.setItem("volume", volume.toString());
+  }, [volume]);
+
   const music = useMusicPlayer();
   return (
     <MusicContext.Provider value={music}>{children}</MusicContext.Provider>
@@ -213,7 +265,7 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
 export const useMusic = () => {
   const context = useContext(MusicContext);
   if (!context) {
-    throw new Error("useMusic must be used within a MusicProvider");
+    throw new Error("useMusic must be used within a MusicPlayerProvider");
   }
   return context;
 };
@@ -270,8 +322,29 @@ export function playPlaylistFromFile(json: {
     },
   }));
 
-  localStorage.setItem("musicPlayerLastPlaylistId", json.id);
-  localStorage.setItem("musicPlayerCurrentVideoIndex", "0");
+  // 기존 재생목록 정보를 sessionStorage에서 가져옴
+  const existingPlaylists = JSON.parse(
+    sessionStorage.getItem("playlists") || "[]"
+  );
+
+  // 새로운 재생목록이 기존 목록에 없는 경우에만 추가
+  const playlistExists = existingPlaylists.some((p: any) => p.id === json.id);
+  if (!playlistExists) {
+    const newPlaylist = {
+      id: json.id,
+      snippet: {
+        title: json.title,
+        thumbnails: { high: { url: json.thumbnail } },
+      },
+    };
+    existingPlaylists.push(newPlaylist);
+    sessionStorage.setItem("playlists", JSON.stringify(existingPlaylists));
+  }
+
+  // 현재 재생 중인 재생목록 정보 저장
+  sessionStorage.setItem("currentPlaylistId", json.id);
+  sessionStorage.setItem("currentVideoIndex", "0");
+  sessionStorage.setItem("musicPlayerVideos", JSON.stringify(videos));
 
   // 상태를 전역에서 관리하는 방식으로 전달
   window.dispatchEvent(
@@ -283,29 +356,75 @@ export function playPlaylistFromFile(json: {
           title: json.title,
           thumbnail: json.thumbnail,
         },
+        existingPlaylists, // 기존 재생목록 정보도 함께 전달
       },
     })
   );
 }
 
 export const useMusicPlayer = () => {
-  const [playlists, setPlaylists] = useState<any[]>([]);
-  const [videos, setVideos] = useState<any[]>([]);
-  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState(false); // 💡 상태(State) 정의
-  const [volume, setVolume] = useState(() => {
-    // 💡 상태(State) 정의
-    const saved = localStorage.getItem("musicPlayerVolume");
-    return saved ? parseInt(saved) : 50;
+  const [playlists, setPlaylists] = useState<any[]>(() => {
+    const savedPlaylists = sessionStorage.getItem("playlists");
+    return savedPlaylists ? JSON.parse(savedPlaylists) : [];
   });
-  const [isLoading, setIsLoading] = useState(false); // 💡 상태(State) 정의
+  const [videos, setVideos] = useState<any[]>(() => {
+    const savedVideos = sessionStorage.getItem("musicPlayerVideos");
+    return savedVideos ? JSON.parse(savedVideos) : [];
+  });
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(() => {
+    return sessionStorage.getItem("currentVideoId");
+  });
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    const savedIndex = sessionStorage.getItem("currentVideoIndex");
+    return savedIndex ? parseInt(savedIndex) : 0;
+  });
+  const [isPlaying, setIsPlaying] = useState<boolean>(() => {
+    return sessionStorage.getItem("isPlaying") === "true";
+  });
+  const [volume, setVolume] = useState<number>(() => {
+    const savedVolume = sessionStorage.getItem("volume");
+    return savedVolume ? parseInt(savedVolume) : 50;
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [likedVideos, setLikedVideos] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | null>(
-    null
+    () => {
+      return sessionStorage.getItem("currentPlaylistId");
+    }
   );
-  const [playbackRestored, setPlaybackRestored] = useState(false); // 💡 상태(State) 정의
+  const [playbackRestored, setPlaybackRestored] = useState<boolean>(false);
+
+  // 상태가 변경될 때마다 sessionStorage에 저장
+  useEffect(() => {
+    if (videos.length > 0) {
+      sessionStorage.setItem("musicPlayerVideos", JSON.stringify(videos));
+    }
+  }, [videos]);
+
+  useEffect(() => {
+    if (currentVideoId) {
+      sessionStorage.setItem("currentVideoId", currentVideoId);
+    }
+  }, [currentVideoId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("currentVideoIndex", currentIndex.toString());
+  }, [currentIndex]);
+
+  useEffect(() => {
+    sessionStorage.setItem("isPlaying", isPlaying.toString());
+  }, [isPlaying]);
+
+  useEffect(() => {
+    sessionStorage.setItem("volume", volume.toString());
+  }, [volume]);
+
+  useEffect(() => {
+    if (currentPlaylistId) {
+      sessionStorage.setItem("currentPlaylistId", currentPlaylistId);
+    }
+  }, [currentPlaylistId]);
 
   console.log("🎧 videos:", videos);
   console.log("▶️ currentVideoId:", currentVideoId);
@@ -468,40 +587,29 @@ export const useMusicPlayer = () => {
 
   useEffect(() => {
     const handlePlayPlaylistFromFile = (event: any) => {
-      const { videos, playlistMeta } = event.detail;
+      const { videos, playlistMeta, existingPlaylists } = event.detail;
+
+      // 비디오 목록 설정
       setVideos(videos);
       setCurrentIndex(0);
       setCurrentVideoId(videos[0]?.id?.videoId || null);
       setCurrentPlaylistId(playlistMeta?.id || null);
-      setPlaylists((prev) => {
-        const exists = prev.some((p) => p.id === playlistMeta.id);
-        if (!exists) {
-          return [
-            {
-              id: playlistMeta.id,
-              snippet: {
-                title: playlistMeta.title,
-                thumbnails: { high: { url: playlistMeta.thumbnail } },
-              },
-            },
-            ...prev,
-          ];
-        }
-        return prev.map((p) =>
-          p.id === playlistMeta.id
-            ? {
-                ...p,
-                snippet: {
-                  title: playlistMeta.title,
-                  thumbnails: { high: { url: playlistMeta.thumbnail } },
-                },
-              }
-            : p
-        );
-      });
 
+      // 재생목록 목록 업데이트
+      if (existingPlaylists) {
+        setPlaylists(existingPlaylists);
+        sessionStorage.setItem("playlists", JSON.stringify(existingPlaylists));
+      }
+
+      // 플레이어에 비디오 로드
       if (playerRef.current?.loadVideoById) {
-        playerRef.current.loadVideoById(videos[0]?.id?.videoId);
+        setTimeout(() => {
+          try {
+            playerRef.current.loadVideoById(videos[0]?.id?.videoId);
+          } catch (error) {
+            console.error("비디오 로드 실패:", error);
+          }
+        }, 1000);
       }
     };
 
@@ -518,54 +626,87 @@ export const useMusicPlayer = () => {
   }, []);
 
   const onReady = (event: any) => {
-    playerRef.current = event.target;
-    playerReadyRef.current = true;
-    playerRef.current.setVolume(volume);
+    try {
+      playerRef.current = event.target;
+      playerReadyRef.current = true;
 
-    const duration = event.target.getDuration();
-    if (typeof duration === "number" && !isNaN(duration)) {
+      // 볼륨 설정
+      const savedVolume = sessionStorage.getItem("volume");
+      if (savedVolume !== null) {
+        const volumeValue = Number(savedVolume);
+        playerRef.current.setVolume(volumeValue);
+        setVolume(volumeValue);
+      }
+
+      // 현재 재생 중인 비디오가 있다면 로드
+      const savedVideoId = sessionStorage.getItem("currentVideoId");
+      if (savedVideoId && playerRef.current) {
+        setTimeout(() => {
+          try {
+            playerRef.current.loadVideoById(savedVideoId);
+          } catch (error) {
+            console.error("비디오 로드 실패:", error);
+          }
+        }, 1000); // 1초 후에 비디오 로드 시도
+      }
+
       setIsLoading(false);
+    } catch (error) {
+      console.error("플레이어 초기화 실패:", error);
     }
-
-    const savedVolume = localStorage.getItem("musicPlayerVolume");
-    if (savedVolume !== null) {
-      playerRef.current.setVolume(Number(savedVolume));
-      changeVolume({
-        target: { value: savedVolume },
-      } as React.ChangeEvent<HTMLInputElement>);
-    }
-
-    // Do not load video here to avoid duplicate playback.
   };
 
   const onStateChange = (event: any) => {
-    setIsPlaying(event.data === 1); // 1: playing
+    try {
+      if (event.data === 1) {
+        // 재생 중
+        setIsPlaying(true);
+      } else if (event.data === 2) {
+        // 일시정지
+        setIsPlaying(false);
+      }
+    } catch (error) {
+      console.error("상태 변경 처리 실패:", error);
+    }
   };
 
   const onEnd = () => {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < videos.length) {
-      setCurrentIndex(nextIndex);
-      setCurrentVideoId(videos[nextIndex].snippet?.resourceId?.videoId || null);
-    } else if (videos.length > 0) {
-      // 마지막 곡일 때 첫 곡으로 순환
-      setCurrentIndex(0);
-      setCurrentVideoId(videos[0].snippet?.resourceId?.videoId || null);
+    try {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex < videos.length) {
+        setCurrentIndex(nextIndex);
+        setCurrentVideoId(
+          videos[nextIndex].snippet?.resourceId?.videoId || null
+        );
+      } else if (videos.length > 0) {
+        // 마지막 곡일 때 첫 곡으로 순환
+        setCurrentIndex(0);
+        setCurrentVideoId(videos[0].snippet?.resourceId?.videoId || null);
+      }
+    } catch (error) {
+      console.error("다음 곡 재생 실패:", error);
     }
   };
 
   const playPause = () => {
-    if (!playerReadyRef.current || !playerRef.current) return;
+    try {
+      if (!playerReadyRef.current || !playerRef.current) {
+        console.warn("플레이어가 준비되지 않았습니다.");
+        return;
+      }
 
-    const player = playerRef.current;
-    const state = player.getPlayerState?.(); // 현재 플레이어 상태 가져오기
+      const player = playerRef.current;
+      const state = player.getPlayerState?.();
 
-    if (state === 1) {
-      player.pauseVideo();
-      setIsPlaying(false);
-    } else {
-      player.playVideo();
-      setIsPlaying(true);
+      if (state === 1) {
+        player.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        player.playVideo();
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error("재생/일시정지 실패:", error);
     }
   };
 
@@ -676,7 +817,27 @@ export const useMusicPlayer = () => {
       );
       const data = await response.json();
       if (data.items?.length > 0) {
-        setPlaylists(data.items);
+        // 기존 재생목록 가져오기
+        const existingPlaylists = JSON.parse(
+          sessionStorage.getItem("playlists") || "[]"
+        );
+
+        // YouTube API에서 가져온 재생목록과 기존 재생목록 합치기
+        const combinedPlaylists = [...existingPlaylists];
+
+        // YouTube API에서 가져온 재생목록 추가
+        data.items.forEach((newPlaylist: any) => {
+          const exists = combinedPlaylists.some(
+            (p: any) => p.id === newPlaylist.id
+          );
+          if (!exists) {
+            combinedPlaylists.push(newPlaylist);
+          }
+        });
+
+        // 상태 업데이트 및 저장
+        setPlaylists(combinedPlaylists);
+        sessionStorage.setItem("playlists", JSON.stringify(combinedPlaylists));
       } else {
         console.warn("📁 불러온 플레이리스트 없음");
       }

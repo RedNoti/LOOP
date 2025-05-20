@@ -70,6 +70,7 @@ const Post = ({
   const [editedPost, setEditedPost] = useState(post);
   const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -144,7 +145,10 @@ const Post = ({
           try {
             await fetch("http://uploadloop.kro.kr:4000/delete", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              },
               body: JSON.stringify({ url: `/postphoto/${filename}` }),
             });
           } catch (error) {
@@ -156,7 +160,10 @@ const Post = ({
         try {
           await fetch("http://uploadloop.kro.kr:4000/delete", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*",
+            },
             body: JSON.stringify({ url: `/postplaylist/${playlistFileUrl}` }),
           });
         } catch (error) {
@@ -229,27 +236,6 @@ const Post = ({
         )}
       </EditableContent>
 
-      {playlistFileUrl && fetchedPlaylist && (
-        <PlaylistBox
-          onClick={() => {
-            if (fetchedPlaylist?.tracks?.length > 0) {
-              sessionStorage.setItem("play_from_post", "true");
-              sessionStorage.setItem(
-                "post_playlist",
-                JSON.stringify(fetchedPlaylist)
-              );
-              window.dispatchEvent(new CustomEvent("post_playlist_selected"));
-            }
-          }}
-        >
-          <PlaylistThumb
-            src={fetchedPlaylist?.thumbnail}
-            alt="Playlist Thumbnail"
-          />
-          <PlaylistTitle>{fetchedPlaylist?.title}</PlaylistTitle>
-        </PlaylistBox>
-      )}
-
       {photoUrls.length > 0 && (
         <ImageGallery>
           {photoUrls.map((url, index) => (
@@ -257,9 +243,23 @@ const Post = ({
               key={index}
               src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
               alt={`Post image ${index + 1}`}
+              onClick={() =>
+                setSelectedImage(
+                  `http://uploadloop.kro.kr:4000/postphoto/${url}`
+                )
+              }
             />
           ))}
         </ImageGallery>
+      )}
+
+      {selectedImage && (
+        <ModalOverlay onClick={() => setSelectedImage(null)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <CloseButton onClick={() => setSelectedImage(null)}>×</CloseButton>
+            <ModalImage src={selectedImage} alt="Full size" />
+          </ModalContent>
+        </ModalOverlay>
       )}
 
       <Actions>
@@ -273,8 +273,83 @@ const Post = ({
         </LikeBtn>
         <CommentBtn onClick={() => setShowComments(!showComments)}>
           <img src="/comment.png" alt="Comment" width="15" height="15" />
-          <span style={{ marginLeft: "4px" }}>{commentList.length}</span>
+          <span>{commentList.length}</span>
         </CommentBtn>
+        {playlistFileUrl && fetchedPlaylist && (
+          <PlaylistBtn
+            onClick={() => {
+              if (fetchedPlaylist?.tracks?.length > 0) {
+                // 기존 재생목록 정보 가져오기
+                const existingPlaylists = JSON.parse(
+                  sessionStorage.getItem("playlists") || "[]"
+                );
+
+                // 새로운 재생목록이 기존 목록에 없는 경우에만 추가
+                const playlistExists = existingPlaylists.some(
+                  (p: any) => p.id === fetchedPlaylist.id
+                );
+                if (!playlistExists) {
+                  const newPlaylist = {
+                    id: fetchedPlaylist.id,
+                    snippet: {
+                      title: fetchedPlaylist.title,
+                      thumbnails: { high: { url: fetchedPlaylist.thumbnail } },
+                    },
+                  };
+                  existingPlaylists.push(newPlaylist);
+                  sessionStorage.setItem(
+                    "playlists",
+                    JSON.stringify(existingPlaylists)
+                  );
+                }
+
+                // 재생목록 정보 저장
+                sessionStorage.setItem("currentPlaylistId", fetchedPlaylist.id);
+                sessionStorage.setItem("currentVideoIndex", "0");
+
+                // 재생 이벤트 발생
+                window.dispatchEvent(
+                  new CustomEvent("play_playlist_from_file", {
+                    detail: {
+                      videos: fetchedPlaylist.tracks.map((track: any) => ({
+                        id: { videoId: track.videoId },
+                        snippet: {
+                          title: track.title,
+                          thumbnails: {
+                            default: { url: track.thumbnail },
+                          },
+                          playlistId: fetchedPlaylist.id,
+                        },
+                      })),
+                      playlistMeta: {
+                        id: fetchedPlaylist.id,
+                        title: fetchedPlaylist.title,
+                        thumbnail: fetchedPlaylist.thumbnail,
+                      },
+                      existingPlaylists,
+                    },
+                  })
+                );
+              }
+            }}
+          >
+            <PlaylistThumbSmall
+              src={fetchedPlaylist?.thumbnail}
+              alt="Playlist Thumbnail"
+            />
+            <span
+              style={{
+                maxWidth: "150px",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                color: "white",
+              }}
+            >
+              {fetchedPlaylist?.title}
+            </span>
+          </PlaylistBtn>
+        )}
       </Actions>
 
       {showComments && (
@@ -313,6 +388,8 @@ const Container = styled.div`
   margin-bottom: 1rem;
   border-radius: 8px;
   background: #222;
+  position: relative;
+  padding-bottom: 40px;
 `;
 
 const Wrapper = styled.div`
@@ -360,22 +437,32 @@ const Content = styled.div`
 `;
 
 const ImageGallery = styled.div`
-  display: flex;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
 `;
 
 const Image = styled.img`
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  height: 300px;
   object-fit: cover;
   border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: scale(1.02);
+  }
 `;
 
 const Actions = styled.div`
   display: flex;
   gap: 1rem;
-  margin-bottom: 0.5rem;
   margin: 1rem 0 0.5rem 0;
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
 `;
 
 const LikeBtn = styled.button`
@@ -383,6 +470,9 @@ const LikeBtn = styled.button`
   border: none;
   color: orange;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 `;
 
 const CommentBtn = styled.button`
@@ -390,6 +480,9 @@ const CommentBtn = styled.button`
   border: none;
   color: green;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 `;
 
 const DeleteBtn = styled.button`
@@ -416,26 +509,70 @@ const SaveBtn = styled.button`
   border-radius: 4px;
 `;
 
-const PlaylistBox = styled.div`
-  margin: 10px 0;
-  padding: 10px;
-  background: #333;
-  border-radius: 10px;
+const PlaylistBtn = styled.button`
+  background: #2a2a2a;
+  border: none;
+  color: white;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  cursor: pointer;
-  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #333333;
+  }
 `;
 
-const PlaylistThumb = styled.img`
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
+const PlaylistThumbSmall = styled.img`
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   object-fit: cover;
+  margin-right: 4px;
 `;
 
-const PlaylistTitle = styled.p`
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  cursor: pointer;
+`;
+
+const ModalContent = styled.div`
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  cursor: default;
+`;
+
+const ModalImage = styled.img`
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: none;
+  border: none;
   color: white;
-  font-weight: bold;
-  font-size: 14px;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 5px;
+  z-index: 1001;
+
+  &:hover {
+    color: #ccc;
+  }
 `;

@@ -3,7 +3,7 @@ import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music"; // ✅ music.tsx에서 가져옴
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 const LayoutWrapper = styled.div`
   // 🎨 styled-components 스타일 정의
@@ -126,6 +126,17 @@ export default () => {
   const location = useLocation();
   const hidePlayer =
     location.pathname === "/signin" || location.pathname === "/signup";
+
+  // 메모이제이션된 YouTubeMusicPlayer 컴포넌트
+  const MemoizedMusicPlayer = useMemo(
+    () => (
+      <YouTubeMusicPlayer
+        onColorExtract={setDominantColor}
+        onColorExtractSecondary={setSecondaryColor}
+      />
+    ),
+    []
+  );
 
   const signOut = async () => {
     const isOK = window.confirm("정말로 로그아웃 하실 건가요?");
@@ -279,10 +290,7 @@ export default () => {
                   color2={layer.color2}
                 />
               ))}
-              <YouTubeMusicPlayer
-                onColorExtract={setDominantColor}
-                onColorExtractSecondary={setSecondaryColor}
-              />
+              {MemoizedMusicPlayer}
             </div>
           )}
         </div>

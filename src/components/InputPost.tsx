@@ -2,9 +2,9 @@ import { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
 import {
-  useMusicPlayer,
+  useMusic,
   fetchPlaylistVideosReturn,
-} from "../components/MusicFunction"; // ✅ 추가
+} from "../components/MusicFunction";
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -274,7 +274,7 @@ export default () => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
-  const { currentPlaylistId, playlists, playPlaylist } = useMusicPlayer();
+  const { currentPlaylistId, playlists } = useMusic(); // useMusicPlayer 대신 useMusic 사용
   const [attachPlaylist, setAttachPlaylist] = useState(false);
 
   useEffect(() => {
@@ -383,7 +383,9 @@ export default () => {
           "http://uploadloop.kro.kr:4000/postplaylist",
           formData,
           {
-            headers: { "Content-Type": "multipart/form-data" },
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
           }
         );
         console.log("✅ 재생목록 업로드 성공:", response.data);
@@ -402,7 +404,9 @@ export default () => {
           "http://uploadloop.kro.kr:4000/postphoto",
           formData,
           {
-            headers: { "Content-Type": "multipart/form-data" },
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
           }
         );
         photoUrls.push(response.data.filename);

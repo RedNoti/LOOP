@@ -678,6 +678,34 @@ export default function YouTubeMusicPlayer({
     }
   };
 
+  // 페이지 이동 시 YouTube 플레이어 상태 유지
+  useEffect(() => {
+    return () => {
+      // 컴포넌트가 언마운트될 때 현재 재생 상태 저장
+      if (playerRef.current) {
+        const currentTime = playerRef.current.getCurrentTime();
+        localStorage.setItem("youtube_player_time", String(currentTime));
+        localStorage.setItem("youtube_player_playing", String(isPlaying));
+      }
+    };
+  }, [isPlaying]);
+
+  // 컴포넌트 마운트 시 이전 재생 상태 복원
+  useEffect(() => {
+    if (playerRef.current && playerReadyRef.current) {
+      const savedTime = localStorage.getItem("youtube_player_time");
+      const wasPlaying =
+        localStorage.getItem("youtube_player_playing") === "true";
+
+      if (savedTime) {
+        playerRef.current.seekTo(parseFloat(savedTime), true);
+        if (wasPlaying) {
+          playerRef.current.playVideo();
+        }
+      }
+    }
+  }, [playerReadyRef.current]);
+
   return (
     <Container $isCollapsed={activeTab === null}>
       <YouTube
@@ -817,7 +845,7 @@ export default function YouTubeMusicPlayer({
               setActiveTab((prev) => (prev === "lyrics" ? null : "lyrics"))
             }
           >
-            가사
+            재생목록
           </span>
         </TabButtons>
 
@@ -849,17 +877,25 @@ export default function YouTubeMusicPlayer({
             )}
 
             {activeTab === "lyrics" && (
-              <>
-                <ScrollableContent>
-                  <Lyrics
-                    title={currentVideoTitle || ""}
-                    artist={
-                      videos.find((v) => v.id.videoId === currentVideoId)
-                        ?.snippet?.channelTitle || "unknown"
-                    }
-                  />
-                </ScrollableContent>
-              </>
+              <ScrollableContent>
+                <PlaylistItemList>
+                  {playlists.map((playlist, index) => (
+                    <PlaylistItem
+                      key={index}
+                      hoverColor={hoverColor || undefined}
+                      onClick={() => playPlaylist(playlist.id, 0)}
+                    >
+                      <div className="thumbnail">
+                        <img
+                          src={playlist.snippet.thumbnails?.medium?.url}
+                          alt={playlist.snippet.title}
+                        />
+                      </div>
+                      <p>{playlist.snippet.title}</p>
+                    </PlaylistItem>
+                  ))}
+                </PlaylistItemList>
+              </ScrollableContent>
             )}
           </TabContent>
         </TabContentWrapper>
