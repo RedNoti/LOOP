@@ -700,9 +700,13 @@ export default function YouTubeMusicPlayer({
         localStorage.getItem("youtube_player_playing") === "true";
 
       if (savedTime) {
-        playerRef.current.seekTo(parseFloat(savedTime), true);
-        if (wasPlaying) {
-          playerRef.current.playVideo();
+        try {
+          playerRef.current.seekTo(parseFloat(savedTime), true);
+          if (wasPlaying) {
+            playerRef.current.playVideo();
+          }
+        } catch (err) {
+          console.error("🎬 seekTo 실패:", err);
         }
       }
     }
@@ -710,28 +714,30 @@ export default function YouTubeMusicPlayer({
 
   return (
     <Container $isCollapsed={activeTab === null}>
-      <YouTube
-        videoId={currentVideoId || ""}
-        key={currentVideoId || "fallback"}
-        opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
-        onReady={(e: YouTubeEvent<YouTubePlayer>) => {
-          playerRef.current = e.target;
-          playerReadyRef.current = true;
-          const duration = e.target.getDuration();
-          if (typeof duration === "number" && !isNaN(duration)) {
-            setDuration(duration);
-          }
-          const savedVolume = localStorage.getItem(STORAGE_KEYS.VOLUME);
-          if (savedVolume !== null) {
-            playerRef.current.setVolume(Number(savedVolume));
-            changeVolume({
-              target: { value: savedVolume },
-            } as React.ChangeEvent<HTMLInputElement>);
-          }
-        }}
-        onStateChange={onStateChange}
-        onEnd={handleTrackEnd}
-      />
+      {currentVideoId && (
+        <YouTube
+          videoId={currentVideoId}
+          key={currentVideoId}
+          opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
+          onReady={(e: YouTubeEvent<YouTubePlayer>) => {
+            playerRef.current = e.target;
+            playerReadyRef.current = true;
+            const duration = e.target.getDuration();
+            if (typeof duration === "number" && !isNaN(duration)) {
+              setDuration(duration);
+            }
+            const savedVolume = localStorage.getItem("musicPlayerVolume");
+            if (savedVolume !== null) {
+              playerRef.current.setVolume(Number(savedVolume));
+              changeVolume({
+                target: { value: savedVolume },
+              } as React.ChangeEvent<HTMLInputElement>);
+            }
+          }}
+          onStateChange={onStateChange}
+          onEnd={handleTrackEnd}
+        />
+      )}
 
       {/* 플레이어 섹션은 탭이 닫혀있을 때만 표시 */}
       {activeTab === null && (

@@ -494,8 +494,15 @@ export const useMusicPlayer = () => {
     if (!fetchedVideos.length) return;
 
     // stop currently playing video before loading new one
-    if (playerRef.current?.stopVideo) {
-      playerRef.current.stopVideo();
+    if (
+      playerRef.current &&
+      typeof playerRef.current.stopVideo === "function"
+    ) {
+      try {
+        playerRef.current.stopVideo();
+      } catch (err) {
+        console.error("stopVideo 실패:", err);
+      }
     }
 
     const nextVideo = fetchedVideos[startIndex];
