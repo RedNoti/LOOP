@@ -197,9 +197,34 @@ const Post = ({
           </UserMeta>
         </UserInfo>
         {user?.uid === userId && (
-          <div style={{ display: "flex", gap: "5px", marginLeft: "auto" }}>
-            <EditBtn onClick={() => setIsEditing(!isEditing)}>수정</EditBtn>
-            <DeleteBtn onClick={onDeletePost}>삭제</DeleteBtn>
+          <div
+            style={{
+              position: "absolute",
+              top: "10px",
+              right: "10px",
+              display: "flex",
+              gap: "10px",
+              zIndex: 10,
+            }}
+          >
+            <EditBtn onClick={() => setIsEditing(!isEditing)}>
+              <img
+                src="/icon/pencil_icon.svg"
+                alt="수정"
+                width={20}
+                height={20}
+                style={{ color: "#FFFFFF", fill: "#FFFFFF" }}
+              />
+            </EditBtn>
+            <DeleteBtn onClick={onDeletePost}>
+              <img
+                src="/icon/Delete_Icon.svg"
+                alt="삭제"
+                width={20}
+                height={20}
+                style={{ color: "#FFFFFF", fill: "#FFFFFF" }}
+              />
+            </DeleteBtn>
           </div>
         )}
       </Wrapper>
@@ -265,9 +290,10 @@ const Post = ({
       <Actions>
         <LikeBtn onClick={handleLike}>
           <img
-            src={hasLiked ? "/heart3.png" : "/heart.png"}
+            src={hasLiked ? "/icon/like_Icon.svg" : "/icon/like_Icon.svg"}
             alt="Like"
             width="15"
+            height="15"
           />
           <span>{likes}</span>
         </LikeBtn>
@@ -486,6 +512,13 @@ const LikeBtn = styled.button`
   display: flex;
   align-items: center;
   gap: 4px;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 const CommentBtn = styled.button`
@@ -501,15 +534,35 @@ const CommentBtn = styled.button`
 const DeleteBtn = styled.button`
   background: none;
   border: none;
-  color: red;
+  color: #ffffff;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 const EditBtn = styled.button`
   background: none;
   border: none;
-  color: blue;
+  color: #ffffff;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 const SaveBtn = styled.button`

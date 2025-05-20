@@ -73,32 +73,49 @@ const BottomMenu = styled.div`
   flex-wrap: wrap;
 `;
 
+const IconButtonBox = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: #19315d;
+  border-radius: 5px;
+`;
+
 const AttachPhotoButton = styled.label`
-  padding: 5px 20px;
-  background-color: #19315d;
-  color: white;
-  border-radius: 30px;
-  font-size: 12px;
-  font-weight: bold;
+  background: none;
+  border: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 const AttachPhotoInput = styled.input`
   display: none;
 `;
 
-const SubmitButton = styled.input`
-  padding: 5px 20px;
-  border-radius: 30px;
+const SubmitButton = styled.button`
+  background: none;
   border: none;
-  background-color: #19315d;
-  color: white;
-  font-weight: bold;
-  font-size: 12px;
   cursor: pointer;
-  &:hover,
-  ::after {
-    opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
   }
 `;
 
@@ -256,14 +273,19 @@ const SaveBtn = styled.button`
 `;
 
 const AttachPlaylistButton = styled.button`
-  padding: 5px 20px;
-  background-color: #19315d;
-  color: white;
-  border-radius: 30px;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
+  background: none;
   border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 interface Playlist {
@@ -289,6 +311,9 @@ export default () => {
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
   const { currentPlaylistId, playlists, videos } = useMusic();
   const [attachPlaylist, setAttachPlaylist] = useState(false);
+  const [attachedPlaylist, setAttachedPlaylist] = useState<Playlist | null>(
+    null
+  );
 
   useEffect(() => {
     const loadProfilePhoto = async () => {
@@ -374,9 +399,7 @@ export default () => {
 
     if (attachPlaylist && currentPlaylistId) {
       console.log("재생목록 첨부 시작:", currentPlaylistId);
-      const playlist = playlists.find(
-        (p: Playlist) => p.id === currentPlaylistId
-      );
+      let playlist = attachedPlaylist;
       if (playlist) {
         console.log("재생목록 찾음:", playlist);
         try {
@@ -534,9 +557,14 @@ export default () => {
           )}
           <BottomMenu>
             <AttachPhotoButton htmlFor="photo">
-              {previews.length > 0
-                ? `사진 추가됨 (${previews.length}/5)`
-                : "사진 업로드"}
+              <IconButtonBox>
+                <img
+                  src="/icon/upload_icon.svg"
+                  alt="사진 업로드"
+                  width={18}
+                  height={18}
+                />
+              </IconButtonBox>
             </AttachPhotoButton>
             <AttachPhotoInput
               ref={fileInputRef}
@@ -550,127 +578,98 @@ export default () => {
             <AttachPlaylistButton
               type="button"
               onClick={() => {
-                console.log("클릭 시 현재 재생목록 ID:", currentPlaylistId);
-                console.log("클릭 시 재생목록 목록:", playlists);
-
-                if (!currentPlaylistId) {
-                  alert("현재 재생 중인 재생목록이 없습니다.");
-                  return;
-                }
-
-                const currentPlaylist = playlists.find(
+                let currentPlaylist = playlists.find(
                   (p: Playlist) => p.id === currentPlaylistId
                 );
+                if (
+                  !currentPlaylist &&
+                  videos.length > 0 &&
+                  currentPlaylistId
+                ) {
+                  currentPlaylist = {
+                    id: currentPlaylistId,
+                    snippet: {
+                      title:
+                        videos[0].snippet.playlistTitle ||
+                        videos[0].snippet.title ||
+                        "재생목록",
+                      thumbnails: {
+                        high: {
+                          url: videos[0].snippet.thumbnails?.high?.url || "",
+                        },
+                        medium: {
+                          url: videos[0].snippet.thumbnails?.medium?.url || "",
+                        },
+                        default: {
+                          url: videos[0].snippet.thumbnails?.default?.url || "",
+                        },
+                      },
+                    },
+                  };
+                }
                 if (!currentPlaylist) {
                   alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
                   return;
                 }
-
                 setAttachPlaylist(!attachPlaylist);
+                setAttachedPlaylist(currentPlaylist);
               }}
               style={{
-                backgroundColor: attachPlaylist ? "#118bf0" : "#19315d",
+                backgroundColor: attachPlaylist ? "#118bf0" : "transparent",
               }}
             >
-              {attachPlaylist ? "재생목록 첨부됨" : "현재 재생목록 첨부"}
+              <IconButtonBox
+                style={{ background: attachPlaylist ? "#118bf0" : "#19315d" }}
+              >
+                <img
+                  src="/icon/music_Icon2.svg"
+                  alt="재생목록 첨부"
+                  width={18}
+                  height={18}
+                />
+              </IconButtonBox>
             </AttachPlaylistButton>
-            <SubmitButton
-              type="submit"
-              value={loading ? "제출 중" : "제출하기"}
-              disabled={loading}
-            />
+            <SubmitButton type="submit" disabled={loading}>
+              <IconButtonBox>
+                <img
+                  src="/icon/upload_post.svg"
+                  alt="제출"
+                  width={18}
+                  height={18}
+                />
+              </IconButtonBox>
+            </SubmitButton>
           </BottomMenu>
-          {attachPlaylist && currentPlaylistId && (
+          {attachPlaylist && attachedPlaylist && (
             <div
               style={{
-                marginTop: "6px",
+                marginTop: 8,
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
-                padding: "8px",
-                backgroundColor: "#2a2a2a",
-                borderRadius: "8px",
+                gap: 10,
+                background: "#2a2a2a",
+                borderRadius: 10,
+                padding: "8px 12px",
               }}
             >
-              {(() => {
-                const currentPlaylist = playlists.find(
-                  (p: Playlist) => p.id === currentPlaylistId
-                );
-                console.log("표시할 재생목록:", currentPlaylist);
-
-                if (!currentPlaylist) {
-                  return <></>;
+              <img
+                src={
+                  attachedPlaylist.snippet.thumbnails.high?.url ||
+                  attachedPlaylist.snippet.thumbnails.medium?.url ||
+                  attachedPlaylist.snippet.thumbnails.default?.url
                 }
-
-                return (
-                  <React.Fragment>
-                    <div
-                      style={{
-                        width: "60px",
-                        height: "60px",
-                        borderRadius: "8px",
-                        overflow: "hidden",
-                        flexShrink: 0,
-                        position: "relative",
-                        background: "#111",
-                        padding: 0,
-                        margin: 0,
-                        border: "none",
-                        boxSizing: "border-box",
-                        display: "block",
-                      }}
-                    >
-                      <img
-                        src={
-                          currentPlaylist.snippet?.thumbnails?.high?.url ||
-                          currentPlaylist.snippet?.thumbnails?.medium?.url ||
-                          currentPlaylist.snippet?.thumbnails?.default?.url
-                        }
-                        alt="playlist"
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          objectPosition: "center",
-                          display: "block",
-                          borderRadius: "8px",
-                          margin: 0,
-                          padding: 0,
-                          border: "none",
-                          boxSizing: "border-box",
-                          transform: "scale(1.18)",
-                          transition: "transform 0.2s",
-                        }}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "4px",
-                        flex: 1,
-                        minWidth: 0,
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "white",
-                          fontSize: "13px",
-                          fontWeight: "bold",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {currentPlaylist.snippet?.title}
-                      </span>
-                      <span style={{ color: "#aaa", fontSize: "12px" }}>
-                        현재 재생 중인 재생목록
-                      </span>
-                    </div>
-                  </React.Fragment>
-                );
-              })()}
+                alt="playlist"
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 8,
+                  objectFit: "cover",
+                  marginRight: 8,
+                }}
+              />
+              <span style={{ color: "#fff", fontWeight: "bold" }}>
+                {attachedPlaylist.snippet.title}
+              </span>
             </div>
           )}
         </PostArea>
