@@ -106,10 +106,10 @@ const Post = ({
     const fetchPlaylistFile = async () => {
       if (playlistFileUrl) {
         try {
-          const res = await fetch(
-            `http://uploadloop.kro.kr:4000/postplaylist/${playlistFileUrl}`
+          const playlistRes = await fetch(
+            playlistFileUrl.replace("4000", "4001")
           );
-          const data = await res.json();
+          const data = await playlistRes.json();
           setFetchedPlaylist(data);
         } catch (err) {
           console.error("재생목록 JSON 불러오기 실패:", err);
@@ -143,7 +143,7 @@ const Post = ({
       if (photoUrls && photoUrls.length > 0) {
         for (const filename of photoUrls) {
           try {
-            await fetch("http://uploadloop.kro.kr:4000/delete", {
+            await fetch("http://loopmusic.kro.kr:4001/delete", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -158,7 +158,7 @@ const Post = ({
       }
       if (playlistFileUrl) {
         try {
-          await fetch("http://uploadloop.kro.kr:4000/delete", {
+          await fetch("http://loopmusic.kro.kr:4001/delete", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -266,13 +266,9 @@ const Post = ({
           {photoUrls.map((url, index) => (
             <Image
               key={index}
-              src={`http://uploadloop.kro.kr:4000/postphoto/${url}`}
+              src={url.replace("4000", "4001")}
               alt={`Post image ${index + 1}`}
-              onClick={() =>
-                setSelectedImage(
-                  `http://uploadloop.kro.kr:4000/postphoto/${url}`
-                )
-              }
+              onClick={() => setSelectedImage(url.replace("4000", "4001"))}
             />
           ))}
         </ImageGallery>
@@ -392,27 +388,29 @@ const Post = ({
       </Actions>
 
       {showComments && (
-        <CommentSection
-          postId={id}
-          initialComments={commentList}
-          initialCount={commentList.length}
-          onCommentAdded={async (newComment) => {
-            const updatedComments = [...commentList, newComment];
-            setCommentList(updatedComments);
-            await updateDoc(doc(db, "posts", id), {
-              comments: updatedComments,
-            });
-          }}
-          onCommentDeleted={async (deletedCommentId) => {
-            const updatedComments = commentList.filter(
-              (c) => c.id !== deletedCommentId
-            );
-            setCommentList(updatedComments);
-            await updateDoc(doc(db, "posts", id), {
-              comments: updatedComments,
-            });
-          }}
-        />
+        <CommentSectionWrapper>
+          <CommentSection
+            postId={id}
+            initialComments={commentList}
+            initialCount={commentList.length}
+            onCommentAdded={async (newComment) => {
+              const updatedComments = [...commentList, newComment];
+              setCommentList(updatedComments);
+              await updateDoc(doc(db, "posts", id), {
+                comments: updatedComments,
+              });
+            }}
+            onCommentDeleted={async (deletedCommentId) => {
+              const updatedComments = commentList.filter(
+                (c) => c.id !== deletedCommentId
+              );
+              setCommentList(updatedComments);
+              await updateDoc(doc(db, "posts", id), {
+                comments: updatedComments,
+              });
+            }}
+          />
+        </CommentSectionWrapper>
       )}
     </Container>
   );
@@ -640,5 +638,23 @@ const CloseButton = styled.button`
 
   &:hover {
     color: #ccc;
+  }
+`;
+
+const CommentSectionWrapper = styled.div`
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  animation: expandSection 0.3s ease-out forwards;
+
+  @keyframes expandSection {
+    from {
+      max-height: 0;
+      opacity: 0;
+    }
+    to {
+      max-height: 2000px;
+      opacity: 1;
+    }
   }
 `;

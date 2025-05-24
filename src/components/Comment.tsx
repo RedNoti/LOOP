@@ -117,42 +117,56 @@ const CommentSection = ({
       <CommentCount>댓글 {comments.length}개</CommentCount>
       <InputArea>
         <CommentInput
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="댓글을 작성하세요"
+          value={editingCommentId ? editingContent : newComment}
+          onChange={(e) =>
+            editingCommentId
+              ? setEditingContent(e.target.value)
+              : setNewComment(e.target.value)
+          }
+          placeholder={
+            editingCommentId ? "댓글을 수정하세요" : "댓글을 작성하세요"
+          }
         />
-        <AddButton onClick={onAddComment}>댓글 추가</AddButton>
+        <AddButton onClick={editingCommentId ? onSaveEdit : onAddComment}>
+          {editingCommentId ? "수정" : "댓글 추가"}
+        </AddButton>
       </InputArea>
       <CommentList>
         {comments.map((comment) => (
           <CommentItem key={comment.id}>
-            {editingCommentId === comment.id ? (
-              <InputArea>
-                <CommentInput
-                  value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
-                />
-                <AddButton onClick={onSaveEdit}>저장</AddButton>
-              </InputArea>
-            ) : (
-              <>
+            <CommentContent>
+              <CommentText>
                 <strong>{comment.nickname}</strong>: {comment.content}
-                {comment.userId === user?.uid && (
-                  <>
-                    <ActionButton
-                      onClick={() =>
-                        onEditComment(comment.id!, comment.content)
-                      }
-                    >
-                      <img src="/edit.png" alt="수정" width="15" />
-                    </ActionButton>
-                    <ActionButton onClick={() => onDeleteComment(comment.id!)}>
-                      <img src="/delete.png" alt="삭제" width="15" />
-                    </ActionButton>
-                  </>
-                )}
-              </>
-            )}
+                <ButtonGroup>
+                  {comment.userId === user?.uid && !editingCommentId && (
+                    <>
+                      <ActionButton
+                        onClick={() =>
+                          onEditComment(comment.id!, comment.content)
+                        }
+                      >
+                        <img
+                          src="/icon/pencil_icon.svg"
+                          alt="수정"
+                          width="12"
+                          height="12"
+                        />
+                      </ActionButton>
+                      <ActionButton
+                        onClick={() => onDeleteComment(comment.id!)}
+                      >
+                        <img
+                          src="/icon/Delete_Icon.svg"
+                          alt="삭제"
+                          width="12"
+                          height="12"
+                        />
+                      </ActionButton>
+                    </>
+                  )}
+                </ButtonGroup>
+              </CommentText>
+            </CommentContent>
           </CommentItem>
         ))}
       </CommentList>
@@ -162,7 +176,19 @@ const CommentSection = ({
 
 // 스타일 생략 - 기존 그대로 유지
 const CommentWrapper = styled.div`
-  margin-top: 10px;
+  margin-top: 20px;
+  animation: slideDown 0.3s ease-out;
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 `;
 const CommentCount = styled.div`
   font-size: 13px;
@@ -175,23 +201,31 @@ const InputArea = styled.div`
   margin-bottom: 10px;
 `;
 const CommentInput = styled.textarea`
-  height: 50px;
+  height: 45px;
   resize: none;
   border-radius: 5px;
   padding: 5px;
-  font-size: 14px;
+  font-size: 12px;
   width: 50%;
   background-color: #b0b0b0;
   box-sizing: border-box;
+  &::placeholder {
+    font-size: 11px;
+  }
 `;
 const AddButton = styled.button`
-  height: 50px;
+  height: 45px;
+  min-width: 80px;
   background-color: #2196f3;
   color: white;
   border: none;
   padding: 5px 10px;
   border-radius: 5px;
   cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 const CommentList = styled.div`
   display: flex;
@@ -202,16 +236,38 @@ const CommentItem = styled.div`
   font-size: 14px;
   color: #eaeaea;
 `;
+const CommentContent = styled.div`
+  width: 100%;
+`;
+const CommentText = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+`;
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 2px;
+  min-width: 52px; /* 버튼 2개 + 간격 2px의 최소 너비 */
+`;
 const ActionButton = styled.button`
-  height: 30px;
-  margin-left: 5px;
-  padding: 0 8px;
-  background-color: #555;
-  color: white;
+  height: 24px;
+  width: 24px;
+  padding: 0;
+  background-color: transparent;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    transform: scale(1.12);
+  }
+  &:active {
+    transform: scale(1.2);
+  }
 `;
 
 export default CommentSection;

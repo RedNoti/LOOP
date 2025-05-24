@@ -25,12 +25,12 @@ export const useProfileFunctions = () => {
   const handleDeletePhoto = async () => {
     const isUploadedPhoto =
       profile.photoUrl &&
-      profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/");
+      profile.photoUrl.startsWith("http://loopmusic.kro.kr:4001/uploads/");
 
     // 이미지가 업로드된 이미지인 경우 서버에서 삭제 요청
     if (isUploadedPhoto) {
       try {
-        const response = await fetch("http://uploadloop.kro.kr:4000/delete", {
+        const response = await fetch("http://loopmusic.kro.kr:4001/delete", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -71,14 +71,14 @@ export const useProfileFunctions = () => {
     location: "",
   });
 
-  const [showPreview, setShowPreview] = useState(true);  // 💡 상태(State) 정의
-  const [isSubmitted, setIsSubmitted] = useState(false);  // 💡 상태(State) 정의
+  const [showPreview, setShowPreview] = useState(true); // 💡 상태(State) 정의
+  const [isSubmitted, setIsSubmitted] = useState(false); // 💡 상태(State) 정의
 
-  const [hoverPhoto, setHoverPhoto] = useState(false);  // 💡 상태(State) 정의
-  const [hoverCancel, setHoverCancel] = useState(false);  // 💡 상태(State) 정의
-  const [hoverSave, setHoverSave] = useState(false);  // 💡 상태(State) 정의
-  const [hoverToggle, setHoverToggle] = useState(false);  // 💡 상태(State) 정의
-  const [hoverBackToEdit, setHoverBackToEdit] = useState(false);  // 💡 상태(State) 정의
+  const [hoverPhoto, setHoverPhoto] = useState(false); // 💡 상태(State) 정의
+  const [hoverCancel, setHoverCancel] = useState(false); // 💡 상태(State) 정의
+  const [hoverSave, setHoverSave] = useState(false); // 💡 상태(State) 정의
+  const [hoverToggle, setHoverToggle] = useState(false); // 💡 상태(State) 정의
+  const [hoverBackToEdit, setHoverBackToEdit] = useState(false); // 💡 상태(State) 정의
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,9 +90,9 @@ export const useProfileFunctions = () => {
   };
 
   const saveProfileToFirestore = async () => {
-    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
+    const user = auth.currentUser; // 🔐 현재 로그인된 사용자 정보 참조
     if (user) {
-      await setDoc(doc(db, "profiles", user.uid), profile);  // 📄 Firestore 문서 참조
+      await setDoc(doc(db, "profiles", user.uid), profile); // 📄 Firestore 문서 참조
     }
   };
 
@@ -105,13 +105,13 @@ export const useProfileFunctions = () => {
       const formData = new FormData();
       formData.append("file", pendingPhotoFile);
       try {
-        const res = await fetch("http://uploadloop.kro.kr:4000/upload", {
+        const res = await fetch("http://loopmusic.kro.kr:4001/upload", {
           method: "POST",
           body: formData,
         });
         if (!res.ok) throw new Error("업로드 실패");
         const data = await res.json();
-        const imageUrl = `http://uploadloop.kro.kr:4000/${data.path}`;
+        const imageUrl = `http://loopmusic.kro.kr:4001/${data.path}`;
         profile.photoUrl = imageUrl;
       } catch (err) {
         console.error("이미지 업로드 실패", err);
@@ -130,7 +130,7 @@ export const useProfileFunctions = () => {
   const handleUploadButtonClick = () => {
     const isUploadedPhoto =
       profile.photoUrl &&
-      profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/");
+      profile.photoUrl.startsWith("http://loopmusic.kro.kr:4001/uploads/");
 
     if (isUploadedPhoto) {
       const confirmDelete = window.confirm(
@@ -161,7 +161,7 @@ export const useProfileFunctions = () => {
       // 기존 이미지가 업로드된 이미지인 경우 삭제 표시
       if (
         profile.photoUrl &&
-        profile.photoUrl.startsWith("http://uploadloop.kro.kr:4000/uploads/")
+        profile.photoUrl.startsWith("http://loopmusic.kro.kr:4001/uploads/")
       ) {
         setImageToDelete(profile.photoUrl);
       }
@@ -177,9 +177,9 @@ export const useProfileFunctions = () => {
   };
 
   const loadProfileFromFirestore = async () => {
-    const user = auth.currentUser;  // 🔐 현재 로그인된 사용자 정보 참조
+    const user = auth.currentUser; // 🔐 현재 로그인된 사용자 정보 참조
     if (user) {
-      const docSnap = await getDoc(doc(db, "profiles", user.uid));  // 📄 Firestore 문서 참조
+      const docSnap = await getDoc(doc(db, "profiles", user.uid)); // 📄 Firestore 문서 참조
       if (docSnap.exists()) {
         const data = docSnap.data() as ProfileData;
         setPreviousProfile(data);
@@ -199,14 +199,15 @@ export const useProfileFunctions = () => {
     }
   };
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const unsubscribe = onAuthStateChanged(auth, (user: any) => {
       if (user) {
         loadProfileFromFirestore();
       }
     });
 
-    return () => unsubscribe();  // 🔚 컴포넌트의 JSX 반환 시작
+    return () => unsubscribe(); // 🔚 컴포넌트의 JSX 반환 시작
   }, []);
 
   return {

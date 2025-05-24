@@ -433,7 +433,7 @@ export default () => {
           formData.append("file", blob, "playlist.json");
 
           const response = await axios.post(
-            "http://uploadloop.kro.kr:4000/postplaylist",
+            "http://loopmusic.kro.kr:4001/postplaylist",
             formData,
             {
               headers: {
@@ -442,7 +442,7 @@ export default () => {
             }
           );
           console.log("재생목록 업로드 성공:", response.data);
-          playlistFileUrl = response.data.filename;
+          playlistFileUrl = `http://loopmusic.kro.kr:4001/file/${response.data.id}`;
         } catch (err) {
           console.error("재생목록 처리 중 오류:", err);
           alert("재생목록 첨부에 실패했습니다.");
@@ -459,7 +459,7 @@ export default () => {
         const formData = new FormData();
         formData.append("file", file);
         const response = await axios.post(
-          "http://uploadloop.kro.kr:4000/postphoto",
+          "http://loopmusic.kro.kr:4001/postphoto",
           formData,
           {
             headers: {
@@ -467,7 +467,7 @@ export default () => {
             },
           }
         );
-        photoUrls.push(response.data.filename);
+        photoUrls.push(`http://loopmusic.kro.kr:4001/file/${response.data.id}`);
       }
 
       let profileName = user.displayName || "";
