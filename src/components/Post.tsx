@@ -82,7 +82,13 @@ const Post = ({
         setHasLiked(data.likedBy?.includes(user?.uid));
         setCurrentPhotoUrl(data.photoUrl || defaultProfileImg);
         setCurrentNickname(data.nickname || nickname);
-        setPhotoUrls(data.photoUrls || []);
+        setPhotoUrls(
+          (data.photoUrls || []).map((url: string) =>
+            url.includes("http://")
+              ? url
+              : `http://loopmusic.kro.kr:4001/uploads/post_images/${url}`
+          )
+        );
       }
     };
 
@@ -141,15 +147,15 @@ const Post = ({
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
       if (photoUrls && photoUrls.length > 0) {
-        for (const filename of photoUrls) {
+        for (const url of photoUrls) {
           try {
+            const filename = url.split("/").pop();
             await fetch("http://loopmusic.kro.kr:4001/delete", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
               },
-              body: JSON.stringify({ url: `/postphoto/${filename}` }),
+              body: JSON.stringify({ filename }), // 파일명만 전송
             });
           } catch (error) {
             console.error("서버 이미지 삭제 실패:", error);
@@ -158,13 +164,13 @@ const Post = ({
       }
       if (playlistFileUrl) {
         try {
+          const filename = playlistFileUrl.split("/").pop();
           await fetch("http://loopmusic.kro.kr:4001/delete", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*",
             },
-            body: JSON.stringify({ url: `/postplaylist/${playlistFileUrl}` }),
+            body: JSON.stringify({ filename }), // 파일명만 전송
           });
         } catch (error) {
           console.error("서버 JSON 파일 삭제 실패:", error);
@@ -266,9 +272,14 @@ const Post = ({
           {photoUrls.map((url, index) => (
             <Image
               key={index}
-              src={url.replace("4000", "4001")}
+              src={url}
               alt={`Post image ${index + 1}`}
-              onClick={() => setSelectedImage(url.replace("4000", "4001"))}
+              onClick={() => setSelectedImage(url)}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.onerror = null;
+                target.src = "/image_error.png";
+              }}
             />
           ))}
         </ImageGallery>

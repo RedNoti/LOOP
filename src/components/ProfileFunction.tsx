@@ -104,22 +104,32 @@ export const useProfileFunctions = () => {
     if (pendingPhotoFile) {
       const formData = new FormData();
       formData.append("file", pendingPhotoFile);
+      formData.append("userId", auth.currentUser?.uid || "");
       try {
-        const res = await fetch("http://loopmusic.kro.kr:4001/upload", {
+        const res = await fetch("http://loopmusic.kro.kr:4001/upload/profile", {
           method: "POST",
           body: formData,
         });
         if (!res.ok) throw new Error("업로드 실패");
         const data = await res.json();
-        const imageUrl = `http://loopmusic.kro.kr:4001/${data.path}`;
-        profile.photoUrl = imageUrl;
+        if (data.success && data.data.file) {
+          const newProfile = {
+            ...profile,
+            photoUrl: `http://loopmusic.kro.kr:4001/uploads/profile_images/${data.data.file}`,
+          };
+          setProfile(newProfile);
+          await setDoc(doc(db, "profiles", auth.currentUser!.uid), newProfile);
+          return;
+        } else {
+          console.error("응답에 filename 없음", data);
+        }
       } catch (err) {
         console.error("이미지 업로드 실패", err);
         alert("이미지 업로드에 실패했습니다.");
       }
     }
 
-    await saveProfileToFirestore();
+    // await saveProfileToFirestore();
     setIsSubmitted(true);
     setPendingPhotoFile(null);
     setImageToDelete(null);

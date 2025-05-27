@@ -397,59 +397,59 @@ export default () => {
     let playlistFileUrl = null;
     let playlistInfo = null;
 
-    if (attachPlaylist && currentPlaylistId) {
+    if (attachPlaylist && currentPlaylistId && attachedPlaylist) {
       console.log("재생목록 첨부 시작:", currentPlaylistId);
-      let playlist = attachedPlaylist;
-      if (playlist) {
-        console.log("재생목록 찾음:", playlist);
-        try {
-          const playlistTracks = await fetchPlaylistVideosReturn(playlist.id);
-          console.log("재생목록 트랙 가져옴:", playlistTracks.length);
+      try {
+        const playlistTracks = await fetchPlaylistVideosReturn(
+          attachedPlaylist.id
+        );
+        console.log("재생목록 트랙 가져옴:", playlistTracks.length);
 
-          playlistInfo = {
-            id: playlist.id,
-            title: playlist.snippet.title,
+        playlistInfo = {
+          id: attachedPlaylist.id,
+          title: attachedPlaylist.snippet.title,
+          thumbnail:
+            attachedPlaylist.snippet.thumbnails.high?.url ||
+            attachedPlaylist.snippet.thumbnails.medium?.url ||
+            attachedPlaylist.snippet.thumbnails.default?.url,
+          tracks: playlistTracks.map((video: any) => ({
+            videoId: video.snippet.resourceId.videoId,
+            title: video.snippet.title,
             thumbnail:
-              playlist.snippet.thumbnails.high?.url ||
-              playlist.snippet.thumbnails.medium?.url ||
-              playlist.snippet.thumbnails.default?.url,
-            tracks: playlistTracks.map((video: any) => ({
-              videoId: video.snippet.resourceId.videoId,
-              title: video.snippet.title,
-              thumbnail:
-                video.snippet.thumbnails.high?.url ||
-                video.snippet.thumbnails.medium?.url ||
-                video.snippet.thumbnails.default?.url,
-            })),
-          };
+              video.snippet.thumbnails.high?.url ||
+              video.snippet.thumbnails.medium?.url ||
+              video.snippet.thumbnails.default?.url,
+          })),
+        };
 
-          console.log("재생목록 정보 생성됨:", playlistInfo);
+        console.log("재생목록 정보 생성됨:", playlistInfo);
 
-          // 재생목록 정보를 JSON 파일로 저장
-          const blob = new Blob([JSON.stringify(playlistInfo)], {
-            type: "application/json",
-          });
-          const formData = new FormData();
-          formData.append("file", blob, "playlist.json");
+        // 재생목록 정보를 JSON 파일로 저장
+        const blob = new Blob([JSON.stringify(playlistInfo)], {
+          type: "application/json",
+        });
+        const formData = new FormData();
+        formData.append("file", blob, "playlist.json");
+        formData.append("userId", user.uid);
+        formData.append("playlistTitle", playlistInfo.title);
 
-          const response = await axios.post(
-            "http://loopmusic.kro.kr:4001/postplaylist",
-            formData,
-            {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            }
-          );
-          console.log("재생목록 업로드 성공:", response.data);
-          playlistFileUrl = `http://loopmusic.kro.kr:4001/file/${response.data.id}`;
-        } catch (err) {
-          console.error("재생목록 처리 중 오류:", err);
-          alert("재생목록 첨부에 실패했습니다.");
+        const response = await fetch(
+          "http://loopmusic.kro.kr:4001/upload/playlist",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+        if (!response.ok) throw new Error("업로드 실패");
+        const data = await response.json();
+        if (data.success && data.data && data.data.filename) {
+          playlistFileUrl = `http://loopmusic.kro.kr:4001/uploads/shared_playlists/${data.data.filename}`;
+        } else {
+          throw new Error(data.error || "업로드 실패");
         }
-      } else {
-        console.error("재생목록을 찾을 수 없음:", currentPlaylistId);
-        alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
+      } catch (err) {
+        console.error("재생목록 처리 중 오류:", err);
+        alert("재생목록 첨부에 실패했습니다.");
       }
     }
 
@@ -458,16 +458,43 @@ export default () => {
       for (const file of files) {
         const formData = new FormData();
         formData.append("file", file);
-        const response = await axios.post(
-          "http://loopmusic.kro.kr:4001/postphoto",
-          formData,
+        formData.append("postId", Date.now().toString());
+
+        console.log("이미지 업로드 시작:", file.name);
+        const response = await fetch(
+          "http://loopmusic.kro.kr:4001/upload/post",
           {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
+            method: "POST",
+            body: formData,
           }
         );
-        photoUrls.push(`http://loopmusic.kro.kr:4001/file/${response.data.id}`);
+
+        const responseText = await response.text();
+        console.log("서버 응답:", responseText);
+
+        if (!response.ok) {
+          throw new Error(
+            `업로드 실패: ${response.status} ${response.statusText}`
+          );
+        }
+
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error("JSON 파싱 실패:", e);
+          throw new Error("서버 응답 형식이 올바르지 않습니다.");
+        }
+
+        if (data.success && data.data && data.data.filename) {
+          const imageUrl = `http://loopmusic.kro.kr:4001/uploads/post_images/${data.data.filename}`;
+          console.log("이미지 업로드 성공:", imageUrl);
+          photoUrls.push(imageUrl);
+        } else {
+          console.error("업로드 실패 응답:", data);
+          console.error("data 객체 내용:", JSON.stringify(data.data, null, 2));
+          throw new Error(data.error || "업로드 실패");
+        }
       }
 
       let profileName = user.displayName || "";
@@ -485,18 +512,18 @@ export default () => {
       }
 
       const myPost = {
-        nickname: profileName,
+        nickname: profileName || "",
         userId: user.uid,
-        email: user.email,
+        email: user.email || "",
         createdAt: Date.now(),
-        post: post,
-        photoUrls: photoUrls,
-        photoUrl: profilePhoto,
+        post: post || "",
+        photoUrls: photoUrls || [],
+        photoUrl: profilePhoto || "",
         likeCount: 0,
         commentCount: 0,
         likedBy: [],
-        playlist: playlistInfo,
-        playlistFileUrl: playlistFileUrl,
+        playlist: playlistInfo || null,
+        playlistFileUrl: playlistFileUrl || null,
       };
 
       await addDoc(collection(db, "posts"), myPost);
@@ -506,6 +533,7 @@ export default () => {
       setFiles([]);
       setPreviews([]);
       setAttachPlaylist(false);
+      setAttachedPlaylist(null);
       if (textAreaRef.current) {
         textAreaRef.current.style.height = "auto";
         textAreaRef.current.value = "";
