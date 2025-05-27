@@ -1,6 +1,8 @@
 // 📄 Home 화면 - 타임라인을 보여주는 메인 피드입니다.
 // home.tsx
+import { useState } from "react";
 import styled from "styled-components";
+import PullToRefresh from "react-pull-to-refresh";
 import Timeline from "../components/Timeline";
 
 const Container = styled.div`
@@ -19,21 +21,34 @@ const ContentArea = styled.div`
 
   > div {
     flex: 1;
-    overflow-y: auto;
+    /* ✅ 이 줄 삭제해서 중복 스크롤 제거 */
+    /* overflow-y: auto; */
     min-height: 0;
     margin-right: 10px;
   }
 `;
 
-export default () => {
+const Home = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleRefresh = () => {
+    return new Promise<void>((resolve) => {
+      setRefreshKey((prev) => prev + 1);
+      resolve();
+    });
+  };
+
   return (
-    // 🔚 컴포넌트의 JSX 반환 시작
     <Container>
       <ContentArea>
-        <div>
-          <Timeline />
-        </div>
+        <PullToRefresh onRefresh={handleRefresh}>
+          <div>
+            <Timeline refreshKey={refreshKey} />
+          </div>
+        </PullToRefresh>
       </ContentArea>
     </Container>
   );
 };
+
+export default Home;
