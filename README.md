@@ -1,8 +1,7 @@
-# Getting Started with Create React App
+# LOOP - 내 음악 스타일을 공유하는 SNS 웹페이지 프로젝트
+안녕하세요 나만의 음악 플레이 리스트를 공유하는 SNS 웹페이지를 개발중인 LOOP팀입니다.
+## 사용중인 스크립트
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
-
-## Available Scripts
 
 In the project directory, you can run:
 
