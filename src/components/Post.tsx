@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import styled from "styled-components";
+import { useState, useEffect, useRef } from "react";
+import styled, { createGlobalStyle } from "styled-components";
 import { auth, db } from "../firebaseConfig";
 import {
   doc,
@@ -54,24 +54,41 @@ const Post = ({
   playlist,
   playlistFileUrl,
 }: PostProps) => {
+  // 댓글 목록 상태
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
+  // 좋아요 개수 및 내가 좋아요 눌렀는지 상태
   const [likes, setLikes] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
+  // 댓글창 보이기 상태
   const [showComments, setShowComments] = useState(false);
+  // 작성자 프로필 이미지, 닉네임
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | undefined>(
     photoUrl
   );
   const [currentNickname, setCurrentNickname] = useState<string | undefined>(
     nickname
   );
+  // 게시글 사진 url 배열 상태
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  // 게시글 수정 관련 상태
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  // ▼ [사진 확대 관련 상태 및 참조값] ▼
+  // 확대된 이미지를 저장 (url + 위치 정보)
+  const [zoomedImage, setZoomedImage] = useState<{
+    url: string;
+    rect: DOMRect;
+  } | null>(null);
+  // 이미지 DOM 참조 저장
+  const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
+  // 확대 애니메이션 활성화 여부
+  const [isZooming, setIsZooming] = useState(false);
+
+  // 게시글 데이터 불러오기
   useEffect(() => {
     const fetchPost = async () => {
       const postRef = doc(db, "posts", id);
@@ -95,6 +112,7 @@ const Post = ({
     fetchPost();
   }, [id, user?.uid, nickname]);
 
+  // 댓글 목록 불러오기
   useEffect(() => {
     const fetchComments = async () => {
       const postRef = doc(db, "posts", id);
@@ -108,6 +126,7 @@ const Post = ({
     fetchComments();
   }, [id]);
 
+  // 플레이리스트 파일 불러오기
   useEffect(() => {
     const fetchPlaylistFile = async () => {
       if (playlistFileUrl) {
@@ -125,6 +144,7 @@ const Post = ({
     fetchPlaylistFile();
   }, [playlistFileUrl]);
 
+  // 좋아요 버튼 핸들러
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
     if (hasLiked) {
@@ -143,6 +163,7 @@ const Post = ({
     setHasLiked(!hasLiked);
   };
 
+  // 게시글 삭제 버튼 핸들러
   const onDeletePost = async () => {
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
@@ -155,7 +176,7 @@ const Post = ({
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ filename }), // 파일명만 전송
+              body: JSON.stringify({ filename }),
             });
           } catch (error) {
             console.error("서버 이미지 삭제 실패:", error);
@@ -170,7 +191,7 @@ const Post = ({
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ filename }), // 파일명만 전송
+            body: JSON.stringify({ filename }),
           });
         } catch (error) {
           console.error("서버 JSON 파일 삭제 실패:", error);
@@ -183,8 +204,25 @@ const Post = ({
     }
   };
 
+  // ▼ 사진 클릭 시: 사진의 위치/크기 정보를 읽어와서 확대 상태로 변경하는 함수 ▼
+  const handleImageClick = (url: string, index: number) => {
+    const rect = imgRefs.current[index]?.getBoundingClientRect();
+    if (rect) {
+      setZoomedImage({ url, rect }); // 확대할 이미지 및 시작 위치 저장
+      setTimeout(() => setIsZooming(true), 10); // 다음 tick에 확대 transition 시작
+    }
+  };
+
+  // ▼ 확대 상태의 사진을 닫을 때 호출되는 함수 (축소 애니메이션 후 상태 해제) ▼
+  const handleZoomClose = () => {
+    setIsZooming(false); // 축소 transition 시작
+    setTimeout(() => setZoomedImage(null), 400); // 0.4초 후 확대모달 제거
+  };
+
   return (
     <Container>
+      {/* 글로벌 확대/축소 CSS 스타일 추가 */}
+      <ZoomStyle />
       <Wrapper>
         <ProfileImg
           src={currentPhotoUrl || defaultProfileImg}
@@ -202,6 +240,7 @@ const Post = ({
             <span>{new Date(createdAt).toLocaleDateString()}</span>
           </UserMeta>
         </UserInfo>
+        {/* 본인 게시글이면 수정/삭제 버튼 */}
         {user?.uid === userId && (
           <div
             style={{
@@ -267,6 +306,7 @@ const Post = ({
         )}
       </EditableContent>
 
+      {/* ▼ 게시글 이미지 목록 (여러장 지원) ▼ */}
       {photoUrls.length > 0 && (
         <ImageGallery>
           {photoUrls.map((url, index) => (
@@ -274,7 +314,8 @@ const Post = ({
               key={index}
               src={url}
               alt={`Post image ${index + 1}`}
-              onClick={() => setSelectedImage(url)}
+              ref={(el) => (imgRefs.current[index] = el)} // 각 이미지의 DOM 참조 저장
+              onClick={() => handleImageClick(url, index)} // 클릭 시 확대 함수 호출
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.onerror = null;
@@ -285,15 +326,56 @@ const Post = ({
         </ImageGallery>
       )}
 
-      {selectedImage && (
-        <ModalOverlay onClick={() => setSelectedImage(null)}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-            <CloseButton onClick={() => setSelectedImage(null)}>×</CloseButton>
-            <ModalImage src={selectedImage} alt="Full size" />
-          </ModalContent>
-        </ModalOverlay>
+      {/* ▼ 사진 확대 모달 (오버레이, 닫기 버튼, 확대/축소 애니메이션 모두 담당) ▼ */}
+      {zoomedImage && (
+        <div
+          className={`zoom-overlay${isZooming ? " active" : ""}`}
+          onClick={handleZoomClose} // 오버레이 클릭 시 닫힘
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1000,
+            background: isZooming ? "rgba(0,0,0,0.9)" : "rgba(0,0,0,0)",
+            transition: "background 0.4s",
+            cursor: "zoom-out",
+            overflow: "hidden",
+          }}
+        >
+          {/* X 닫기 버튼 - 우상단 고정, 클릭시 사진 축소 후 모달 닫힘 */}
+          <button
+            className="zoom-close-btn"
+            onClick={(e) => {
+              e.stopPropagation(); // 오버레이 닫힘 이벤트 막기
+              handleZoomClose();
+            }}
+            aria-label="닫기"
+          >
+            ×
+          </button>
+          {/* 확대되는 이미지 */}
+          <img
+            src={zoomedImage.url}
+            alt="Zoomed"
+            className={`zoom-img${isZooming ? " active" : ""}`}
+            style={{
+              position: "fixed",
+              left: zoomedImage.rect.left,
+              top: zoomedImage.rect.top,
+              width: zoomedImage.rect.width,
+              height: zoomedImage.rect.height,
+              objectFit: "contain",
+              borderRadius: 12,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              transition: "all 0.4s cubic-bezier(0.4,0,0.2,1)",
+            }}
+          />
+        </div>
       )}
 
+      {/* ▼ 좋아요, 댓글, 플레이리스트 버튼 등 기능 영역 ▼ */}
       <Actions>
         <LikeBtn onClick={handleLike}>
           <img
@@ -312,12 +394,9 @@ const Post = ({
           <PlaylistBtn
             onClick={() => {
               if (fetchedPlaylist?.tracks?.length > 0) {
-                // 기존 재생목록 정보 가져오기
                 const existingPlaylists = JSON.parse(
                   sessionStorage.getItem("playlists") || "[]"
                 );
-
-                // 새로운 재생목록이 기존 목록에 없는 경우에만 추가
                 const playlistExists = existingPlaylists.some(
                   (p: any) => p.id === fetchedPlaylist.id
                 );
@@ -339,12 +418,8 @@ const Post = ({
                     JSON.stringify(existingPlaylists)
                   );
                 }
-
-                // 재생목록 정보 저장
                 sessionStorage.setItem("currentPlaylistId", fetchedPlaylist.id);
                 sessionStorage.setItem("currentVideoIndex", "0");
-
-                // 재생 이벤트 발생
                 window.dispatchEvent(
                   new CustomEvent("play_playlist_from_file", {
                     detail: {
@@ -398,6 +473,7 @@ const Post = ({
         )}
       </Actions>
 
+      {/* ▼ 댓글 입력/목록 영역 ▼ */}
       {showComments && (
         <CommentSectionWrapper>
           <CommentSection
@@ -429,7 +505,45 @@ const Post = ({
 
 export default Post;
 
-// 🎨 스타일 생략 없이 그대로 유지 (아래는 동일)
+// ▼ 사진 확대/축소, 닫기버튼 스타일 전역 적용 (styled-components의 createGlobalStyle 활용)
+const ZoomStyle = createGlobalStyle`
+  /* 확대 애니메이션 active 시: 중앙으로 확대 + 그림자 */
+  .zoom-img.active {
+    left: 50% !important;
+    top: 50% !important;
+    width: 80vw !important;
+    height: 80vh !important;
+    transform: translate(-50%, -50%) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45) !important;
+  }
+  /* 확대된 상태의 배경 오버레이 */
+  .zoom-overlay.active {
+    background: rgba(0,0,0,0.9) !important;
+  }
+  /* X 닫기 버튼 (오버레이 우측상단에 고정) */
+  .zoom-close-btn {
+    position: fixed;
+    top: 32px;
+    right: 48px;
+    z-index: 1100;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 3rem;
+    cursor: pointer;
+    padding: 0 10px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    line-height: 1;
+  }
+  .zoom-close-btn:hover {
+    opacity: 1;
+    color: #ff6262;
+  }
+`;
+
+// ▼ 이하 styled-components 스타일 (변경 없음, 생략 가능)
 const Container = styled.div`
   border: 1px solid #444;
   padding: 1rem;
@@ -606,50 +720,6 @@ const PlaylistThumbSmall = styled.img`
   border-radius: 4px;
   object-fit: cover;
   margin-right: 4px;
-`;
-
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.9);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  cursor: pointer;
-`;
-
-const ModalContent = styled.div`
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  cursor: default;
-`;
-
-const ModalImage = styled.img`
-  max-width: 100%;
-  max-height: 90vh;
-  object-fit: contain;
-`;
-
-const CloseButton = styled.button`
-  position: absolute;
-  top: -40px;
-  right: 0;
-  background: none;
-  border: none;
-  color: white;
-  font-size: 30px;
-  cursor: pointer;
-  padding: 5px;
-  z-index: 1001;
-
-  &:hover {
-    color: #ccc;
-  }
 `;
 
 const CommentSectionWrapper = styled.div`
