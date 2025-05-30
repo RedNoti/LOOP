@@ -24,7 +24,7 @@ interface CommentSectionProps {
   initialComments: Comment[];
   initialCount: number;
   onCommentAdded?: (newComment: Comment) => void;
-  onCommentDeleted?: (deletedCommentId: string) => void; // ✅ 추가
+  onCommentDeleted?: (deletedCommentId: string) => void;
 }
 
 const CommentSection = ({
@@ -78,10 +78,12 @@ const CommentSection = ({
   };
 
   const onDeleteComment = async (commentId: string) => {
+    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
+
     try {
       await deleteDoc(doc(db, "posts", postId, "comments", commentId));
       setComments((prev) => prev.filter((c) => c.id !== commentId));
-      if (onCommentDeleted) onCommentDeleted(commentId); // ✅ 외부로 알림
+      if (onCommentDeleted) onCommentDeleted(commentId);
     } catch (error) {
       console.error("댓글 삭제 오류:", error);
     }
@@ -112,162 +114,345 @@ const CommentSection = ({
     }
   };
 
+  const onCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent("");
+  };
+
+  const formatTimeAgo = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "방금 전";
+    if (minutes < 60) return `${minutes}분 전`;
+    if (hours < 24) return `${hours}시간 전`;
+    if (days < 7) return `${days}일 전`;
+    return new Date(timestamp).toLocaleDateString();
+  };
+
   return (
     <CommentWrapper>
-      <CommentCount>댓글 {comments.length}개</CommentCount>
-      <InputArea>
-        <CommentInput
-          value={editingCommentId ? editingContent : newComment}
-          onChange={(e) =>
-            editingCommentId
-              ? setEditingContent(e.target.value)
-              : setNewComment(e.target.value)
-          }
-          placeholder={
-            editingCommentId ? "댓글을 수정하세요" : "댓글을 작성하세요"
-          }
-        />
-        <AddButton onClick={editingCommentId ? onSaveEdit : onAddComment}>
-          {editingCommentId ? "수정" : "댓글 추가"}
-        </AddButton>
-      </InputArea>
+      <CommentHeader>
+        <CommentCount>댓글 {comments.length}개</CommentCount>
+      </CommentHeader>
+
+      <InputSection>
+        <CommentInputContainer>
+          <CommentInput
+            value={editingCommentId ? editingContent : newComment}
+            onChange={(e) =>
+              editingCommentId
+                ? setEditingContent(e.target.value)
+                : setNewComment(e.target.value)
+            }
+            placeholder={
+              editingCommentId ? "댓글을 수정하세요..." : "댓글을 작성하세요..."
+            }
+            rows={2}
+          />
+          <InputActions>
+            {editingCommentId ? (
+              <>
+                <CancelButton onClick={onCancelEdit}>취소</CancelButton>
+                <SubmitButton onClick={onSaveEdit}>수정</SubmitButton>
+              </>
+            ) : (
+              <SubmitButton onClick={onAddComment}>게시</SubmitButton>
+            )}
+          </InputActions>
+        </CommentInputContainer>
+      </InputSection>
+
       <CommentList>
         {comments.map((comment) => (
           <CommentItem key={comment.id}>
             <CommentContent>
-              <CommentText>
-                <strong>{comment.nickname}</strong>: {comment.content}
-                <ButtonGroup>
-                  {comment.userId === user?.uid && !editingCommentId && (
-                    <>
-                      <ActionButton
-                        onClick={() =>
-                          onEditComment(comment.id!, comment.content)
-                        }
+              <CommentInfo>
+                <CommentAuthor>{comment.nickname}</CommentAuthor>
+                <CommentTime>{formatTimeAgo(comment.createdAt)}</CommentTime>
+              </CommentInfo>
+              <CommentText>{comment.content}</CommentText>
+              {comment.userId === user?.uid && !editingCommentId && (
+                <CommentActions>
+                  <ActionButton
+                    onClick={() => onEditComment(comment.id!, comment.content)}
+                  >
+                    <EditIcon>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
                       >
-                        <img
-                          src="/icon/pencil_icon.svg"
-                          alt="수정"
-                          width="12"
-                          height="12"
+                        <path
+                          d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"
+                          fill="currentColor"
                         />
-                      </ActionButton>
-                      <ActionButton
-                        onClick={() => onDeleteComment(comment.id!)}
+                        <path
+                          d="M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </EditIcon>
+                    수정
+                  </ActionButton>
+                  <ActionButton onClick={() => onDeleteComment(comment.id!)}>
+                    <DeleteIcon>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
                       >
-                        <img
-                          src="/icon/Delete_Icon.svg"
-                          alt="삭제"
-                          width="12"
-                          height="12"
+                        <path
+                          d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                          fill="currentColor"
                         />
-                      </ActionButton>
-                    </>
-                  )}
-                </ButtonGroup>
-              </CommentText>
+                      </svg>
+                    </DeleteIcon>
+                    삭제
+                  </ActionButton>
+                </CommentActions>
+              )}
             </CommentContent>
           </CommentItem>
         ))}
       </CommentList>
+
+      {comments.length === 0 && (
+        <EmptyState>
+          <EmptyIcon>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          </EmptyIcon>
+          <EmptyText>아직 댓글이 없습니다.</EmptyText>
+          <EmptySubText>첫 번째 댓글을 작성해보세요!</EmptySubText>
+        </EmptyState>
+      )}
     </CommentWrapper>
   );
 };
 
-// 스타일 생략 - 기존 그대로 유지
+// 스타일드 컴포넌트
 const CommentWrapper = styled.div`
-  margin-top: 20px;
-  animation: slideDown 0.3s ease-out;
+  padding: 20px 24px;
+`;
 
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+const CommentHeader = styled.div`
+  margin-bottom: 16px;
 `;
+
 const CommentCount = styled.div`
-  font-size: 13px;
-  color: #aaa;
-  margin-bottom: 5px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
 `;
-const InputArea = styled.div`
-  display: flex;
-  gap: 5px;
-  margin-bottom: 10px;
+
+const InputSection = styled.div`
+  margin-bottom: 20px;
 `;
-const CommentInput = styled.textarea`
-  height: 45px;
-  resize: none;
-  border-radius: 5px;
-  padding: 5px;
-  font-size: 12px;
-  width: 50%;
-  background-color: #b0b0b0;
-  box-sizing: border-box;
-  &::placeholder {
-    font-size: 11px;
+
+const CommentInputContainer = styled.div`
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #f0f0f0;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+
+  &:focus-within {
+    border-color: #007aff;
   }
 `;
-const AddButton = styled.button`
-  height: 45px;
-  min-width: 80px;
-  background-color: #2196f3;
+
+const CommentInput = styled.textarea`
+  width: 100%;
+  padding: 16px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  font-family: inherit;
+  color: #1a1a1a;
+  background: transparent;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: #8e8e93;
+  }
+`;
+
+const InputActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+`;
+
+const SubmitButton = styled.button`
+  padding: 8px 16px;
+  background: #007aff;
   color: white;
   border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #0051d0;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    background: #c7c7cc;
+    cursor: not-allowed;
+    transform: none;
+  }
 `;
+
+const CancelButton = styled.button`
+  padding: 8px 16px;
+  background: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #e9ecef;
+    color: #495057;
+  }
+`;
+
 const CommentList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
 `;
+
 const CommentItem = styled.div`
-  font-size: 14px;
-  color: #eaeaea;
-`;
-const CommentContent = styled.div`
-  width: 100%;
-`;
-const CommentText = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`;
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 2px;
-  min-width: 52px; /* 버튼 2개 + 간격 2px의 최소 너비 */
-`;
-const ActionButton = styled.button`
-  height: 24px;
-  width: 24px;
-  padding: 0;
-  background-color: transparent;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
 
   &:hover {
-    transform: scale(1.12);
+    border-color: #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
-  &:active {
-    transform: scale(1.2);
+`;
+
+const CommentContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const CommentInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const CommentAuthor = styled.div`
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+`;
+
+const CommentTime = styled.div`
+  font-size: 12px;
+  color: #8e8e93;
+`;
+
+const CommentText = styled.div`
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  word-break: break-word;
+  white-space: pre-wrap;
+`;
+
+const CommentActions = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+`;
+
+const ActionButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  color: #8e8e93;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #f8f9fa;
+    color: #495057;
   }
+`;
+
+const EditIcon = styled.span`
+  display: flex;
+  align-items: center;
+  color: #007aff;
+`;
+
+const DeleteIcon = styled.span`
+  display: flex;
+  align-items: center;
+  color: #ff6b6b;
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+`;
+
+const EmptyIcon = styled.div`
+  color: #c7c7cc;
+  margin-bottom: 12px;
+`;
+
+const EmptyText = styled.div`
+  font-size: 16px;
+  font-weight: 500;
+  color: #8e8e93;
+  margin-bottom: 4px;
+`;
+
+const EmptySubText = styled.div`
+  font-size: 14px;
+  color: #c7c7cc;
 `;
 
 export default CommentSection;

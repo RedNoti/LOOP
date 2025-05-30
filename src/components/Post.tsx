@@ -54,41 +54,32 @@ const Post = ({
   playlist,
   playlistFileUrl,
 }: PostProps) => {
-  // 댓글 목록 상태
+  // 상태 관리 (기존과 동일)
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
-  // 좋아요 개수 및 내가 좋아요 눌렀는지 상태
   const [likes, setLikes] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
-  // 댓글창 보이기 상태
   const [showComments, setShowComments] = useState(false);
-  // 작성자 프로필 이미지, 닉네임
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | undefined>(
     photoUrl
   );
   const [currentNickname, setCurrentNickname] = useState<string | undefined>(
     nickname
   );
-  // 게시글 사진 url 배열 상태
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  // 게시글 수정 관련 상태
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
 
-  // ▼ [사진 확대 관련 상태 및 참조값] ▼
-  // 확대된 이미지를 저장 (url + 위치 정보)
   const [zoomedImage, setZoomedImage] = useState<{
     url: string;
     rect: DOMRect;
   } | null>(null);
-  // 이미지 DOM 참조 저장
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
-  // 확대 애니메이션 활성화 여부
   const [isZooming, setIsZooming] = useState(false);
 
-  // 게시글 데이터 불러오기
+  // useEffect 훅들 (기존과 동일)
   useEffect(() => {
     const fetchPost = async () => {
       const postRef = doc(db, "posts", id);
@@ -108,11 +99,9 @@ const Post = ({
         );
       }
     };
-
     fetchPost();
   }, [id, user?.uid, nickname]);
 
-  // 댓글 목록 불러오기
   useEffect(() => {
     const fetchComments = async () => {
       const postRef = doc(db, "posts", id);
@@ -122,11 +111,9 @@ const Post = ({
         setCommentList(data.comments || []);
       }
     };
-
     fetchComments();
   }, [id]);
 
-  // 플레이리스트 파일 불러오기
   useEffect(() => {
     const fetchPlaylistFile = async () => {
       if (playlistFileUrl) {
@@ -144,7 +131,7 @@ const Post = ({
     fetchPlaylistFile();
   }, [playlistFileUrl]);
 
-  // 좋아요 버튼 핸들러
+  // 이벤트 핸들러들 (기존과 동일)
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
     if (hasLiked) {
@@ -163,7 +150,6 @@ const Post = ({
     setHasLiked(!hasLiked);
   };
 
-  // 게시글 삭제 버튼 핸들러
   const onDeletePost = async () => {
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
     try {
@@ -204,89 +190,76 @@ const Post = ({
     }
   };
 
-  // ▼ 사진 클릭 시: 사진의 위치/크기 정보를 읽어와서 확대 상태로 변경하는 함수 ▼
   const handleImageClick = (url: string, index: number) => {
     const rect = imgRefs.current[index]?.getBoundingClientRect();
     if (rect) {
-      setZoomedImage({ url, rect }); // 확대할 이미지 및 시작 위치 저장
-      setTimeout(() => setIsZooming(true), 10); // 다음 tick에 확대 transition 시작
+      setZoomedImage({ url, rect });
+      setTimeout(() => setIsZooming(true), 10);
     }
   };
 
-  // ▼ 확대 상태의 사진을 닫을 때 호출되는 함수 (축소 애니메이션 후 상태 해제) ▼
   const handleZoomClose = () => {
-    setIsZooming(false); // 축소 transition 시작
-    setTimeout(() => setZoomedImage(null), 400); // 0.4초 후 확대모달 제거
+    setIsZooming(false);
+    setTimeout(() => setZoomedImage(null), 400);
   };
 
   return (
     <Container>
-      {/* 글로벌 확대/축소 CSS 스타일 추가 */}
       <ZoomStyle />
-      <Wrapper>
-        <ProfileImg
-          src={currentPhotoUrl || defaultProfileImg}
-          alt="Profile"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.onerror = null;
-            target.src = defaultProfileImg;
-          }}
-        />
-        <UserInfo>
-          <UserName>{currentNickname}</UserName>
-          <UserMeta>
-            <span>{user?.uid === userId ? user.email : ""}</span>
-            <span>{new Date(createdAt).toLocaleDateString()}</span>
-          </UserMeta>
-        </UserInfo>
-        {/* 본인 게시글이면 수정/삭제 버튼 */}
-        {user?.uid === userId && (
-          <div
-            style={{
-              position: "absolute",
-              top: "10px",
-              right: "10px",
-              display: "flex",
-              gap: "10px",
-              zIndex: 10,
-            }}
-          >
-            <EditBtn onClick={() => setIsEditing(!isEditing)}>
-              <img
-                src="/icon/pencil_icon.svg"
-                alt="수정"
-                width={20}
-                height={20}
-                style={{ color: "#FFFFFF", fill: "#FFFFFF" }}
-              />
-            </EditBtn>
-            <DeleteBtn onClick={onDeletePost}>
-              <img
-                src="/icon/Delete_Icon.svg"
-                alt="삭제"
-                width={20}
-                height={20}
-                style={{ color: "#FFFFFF", fill: "#FFFFFF" }}
-              />
-            </DeleteBtn>
-          </div>
-        )}
-      </Wrapper>
 
-      <EditableContent>
+      {/* 헤더 영역 */}
+      <Header>
+        <ProfileSection>
+          <ProfileImg
+            src={currentPhotoUrl || defaultProfileImg}
+            alt="Profile"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.onerror = null;
+              target.src = defaultProfileImg;
+            }}
+          />
+          <UserInfo>
+            <UserName>{currentNickname}</UserName>
+            <PostTime>{new Date(createdAt).toLocaleDateString()}</PostTime>
+          </UserInfo>
+        </ProfileSection>
+
+        {/* 수정/삭제 버튼 */}
+        {user?.uid === userId && (
+          <ActionButtons>
+            <ActionBtn onClick={() => setIsEditing(!isEditing)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                  fill="currentColor"
+                />
+              </svg>
+            </ActionBtn>
+            <ActionBtn onClick={onDeletePost}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                  fill="currentColor"
+                />
+              </svg>
+            </ActionBtn>
+          </ActionButtons>
+        )}
+      </Header>
+
+      {/* 콘텐츠 영역 */}
+      <ContentArea>
         {isEditing ? (
-          <>
-            <textarea
+          <EditingArea>
+            <EditTextarea
               value={editedPost}
               onChange={(e) => setEditedPost(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px",
-                borderRadius: "5px",
-                border: "1px solid #ccc",
-                resize: "vertical",
-              }}
+              placeholder="게시글을 작성해주세요..."
             />
             <SaveBtn
               onClick={async () => {
@@ -300,37 +273,38 @@ const Post = ({
             >
               저장
             </SaveBtn>
-          </>
+          </EditingArea>
         ) : (
-          <Content>{post}</Content>
+          <PostContent>{post}</PostContent>
         )}
-      </EditableContent>
+      </ContentArea>
 
-      {/* ▼ 게시글 이미지 목록 (여러장 지원) ▼ */}
+      {/* 이미지 갤러리 */}
       {photoUrls.length > 0 && (
         <ImageGallery>
           {photoUrls.map((url, index) => (
-            <Image
-              key={index}
-              src={url}
-              alt={`Post image ${index + 1}`}
-              ref={(el) => (imgRefs.current[index] = el)} // 각 이미지의 DOM 참조 저장
-              onClick={() => handleImageClick(url, index)} // 클릭 시 확대 함수 호출
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.onerror = null;
-                target.src = "/image_error.png";
-              }}
-            />
+            <ImageContainer key={index}>
+              <StyledImage
+                src={url}
+                alt={`Post image ${index + 1}`}
+                ref={(el) => (imgRefs.current[index] = el)}
+                onClick={() => handleImageClick(url, index)}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = "/image_error.png";
+                }}
+              />
+            </ImageContainer>
           ))}
         </ImageGallery>
       )}
 
-      {/* ▼ 사진 확대 모달 (오버레이, 닫기 버튼, 확대/축소 애니메이션 모두 담당) ▼ */}
+      {/* 확대 모달 */}
       {zoomedImage && (
         <div
           className={`zoom-overlay${isZooming ? " active" : ""}`}
-          onClick={handleZoomClose} // 오버레이 클릭 시 닫힘
+          onClick={handleZoomClose}
           style={{
             position: "fixed",
             left: 0,
@@ -344,18 +318,16 @@ const Post = ({
             overflow: "hidden",
           }}
         >
-          {/* X 닫기 버튼 - 우상단 고정, 클릭시 사진 축소 후 모달 닫힘 */}
           <button
             className="zoom-close-btn"
             onClick={(e) => {
-              e.stopPropagation(); // 오버레이 닫힘 이벤트 막기
+              e.stopPropagation();
               handleZoomClose();
             }}
             aria-label="닫기"
           >
             ×
           </button>
-          {/* 확대되는 이미지 */}
           <img
             src={zoomedImage.url}
             alt="Zoomed"
@@ -375,105 +347,117 @@ const Post = ({
         </div>
       )}
 
-      {/* ▼ 좋아요, 댓글, 플레이리스트 버튼 등 기능 영역 ▼ */}
-      <Actions>
-        <LikeBtn onClick={handleLike}>
-          <img
-            src={hasLiked ? "/icon/like_Icon.svg" : "/icon/like_Icon.svg"}
-            alt="Like"
-            width="15"
-            height="15"
-          />
-          <span>{likes}</span>
-        </LikeBtn>
-        <CommentBtn onClick={() => setShowComments(!showComments)}>
-          <img src="/comment.png" alt="Comment" width="15" height="15" />
-          <span>{commentList.length}</span>
-        </CommentBtn>
-        {playlistFileUrl && fetchedPlaylist && (
-          <PlaylistBtn
-            onClick={() => {
-              if (fetchedPlaylist?.tracks?.length > 0) {
-                const existingPlaylists = JSON.parse(
-                  sessionStorage.getItem("playlists") || "[]"
-                );
-                const playlistExists = existingPlaylists.some(
-                  (p: any) => p.id === fetchedPlaylist.id
-                );
-                if (!playlistExists) {
-                  const newPlaylist = {
-                    id: fetchedPlaylist.id,
-                    snippet: {
-                      title: fetchedPlaylist.title,
-                      thumbnails: {
-                        high: { url: fetchedPlaylist.thumbnail },
-                        medium: { url: fetchedPlaylist.thumbnail },
-                        default: { url: fetchedPlaylist.thumbnail },
+      {/* 하단 액션 영역 */}
+      <BottomSection>
+        <InteractionBar>
+          <InteractionBtn onClick={handleLike} active={hasLiked}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                fill={hasLiked ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+            <span>{likes}</span>
+          </InteractionBtn>
+
+          <InteractionBtn onClick={() => setShowComments(!showComments)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+            <span>{commentList.length}</span>
+          </InteractionBtn>
+
+          {playlistFileUrl && fetchedPlaylist && (
+            <PlaylistButton
+              onClick={() => {
+                if (fetchedPlaylist?.tracks?.length > 0) {
+                  const existingPlaylists = JSON.parse(
+                    sessionStorage.getItem("playlists") || "[]"
+                  );
+                  const playlistExists = existingPlaylists.some(
+                    (p: any) => p.id === fetchedPlaylist.id
+                  );
+                  if (!playlistExists) {
+                    const newPlaylist = {
+                      id: fetchedPlaylist.id,
+                      snippet: {
+                        title: fetchedPlaylist.title,
+                        thumbnails: {
+                          high: { url: fetchedPlaylist.thumbnail },
+                          medium: { url: fetchedPlaylist.thumbnail },
+                          default: { url: fetchedPlaylist.thumbnail },
+                        },
                       },
-                    },
-                  };
-                  existingPlaylists.push(newPlaylist);
+                    };
+                    existingPlaylists.push(newPlaylist);
+                    sessionStorage.setItem(
+                      "playlists",
+                      JSON.stringify(existingPlaylists)
+                    );
+                  }
                   sessionStorage.setItem(
-                    "playlists",
-                    JSON.stringify(existingPlaylists)
+                    "currentPlaylistId",
+                    fetchedPlaylist.id
+                  );
+                  sessionStorage.setItem("currentVideoIndex", "0");
+                  window.dispatchEvent(
+                    new CustomEvent("play_playlist_from_file", {
+                      detail: {
+                        videos: fetchedPlaylist.tracks.map((track: any) => ({
+                          id: { videoId: track.videoId },
+                          snippet: {
+                            title: track.title,
+                            thumbnails: {
+                              default: { url: track.thumbnail },
+                              medium: { url: track.thumbnail },
+                              high: { url: track.thumbnail },
+                            },
+                            playlistId: fetchedPlaylist.id,
+                          },
+                        })),
+                        playlistMeta: {
+                          id: fetchedPlaylist.id,
+                          title: fetchedPlaylist.title,
+                          thumbnail: fetchedPlaylist.thumbnail,
+                        },
+                        existingPlaylists,
+                      },
+                    })
                   );
                 }
-                sessionStorage.setItem("currentPlaylistId", fetchedPlaylist.id);
-                sessionStorage.setItem("currentVideoIndex", "0");
-                window.dispatchEvent(
-                  new CustomEvent("play_playlist_from_file", {
-                    detail: {
-                      videos: fetchedPlaylist.tracks.map((track: any) => ({
-                        id: { videoId: track.videoId },
-                        snippet: {
-                          title: track.title,
-                          thumbnails: {
-                            default: { url: track.thumbnail },
-                            medium: { url: track.thumbnail },
-                            high: { url: track.thumbnail },
-                          },
-                          playlistId: fetchedPlaylist.id,
-                        },
-                      })),
-                      playlistMeta: {
-                        id: fetchedPlaylist.id,
-                        title: fetchedPlaylist.title,
-                        thumbnail: fetchedPlaylist.thumbnail,
-                      },
-                      existingPlaylists,
-                    },
-                  })
-                );
-              }
-            }}
-          >
-            <PlaylistThumbSmall
-              src={fetchedPlaylist?.thumbnail}
-              alt="Playlist Thumbnail"
-              style={{
-                width: "20px",
-                height: "20px",
-                borderRadius: "4px",
-                objectFit: "cover",
-                marginRight: "4px",
-              }}
-            />
-            <span
-              style={{
-                maxWidth: "150px",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                color: "white",
               }}
             >
-              {fetchedPlaylist?.title}
-            </span>
-          </PlaylistBtn>
-        )}
-      </Actions>
+              <PlaylistIcon
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"
+                  fill="currentColor"
+                />
+              </PlaylistIcon>
+              <PlaylistInfo>
+                <PlaylistThumb
+                  src={fetchedPlaylist?.thumbnail}
+                  alt="Playlist Thumbnail"
+                />
+                <PlaylistTitle>{fetchedPlaylist?.title}</PlaylistTitle>
+              </PlaylistInfo>
+            </PlaylistButton>
+          )}
+        </InteractionBar>
+      </BottomSection>
 
-      {/* ▼ 댓글 입력/목록 영역 ▼ */}
+      {/* 댓글 섹션 */}
       {showComments && (
         <CommentSectionWrapper>
           <CommentSection
@@ -505,9 +489,8 @@ const Post = ({
 
 export default Post;
 
-// ▼ 사진 확대/축소, 닫기버튼 스타일 전역 적용 (styled-components의 createGlobalStyle 활용)
+// 글로벌 스타일
 const ZoomStyle = createGlobalStyle`
-  /* 확대 애니메이션 active 시: 중앙으로 확대 + 그림자 */
   .zoom-img.active {
     left: 50% !important;
     top: 50% !important;
@@ -517,11 +500,9 @@ const ZoomStyle = createGlobalStyle`
     border-radius: 16px !important;
     box-shadow: 0 8px 32px rgba(0,0,0,0.45) !important;
   }
-  /* 확대된 상태의 배경 오버레이 */
   .zoom-overlay.active {
     background: rgba(0,0,0,0.9) !important;
   }
-  /* X 닫기 버튼 (오버레이 우측상단에 고정) */
   .zoom-close-btn {
     position: fixed;
     top: 32px;
@@ -543,199 +524,288 @@ const ZoomStyle = createGlobalStyle`
   }
 `;
 
-// ▼ 이하 styled-components 스타일 (변경 없음, 생략 가능)
+// 스타일드 컴포넌트
 const Container = styled.div`
-  border: 1px solid #444;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 8px;
-  background: #222;
-  position: relative;
-  padding-bottom: 40px;
+  background: #ffffff;
+  border-radius: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  }
 `;
 
-const Wrapper = styled.div`
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+`;
+
+const ProfileSection = styled.div`
   display: flex;
   align-items: center;
-  margin-bottom: 0.5rem;
+  gap: 12px;
 `;
 
 const ProfileImg = styled.img`
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  margin-right: 0.5rem;
+  object-fit: cover;
+  border: 2px solid #f8f9fa;
 `;
 
 const UserInfo = styled.div`
-  color: #ccc;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 `;
 
 const UserName = styled.div`
-  font-weight: bold;
-  font-size: 16px;
-  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+  line-height: 1.2;
 `;
 
-const UserMeta = styled.div`
-  font-size: 12px;
-  color: #aaa;
+const PostTime = styled.div`
+  font-size: 13px;
+  color: #8e8e93;
+  line-height: 1.2;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const ActionBtn = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: #f8f9fa;
+  color: #6c757d;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #e9ecef;
+    color: #495057;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const ContentArea = styled.div`
+  padding: 0 24px 16px;
+  width: 100%;
+  box-sizing: border-box;
+`;
+
+const PostContent = styled.div`
+  color: #1a1a1a;
+  font-size: 15px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+`;
+
+const EditingArea = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  opacity: 0.5;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 `;
 
-const EditableContent = styled.div`
-  color: #eee;
-  margin-bottom: 0.5rem;
+const EditTextarea = styled.textarea`
+  width: 100%;
+  min-height: 100px;
+  padding: 16px;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+  color: #1a1a1a;
+  background: #fafafa;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #007aff;
+    background: #ffffff;
+  }
+
+  &::placeholder {
+    color: #8e8e93;
+  }
 `;
 
-const Content = styled.div`
-  margin-bottom: 0.5rem;
+const SaveBtn = styled.button`
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #0051d0;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 `;
 
 const ImageGallery = styled.div`
+  padding: 0 24px 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin: 1rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
 `;
 
-const Image = styled.img`
+const ImageContainer = styled.div`
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8f9fa;
+  aspect-ratio: 4/3;
+`;
+
+const StyledImage = styled.img`
   width: 100%;
-  height: 300px;
+  height: 100%;
   object-fit: cover;
-  border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.2s ease;
 
   &:hover {
     transform: scale(1.02);
   }
 `;
 
-const Actions = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin: 1rem 0 0.5rem 0;
-  position: absolute;
-  bottom: 5px;
-  left: 5px;
+const BottomSection = styled.div`
+  border-top: 1px solid #f0f0f0;
+  padding: 16px 24px 20px;
 `;
 
-const LikeBtn = styled.button`
-  background: none;
-  border: none;
-  color: orange;
-  cursor: pointer;
+const InteractionBar = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 20px;
+`;
+
+const InteractionBtn = styled.button<{ active?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: ${(props) => (props.active ? "#ff6b6b" : "#8e8e93")};
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 20px;
+  transition: all 0.15s ease;
+
   &:hover {
-    transform: scale(1.12);
+    background: ${(props) => (props.active ? "#ffe6e6" : "#f8f9fa")};
+    color: ${(props) => (props.active ? "#ff5252" : "#495057")};
   }
-  &:active {
-    transform: scale(1.2);
+
+  svg {
+    transition: transform 0.15s ease;
+  }
+
+  &:hover svg {
+    transform: scale(1.1);
   }
 `;
 
-const CommentBtn = styled.button`
-  background: none;
-  border: none;
-  color: green;
-  cursor: pointer;
+const PlaylistButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 4px;
-`;
-
-const DeleteBtn = styled.button`
-  background: none;
-  border: none;
-  color: #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 0;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-  &:hover {
-    transform: scale(1.12);
-  }
-  &:active {
-    transform: scale(1.2);
-  }
-`;
-
-const EditBtn = styled.button`
-  background: none;
-  border: none;
-  color: #ffffff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 0;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-  &:hover {
-    transform: scale(1.12);
-  }
-  &:active {
-    transform: scale(1.2);
-  }
-`;
-
-const SaveBtn = styled.button`
-  background: none;
-  border: 1px solid #ccc;
-  color: white;
-  cursor: pointer;
-  margin-top: 0.5rem;
-  padding: 4px 10px;
-  border-radius: 4px;
-`;
-
-const PlaylistBtn = styled.button`
-  background: #2a2a2a;
+  gap: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
   color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 10px;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  max-width: 200px;
 
   &:hover {
-    background: #333333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
-const PlaylistThumbSmall = styled.img`
+const PlaylistIcon = styled.svg`
+  flex-shrink: 0;
+`;
+
+const PlaylistInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
+const PlaylistThumb = styled.img`
   width: 20px;
   height: 20px;
   border-radius: 4px;
   object-fit: cover;
-  margin-right: 4px;
+  flex-shrink: 0;
+`;
+
+const PlaylistTitle = styled.span`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
 `;
 
 const CommentSectionWrapper = styled.div`
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease-out;
-  animation: expandSection 0.3s ease-out forwards;
+  border-top: 1px solid #f0f0f0;
+  animation: slideDown 0.3s ease-out;
 
-  @keyframes expandSection {
+  @keyframes slideDown {
     from {
-      max-height: 0;
       opacity: 0;
+      transform: translateY(-10px);
     }
     to {
-      max-height: 2000px;
       opacity: 1;
+      transform: translateY(0);
     }
   }
 `;

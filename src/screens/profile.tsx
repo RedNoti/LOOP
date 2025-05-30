@@ -1,113 +1,178 @@
-// 📄 Profile 화면 - 사용자 프로필을 수정하고 미리보기할 수 있는 다크모드 화면입니다.
+// Profile 화면 - 사용자 프로필을 수정하고 미리보기할 수 있는 화면
 import React from "react";
 import { auth } from "../firebaseConfig";
 import { useProfileFunctions } from "../components/ProfileFunction";
 import styled from "styled-components";
 
 const Container = styled.div`
-  background-color: #121212;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #1a1a1a;
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
-  overflow: hidden; /* 🔥 스크롤 제거 */
+  padding: 24px;
 `;
 
 const ContentArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-`;
-
-const ScrollableContent = styled.div`
-  flex: 1;
-  padding: 0px 20px;
-  box-sizing: border-box;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  gap: 24px;
 `;
 
 const Card = styled.div`
-  background-color: #1e1e1e;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  color: #fff;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
+`;
+
+const PreviewCard = styled(Card)`
+  margin-bottom: 0;
+`;
+
+const CardTitle = styled.h2`
+  margin: 0 0 24px 0;
+  color: #1a1a1a;
+  font-size: 24px;
+  font-weight: 700;
 `;
 
 const Label = styled.label`
-  font-size: 25px;
-  color: #ffe9d2;
-  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
   display: block;
-  width: 100%;
 `;
 
 const Input = styled.input`
   width: 100%;
-  padding: 12px;
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  margin-bottom: 16px;
+  padding: 16px;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #fafafa;
+  margin-bottom: 20px;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #007aff;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+  }
+
+  &::placeholder {
+    color: #8e8e93;
+  }
 `;
 
 const Textarea = styled.textarea`
   width: 100%;
-  padding: 12px;
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  margin-bottom: 16px;
+  padding: 16px;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #fafafa;
+  margin-bottom: 20px;
   box-sizing: border-box;
-  height: 56px;
-  resize: none;
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #007aff;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+  }
+
+  &::placeholder {
+    color: #8e8e93;
+  }
 `;
 
 const ButtonRow = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  margin-top: 8px;
 `;
 
 const Button = styled.button`
-  padding: 10px 20px;
-  font-size: 14px;
-  border-radius: 4px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
   cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const SaveButton = styled(Button)`
-  background-color: #2e2e2e;
-  color: #fff;
-  border: none;
-  transition: background-color 0.2s ease;
+  background: linear-gradient(135deg, #007aff 0%, #0051d0 100%);
+  color: white;
 
   &:hover {
-    background-color: #444;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
 const CancelButton = styled(Button)`
-  background-color: #2e2e2e;
-  color: #fff;
-  border: none;
-  transition: background-color 0.2s ease;
+  background: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #e9ecef;
 
   &:hover {
-    background-color: #444;
+    background: #e9ecef;
+    color: #495057;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
 const PhotoContainer = styled.div`
-  width: 120px;
-  height: 120px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   overflow: hidden;
-  margin: 0 auto 24px;
+  margin: 0 auto 32px;
   position: relative;
+  cursor: pointer;
+  border: 4px solid #f8f9fa;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #007aff;
+    transform: scale(1.02);
+  }
 `;
 
 const Photo = styled.img`
@@ -122,13 +187,16 @@ const Overlay = styled.div`
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 122, 255, 0.8);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s ease;
+
   &:hover {
     opacity: 1;
   }
@@ -136,26 +204,87 @@ const Overlay = styled.div`
 
 const SuccessBox = styled.div`
   text-align: center;
-  padding: 60px 20px;
-  color: #e0e0e0;
+  padding: 60px 40px;
+  color: #1a1a1a;
 `;
 
 const SuccessIcon = styled.div`
-  font-size: 64px;
-  color: #4caf50;
+  font-size: 80px;
   margin-bottom: 24px;
 `;
 
 const SuccessTitle = styled.h1`
-  font-size: 24px;
+  font-size: 28px;
+  font-weight: 700;
   margin-bottom: 16px;
+  color: #1a1a1a;
 `;
 
 const SuccessText = styled.p`
   font-size: 16px;
-  color: #9e9e9e;
-  max-width: 500px;
+  color: #8e8e93;
+  max-width: 400px;
   margin: 0 auto 32px;
+  line-height: 1.5;
+`;
+
+const PreviewSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+`;
+
+const PreviewPhoto = styled.img`
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #007aff;
+`;
+
+const PreviewInfo = styled.div`
+  flex: 1;
+`;
+
+const PreviewName = styled.div`
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+`;
+
+const PreviewLocation = styled.div`
+  color: #8e8e93;
+  font-size: 14px;
+`;
+
+const PreviewField = styled.div`
+  margin-bottom: 20px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const PreviewLabel = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: #8e8e93;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`;
+
+const PreviewValue = styled.div`
+  font-size: 15px;
+  color: #1a1a1a;
+  line-height: 1.4;
+`;
+
+const EmptyValue = styled.span`
+  font-style: italic;
+  color: #c7c7cc;
 `;
 
 const ProfileEditor = () => {
@@ -180,34 +309,42 @@ const ProfileEditor = () => {
   if (isSubmitted) {
     return (
       <Container>
-        <ScrollableContent>
+        <ContentArea>
           <Card>
             <SuccessBox>
-              <SuccessIcon>👌</SuccessIcon>
-              <SuccessTitle>
-                프로필이 성공적으로 업데이트되었습니다!
-              </SuccessTitle>
-              <SuccessText>변경한 정보가 저장되었습니다.</SuccessText>
-              <CancelButton onClick={handleBackToEdit}>돌아가기</CancelButton>
+              <SuccessIcon>🎉</SuccessIcon>
+              <SuccessTitle>프로필이 업데이트되었습니다!</SuccessTitle>
+              <SuccessText>
+                변경한 정보가 성공적으로 저장되었습니다.
+              </SuccessText>
+              <SaveButton onClick={handleBackToEdit}>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+                돌아가기
+              </SaveButton>
             </SuccessBox>
           </Card>
-        </ScrollableContent>
+        </ContentArea>
       </Container>
     );
   }
 
   return (
     <Container>
-      {showPreview && (
-        <ScrollableContent>
-          <Card style={{ marginBottom: "0px" }}>
-            <h2
-              style={{ marginTop: 0, marginBottom: "16px", color: "#90caf9" }}
-            >
-              프로필 미리보기
-            </h2>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <img
+      <ContentArea>
+        {showPreview && (
+          <PreviewCard>
+            <CardTitle>프로필 미리보기</CardTitle>
+            <PreviewSection>
+              <PreviewPhoto
                 src={
                   profile.photoUrl === ""
                     ? auth.currentUser?.photoURL ||
@@ -215,141 +352,134 @@ const ProfileEditor = () => {
                     : profile.photoUrl
                 }
                 alt="미리보기 이미지"
-                style={{
-                  width: "80px",
-                  height: "80px",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "2px solid #1a73e8",
-                }}
               />
-              <div>
-                <div style={{ fontSize: "18px", fontWeight: 500 }}>
-                  {profile.name || (
-                    <span style={{ fontStyle: "italic", color: "#999" }}>
-                      이름 미입력
-                    </span>
-                  )}
-                </div>
-                <div style={{ color: "#aaa" }}>
-                  {profile.location || (
-                    <span style={{ fontStyle: "italic", color: "#999" }}>
-                      위치 미입력
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: "24px" }}>
-              <Label>이메일</Label>
-              <div>
-                {profile.email || (
-                  <span style={{ fontStyle: "italic", color: "#999" }}>
-                    이메일 미입력
-                  </span>
-                )}
-              </div>
-            </div>
-            <div style={{ marginTop: "16px" }}>
-              <Label>소개</Label>
-              <div>
-                {profile.bio || (
-                  <span style={{ fontStyle: "italic", color: "#999" }}>
-                    소개 미입력
-                  </span>
-                )}
-              </div>
-            </div>
-          </Card>
-        </ScrollableContent>
-      )}
+              <PreviewInfo>
+                <PreviewName>
+                  {profile.name || <EmptyValue>이름 미입력</EmptyValue>}
+                </PreviewName>
+                <PreviewLocation>
+                  {profile.location || <EmptyValue>위치 미입력</EmptyValue>}
+                </PreviewLocation>
+              </PreviewInfo>
+            </PreviewSection>
 
-      <ContentArea>
-        <ScrollableContent>
-          <Card>
-            <PhotoContainer
-              onClick={handleUploadButtonClick}
-              onMouseEnter={() => setHoverPhoto(true)}
-              onMouseLeave={() => setHoverPhoto(false)}
-            >
-              <Photo
-                src={
-                  profile.photoUrl === ""
-                    ? auth.currentUser?.photoURL ||
-                      "https://via.placeholder.com/150"
-                    : profile.photoUrl
-                }
-                alt="프로필 사진"
-              />
-              <Overlay style={{ opacity: hoverPhoto ? 1 : 0 }}>
-                사진 변경
-              </Overlay>
-            </PhotoContainer>
+            <PreviewField>
+              <PreviewLabel>이메일</PreviewLabel>
+              <PreviewValue>
+                {profile.email || <EmptyValue>이메일 미입력</EmptyValue>}
+              </PreviewValue>
+            </PreviewField>
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              style={{ display: "none" }}
-              accept="image/*"
+            <PreviewField>
+              <PreviewLabel>소개</PreviewLabel>
+              <PreviewValue>
+                {profile.bio || <EmptyValue>소개 미입력</EmptyValue>}
+              </PreviewValue>
+            </PreviewField>
+          </PreviewCard>
+        )}
+
+        <Card>
+          <CardTitle>프로필 편집</CardTitle>
+
+          <PhotoContainer
+            onClick={handleUploadButtonClick}
+            onMouseEnter={() => setHoverPhoto(true)}
+            onMouseLeave={() => setHoverPhoto(false)}
+          >
+            <Photo
+              src={
+                profile.photoUrl === ""
+                  ? auth.currentUser?.photoURL ||
+                    "https://via.placeholder.com/150"
+                  : profile.photoUrl
+              }
+              alt="프로필 사진"
+            />
+            <Overlay style={{ opacity: hoverPhoto ? 1 : 0 }}>
+              📷 사진 변경
+            </Overlay>
+          </PhotoContainer>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+            accept="image/*"
+          />
+
+          <form onSubmit={handleSubmit}>
+            <Label htmlFor="name">이름</Label>
+            <Input
+              type="text"
+              id="name"
+              name="name"
+              value={profile.name}
+              onChange={handleChange}
+              placeholder="이름을 입력하세요"
             />
 
-            <form onSubmit={handleSubmit}>
-              <Label htmlFor="name">이름</Label>
-              <Input
-                type="text"
-                id="name"
-                name="name"
-                value={profile.name}
-                onChange={handleChange}
-              />
+            <Label htmlFor="email">이메일</Label>
+            <Input
+              type="email"
+              id="email"
+              name="email"
+              value={profile.email}
+              onChange={handleChange}
+              placeholder="이메일을 입력하세요"
+            />
 
-              <Label htmlFor="email">이메일</Label>
-              <Input
-                type="email"
-                id="email"
-                name="email"
-                value={profile.email}
-                onChange={handleChange}
-              />
+            <Label htmlFor="bio">소개</Label>
+            <Textarea
+              id="bio"
+              name="bio"
+              value={profile.bio}
+              onChange={handleChange}
+              placeholder="자신을 소개해주세요"
+            />
 
-              <Label htmlFor="bio">소개</Label>
-              <Textarea
-                id="bio"
-                name="bio"
-                value={profile.bio}
-                onChange={handleChange}
-              />
+            <Label htmlFor="location">위치</Label>
+            <Input
+              type="text"
+              id="location"
+              name="location"
+              value={profile.location}
+              onChange={handleChange}
+              placeholder="위치를 입력하세요"
+            />
 
-              <Label htmlFor="location">위치</Label>
-              <Input
-                type="text"
-                id="location"
-                name="location"
-                value={profile.location}
-                onChange={handleChange}
-              />
-
-              <ButtonRow data-mobile-actions>
-                <CancelButton
-                  type="button"
-                  onMouseEnter={() => setHoverCancel(true)}
-                  onMouseLeave={() => setHoverCancel(false)}
-                  onClick={handleBackToEdit}
+            <ButtonRow>
+              <CancelButton
+                type="button"
+                onMouseEnter={() => setHoverCancel(true)}
+                onMouseLeave={() => setHoverCancel(false)}
+                onClick={handleBackToEdit}
+              >
+                취소
+              </CancelButton>
+              <SaveButton
+                type="submit"
+                onMouseEnter={() => setHoverSave(true)}
+                onMouseLeave={() => setHoverSave(false)}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
                 >
-                  취소
-                </CancelButton>
-                <SaveButton
-                  type="submit"
-                  onMouseEnter={() => setHoverSave(true)}
-                  onMouseLeave={() => setHoverSave(false)}
-                >
-                  변경사항 저장
-                </SaveButton>
-              </ButtonRow>
-            </form>
-          </Card>
-        </ScrollableContent>
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                  <polyline points="17,21 17,13 7,13 7,21" />
+                  <polyline points="7,3 7,8 15,8" />
+                </svg>
+                변경사항 저장
+              </SaveButton>
+            </ButtonRow>
+          </form>
+        </Card>
       </ContentArea>
     </Container>
   );

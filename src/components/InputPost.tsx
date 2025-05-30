@@ -11,20 +11,34 @@ import { useNavigate } from "react-router-dom";
 import React from "react";
 
 const Container = styled.div`
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border-radius: 8px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
 `;
 
-const Form = styled.form`
+const Header = styled.div`
   display: flex;
-  gap: 10px;
-  padding: 0;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  border-radius: 8px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+`;
+
+const ProfileArea = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #f8f9fa;
+  flex-shrink: 0;
 `;
 
 const ProfileImage = styled.img`
@@ -33,69 +47,178 @@ const ProfileImage = styled.img`
   object-fit: cover;
 `;
 
-const ProfileArea = styled.div`
-  width: 50px;
-  height: 50px;
-  border-radius: 30px;
-  background-color: tomato;
-  overflow: hidden;
-`;
-
-const PostArea = styled.div`
-  flex: 1;
+const UserInfo = styled.div`
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: auto;
+  gap: 4px;
+`;
+
+const UserName = styled.div`
+  font-weight: 600;
+  font-size: 15px;
+  color: #1a1a1a;
+`;
+
+const UserEmail = styled.div`
+  font-size: 13px;
+  color: #8e8e93;
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 `;
 
 const TextArea = styled.textarea`
-  resize: none;
-  background-color: black;
-  color: white;
   width: 100%;
-  font-weight: bold;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  border: none;
-  border-radius: 5px;
+  min-height: 120px;
+  padding: 16px;
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+  color: #1a1a1a;
+  background: #fafafa;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+
   &:focus {
-    outline-color: #118bf0;
+    outline: none;
+    border-color: #007aff;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+  }
+
+  &::placeholder {
+    color: #8e8e93;
   }
 `;
 
-const BottomMenu = styled.div`
+const ImagePreviewSection = styled.div`
   display: flex;
-  justify-content: flex-start;
-  gap: 10px;
-  margin-top: 15px;
-  border-radius: 30px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
 `;
 
-const IconButtonBox = styled.span`
+const ImagePreviewContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 2px dashed #e9ecef;
+`;
+
+const ImagePreviewWrapper = styled.div`
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.02);
+  }
+`;
+
+const ImagePreview = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+`;
+
+const RemoveImageButton = styled.button`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: #19315d;
-  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 59, 48, 0.9);
+    transform: scale(1.1);
+  }
 `;
 
-const AttachPhotoButton = styled.label`
-  background: none;
-  border: none;
-  cursor: pointer;
+const ImageCountBadge = styled.div`
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 122, 255, 0.9);
+  color: white;
+  border-radius: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+`;
+
+const BottomSection = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+`;
+
+const ActionButton = styled.button<{ active?: boolean }>`
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: ${(props) => (props.active ? "#007aff" : "#f8f9fa")};
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+
   &:hover {
-    transform: scale(1.12);
+    background: ${(props) => (props.active ? "#0051d0" : "#e9ecef")};
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
+
   &:active {
-    transform: scale(1.2);
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  svg,
+  img {
+    width: 20px;
+    height: 20px;
+    color: ${(props) => (props.active ? "#ffffff" : "#6c757d")};
+    filter: ${(props) => (props.active ? "brightness(0) invert(1)" : "none")};
   }
 `;
 
@@ -104,187 +227,112 @@ const AttachPhotoInput = styled.input`
 `;
 
 const SubmitButton = styled.button`
-  background: none;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #007aff 0%, #0051d0 100%);
+  color: white;
   border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 8px;
+
   &:hover {
-    transform: scale(1.12);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
   }
+
   &:active {
-    transform: scale(1.2);
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    background: #c7c7cc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 `;
 
-const ImagePreviewContainer = styled.div`
+const PlaylistAttachment = styled.div`
+  margin-top: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
-  overflow-x: auto;
-  padding-bottom: 10px;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  animation: slideIn 0.3s ease-out;
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 `;
 
-const ImagePreviewWrapper = styled.div`
-  position: relative;
-  width: 100px;
-  height: 100px;
-`;
-
-const ImagePreview = styled.img`
-  width: 100px;
-  height: 100px;
+const PlaylistThumbnail = styled.img`
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
   object-fit: cover;
-  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
 `;
 
-const RemoveImageButton = styled.button`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 25px;
-  height: 25px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-`;
-
-const ImageCountBadge = styled.div`
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  border-radius: 50%;
-  width: 25px;
-  height: 25px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-`;
-
-const Wrapper = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-`;
-
-const ProfileImg = styled.img`
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  margin-right: 0.5rem;
-`;
-
-const UserInfo = styled.div`
-  color: #ccc;
+const PlaylistInfo = styled.div`
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 `;
 
-const UserName = styled.div`
-  font-weight: bold;
-  font-size: 16px;
-  color: #fff;
+const PlaylistTitle = styled.div`
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
 `;
 
-const UserMeta = styled.div`
-  font-size: 12px;
-  color: #aaa;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  opacity: 0.5;
+const PlaylistSubtitle = styled.div`
+  font-size: 13px;
+  opacity: 0.8;
 `;
 
-const EditableContent = styled.div`
-  color: #eee;
-  margin-bottom: 0.5rem;
-`;
-
-const Content = styled.div`
-  margin-bottom: 0.5rem;
-`;
-
-const ImageGallery = styled.div`
-  display: flex;
-  gap: 0.5rem;
-`;
-
-const Image = styled.img`
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
+const PlaylistIcon = styled.div`
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-`;
-
-const Actions = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-  margin: 1rem 0 0.5rem 0;
-`;
-
-const LikeBtn = styled.button`
-  background: none;
-  border: none;
-  color: orange;
-  cursor: pointer;
-`;
-
-const CommentBtn = styled.button`
-  background: none;
-  border: none;
-  color: green;
-  cursor: pointer;
-`;
-
-const DeleteBtn = styled.button`
-  background: none;
-  border: none;
-  color: red;
-  cursor: pointer;
-`;
-
-const EditBtn = styled.button`
-  background: none;
-  border: none;
-  color: blue;
-  cursor: pointer;
-`;
-
-const SaveBtn = styled.button`
-  background: none;
-  border: 1px solid #ccc;
-  color: white;
-  cursor: pointer;
-  margin-top: 0.5rem;
-  padding: 4px 10px;
-  border-radius: 4px;
-`;
-
-const AttachPlaylistButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
+  background: rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-  &:hover {
-    transform: scale(1.12);
-  }
-  &:active {
-    transform: scale(1.2);
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+const LoadingSpinner = styled.div`
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ffffff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 `;
 
@@ -301,7 +349,7 @@ interface Playlist {
 }
 
 export default () => {
-  const navigate = useNavigate(); // ✅ 페이지 이동 훅
+  const navigate = useNavigate();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [post, setPost] = useState<string>("");
@@ -309,6 +357,7 @@ export default () => {
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const { currentPlaylistId, playlists, videos } = useMusic();
   const [attachPlaylist, setAttachPlaylist] = useState(false);
   const [attachedPlaylist, setAttachedPlaylist] = useState<Playlist | null>(
@@ -320,6 +369,7 @@ export default () => {
       const user = auth.currentUser;
       if (!user) return;
 
+      setUserEmail(user.email || "");
       let photoUrl = user.photoURL || "";
       try {
         const profileDoc = await getDoc(doc(db, "profiles", user.uid));
@@ -424,7 +474,6 @@ export default () => {
 
         console.log("재생목록 정보 생성됨:", playlistInfo);
 
-        // 재생목록 정보를 JSON 파일로 저장
         const blob = new Blob([JSON.stringify(playlistInfo)], {
           type: "application/json",
         });
@@ -528,7 +577,6 @@ export default () => {
 
       await addDoc(collection(db, "posts"), myPost);
 
-      // 상태 초기화
       setPost("");
       setFiles([]);
       setPreviews([]);
@@ -539,7 +587,6 @@ export default () => {
         textAreaRef.current.value = "";
       }
 
-      // 타임라인으로 이동
       navigate("/");
     } catch (e) {
       console.error("게시물 작성 중 오류:", e);
@@ -549,23 +596,58 @@ export default () => {
     }
   };
 
+  const handlePlaylistAttach = () => {
+    let currentPlaylist = playlists.find(
+      (p: Playlist) => p.id === currentPlaylistId
+    );
+    if (!currentPlaylist && videos.length > 0 && currentPlaylistId) {
+      currentPlaylist = {
+        id: currentPlaylistId,
+        snippet: {
+          title:
+            videos[0].snippet.playlistTitle ||
+            videos[0].snippet.title ||
+            "재생목록",
+          thumbnails: {
+            high: { url: videos[0].snippet.thumbnails?.high?.url || "" },
+            medium: { url: videos[0].snippet.thumbnails?.medium?.url || "" },
+            default: { url: videos[0].snippet.thumbnails?.default?.url || "" },
+          },
+        },
+      };
+    }
+    if (!currentPlaylist) {
+      alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
+      return;
+    }
+    setAttachPlaylist(!attachPlaylist);
+    setAttachedPlaylist(currentPlaylist);
+  };
+
   return (
     <Container>
-      <Form onSubmit={onSubmit}>
+      <Header>
         <ProfileArea>
           {profilePhotoUrl && (
             <ProfileImage src={profilePhotoUrl} alt="프로필 사진" />
           )}
         </ProfileArea>
-        <PostArea>
-          <TextArea
-            ref={textAreaRef}
-            rows={4}
-            value={post}
-            onChange={onChange}
-            placeholder="무슨 일이 일어났나요?"
-          />
-          {previews.length > 0 && (
+        <UserInfo>
+          <UserName>{auth.currentUser?.displayName || "사용자"}</UserName>
+          <UserEmail>{userEmail}</UserEmail>
+        </UserInfo>
+      </Header>
+
+      <Form onSubmit={onSubmit}>
+        <TextArea
+          ref={textAreaRef}
+          value={post}
+          onChange={onChange}
+          placeholder="무슨 일이 일어났나요?"
+        />
+
+        {previews.length > 0 && (
+          <ImagePreviewSection>
             <ImagePreviewContainer>
               {previews.map((preview, index) => (
                 <ImagePreviewWrapper key={index}>
@@ -574,7 +656,7 @@ export default () => {
                     type="button"
                     onClick={() => removeImage(index)}
                   >
-                    X
+                    ×
                   </RemoveImageButton>
                   <ImageCountBadge>
                     {index + 1} / {previews.length}
@@ -582,18 +664,49 @@ export default () => {
                 </ImagePreviewWrapper>
               ))}
             </ImagePreviewContainer>
-          )}
-          <BottomMenu>
-            <AttachPhotoButton htmlFor="photo">
-              <IconButtonBox>
-                <img
-                  src="/icon/upload_icon.svg"
-                  alt="사진 업로드"
-                  width={18}
-                  height={18}
-                />
-              </IconButtonBox>
-            </AttachPhotoButton>
+          </ImagePreviewSection>
+        )}
+
+        {attachPlaylist && attachedPlaylist && (
+          <PlaylistAttachment>
+            <PlaylistThumbnail
+              src={
+                attachedPlaylist.snippet.thumbnails.high?.url ||
+                attachedPlaylist.snippet.thumbnails.medium?.url ||
+                attachedPlaylist.snippet.thumbnails.default?.url
+              }
+              alt="playlist"
+            />
+            <PlaylistInfo>
+              <PlaylistTitle>{attachedPlaylist.snippet.title}</PlaylistTitle>
+              <PlaylistSubtitle>재생목록이 첨부됩니다</PlaylistSubtitle>
+            </PlaylistInfo>
+            <PlaylistIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
+              </svg>
+            </PlaylistIcon>
+          </PlaylistAttachment>
+        )}
+
+        <BottomSection>
+          <ActionButtons>
+            <label htmlFor="photo">
+              <ActionButton as="div">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                </svg>
+              </ActionButton>
+            </label>
             <AttachPhotoInput
               ref={fileInputRef}
               onChange={onChangeFile}
@@ -603,104 +716,47 @@ export default () => {
               multiple
               disabled={previews.length >= 5}
             />
-            <AttachPlaylistButton
+
+            <ActionButton
               type="button"
-              onClick={() => {
-                let currentPlaylist = playlists.find(
-                  (p: Playlist) => p.id === currentPlaylistId
-                );
-                if (
-                  !currentPlaylist &&
-                  videos.length > 0 &&
-                  currentPlaylistId
-                ) {
-                  currentPlaylist = {
-                    id: currentPlaylistId,
-                    snippet: {
-                      title:
-                        videos[0].snippet.playlistTitle ||
-                        videos[0].snippet.title ||
-                        "재생목록",
-                      thumbnails: {
-                        high: {
-                          url: videos[0].snippet.thumbnails?.high?.url || "",
-                        },
-                        medium: {
-                          url: videos[0].snippet.thumbnails?.medium?.url || "",
-                        },
-                        default: {
-                          url: videos[0].snippet.thumbnails?.default?.url || "",
-                        },
-                      },
-                    },
-                  };
-                }
-                if (!currentPlaylist) {
-                  alert("현재 재생 중인 재생목록을 찾을 수 없습니다.");
-                  return;
-                }
-                setAttachPlaylist(!attachPlaylist);
-                setAttachedPlaylist(currentPlaylist);
-              }}
-              style={{
-                backgroundColor: attachPlaylist ? "#118bf0" : "transparent",
-              }}
+              onClick={handlePlaylistAttach}
+              active={attachPlaylist}
             >
-              <IconButtonBox
-                style={{ background: attachPlaylist ? "#118bf0" : "#19315d" }}
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="currentColor"
               >
-                <img
-                  src="/icon/music_Icon2.svg"
-                  alt="재생목록 첨부"
-                  width={18}
-                  height={18}
-                />
-              </IconButtonBox>
-            </AttachPlaylistButton>
-            <SubmitButton type="submit" disabled={loading}>
-              <IconButtonBox>
-                <img
-                  src="/icon/upload_post.svg"
-                  alt="제출"
-                  width={18}
-                  height={18}
-                />
-              </IconButtonBox>
-            </SubmitButton>
-          </BottomMenu>
-          {attachPlaylist && attachedPlaylist && (
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: "#2a2a2a",
-                borderRadius: 10,
-                padding: "8px 12px",
-              }}
-            >
-              <img
-                src={
-                  attachedPlaylist.snippet.thumbnails.high?.url ||
-                  attachedPlaylist.snippet.thumbnails.medium?.url ||
-                  attachedPlaylist.snippet.thumbnails.default?.url
-                }
-                alt="playlist"
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 8,
-                  objectFit: "cover",
-                  marginRight: 8,
-                }}
-              />
-              <span style={{ color: "#fff", fontWeight: "bold" }}>
-                {attachedPlaylist.snippet.title}
-              </span>
-            </div>
-          )}
-        </PostArea>
+                <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
+              </svg>
+            </ActionButton>
+          </ActionButtons>
+
+          <SubmitButton type="submit" disabled={loading}>
+            {loading ? (
+              <>
+                <LoadingSpinner />
+                게시 중...
+              </>
+            ) : (
+              <>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22,2 15,22 11,13 2,9 22,2" />
+                </svg>
+                게시하기
+              </>
+            )}
+          </SubmitButton>
+        </BottomSection>
       </Form>
     </Container>
   );
