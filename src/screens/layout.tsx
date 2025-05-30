@@ -1,27 +1,30 @@
-//개선된 버전 - IMPROVED_VERSION
+//개선된 버전 - IMPROVED_VERSION with Theme Support
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music";
+import { useTheme } from "../components/ThemeContext";
 import React, { useEffect, useState, useMemo } from "react";
 
-const LayoutWrapper = styled.div`
+const LayoutWrapper = styled.div<{ $isDark: boolean }>`
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: #ffffff;
+  background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  transition: background-color 0.3s ease;
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $isDark: boolean }>`
   height: 70px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  background: ${(props) => (props.$isDark ? "#202020" : "#ffffff")};
+  border-bottom: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 `;
 
 const Logo = styled.img`
@@ -36,19 +39,20 @@ const Body = styled.div`
   overflow: hidden;
 `;
 
-const Navigator = styled.div`
+const Navigator = styled.div<{ $isDark: boolean }>`
   width: 72px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: #ffffff;
-  border-right: 1px solid #f0f0f0;
+  background: ${(props) => (props.$isDark ? "#202020" : "#ffffff")};
+  border-right: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   padding: 20px 12px 16px;
   overflow-y: auto;
   min-height: 0;
   flex-shrink: 0;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
 `;
 
 const MenuItem = styled.div<{ isActive?: boolean }>`
@@ -129,11 +133,12 @@ const BottomMenu = styled.div`
   gap: 6px;
 `;
 
-const MainContent = styled.div`
+const MainContent = styled.div<{ $isDark: boolean }>`
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  background: #ffffff;
+  background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  transition: background-color 0.3s ease;
 `;
 
 const ContentContainer = styled.div`
@@ -192,9 +197,8 @@ const TooltipContainer = styled.div`
   justify-content: center;
 `;
 
-// 툴팁 스타일 제거됨
-
-export default () => {
+const Layout = () => {
+  const { isDarkMode } = useTheme();
   const [gradientLayers, setGradientLayers] = useState<
     { id: number; color1: string; color2: string }[]
   >([]);
@@ -238,12 +242,12 @@ export default () => {
   }, [dominantColor, secondaryColor]);
 
   return (
-    <LayoutWrapper>
-      <Header>
+    <LayoutWrapper $isDark={isDarkMode}>
+      <Header $isDark={isDarkMode}>
         <Logo src="/uplogo.png" alt="uplogo" />
       </Header>
       <Body>
-        <Navigator>
+        <Navigator $isDark={isDarkMode}>
           <MenuSection>
             <Link to="/" style={{ textDecoration: "none" }}>
               <TooltipContainer>
@@ -330,7 +334,7 @@ export default () => {
         </Navigator>
 
         <ContentContainer>
-          <MainContent>
+          <MainContent $isDark={isDarkMode}>
             <div
               style={{
                 display: "flex",
@@ -361,3 +365,5 @@ export default () => {
     </LayoutWrapper>
   );
 };
+
+export default Layout;

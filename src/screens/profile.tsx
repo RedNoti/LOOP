@@ -2,16 +2,18 @@
 import React from "react";
 import { auth } from "../firebaseConfig";
 import { useProfileFunctions } from "../components/ProfileFunction";
+import { useTheme } from "../components/ThemeContext";
 import styled from "styled-components";
 
-const Container = styled.div`
-  background: #ffffff;
-  color: #1a1a1a;
+const Container = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   display: flex;
   flex-direction: column;
   width: 100%;
   min-height: 100vh;
   padding: 24px;
+  transition: all 0.3s ease;
 `;
 
 const ContentArea = styled.div`
@@ -24,12 +26,12 @@ const ContentArea = styled.div`
   gap: 24px;
 `;
 
-const Card = styled.div`
-  background: #ffffff;
+const Card = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#202020" : "#ffffff")};
   border-radius: 20px;
   padding: 32px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   transition: all 0.2s ease;
 
   &:hover {
@@ -38,33 +40,65 @@ const Card = styled.div`
   }
 `;
 
-const PreviewCard = styled(Card)`
-  margin-bottom: 0;
+const HeaderSection = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
 `;
 
-const CardTitle = styled.h2`
-  margin: 0 0 24px 0;
-  color: #1a1a1a;
+const CardTitle = styled.h2<{ $isDark: boolean }>`
+  margin: 0;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   font-size: 24px;
   font-weight: 700;
 `;
 
-const Label = styled.label`
+const ThemeToggle = styled.button<{ $isDark: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: ${(props) => (props.$isDark ? "#404040" : "#f8f9fa")};
+  border: 1px solid ${(props) => (props.$isDark ? "#606060" : "#e9ecef")};
+  border-radius: 25px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#6c757d")};
+  font-size: 14px;
+  font-weight: 500;
+
+  &:hover {
+    background: ${(props) => (props.$isDark ? "#505050" : "#e9ecef")};
+    transform: translateY(-1px);
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+const PreviewCard = styled(Card)`
+  margin-bottom: 0;
+`;
+
+const Label = styled.label<{ $isDark: boolean }>`
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   margin-bottom: 8px;
   display: block;
 `;
 
-const Input = styled.input`
+const Input = styled.input<{ $isDark: boolean }>`
   width: 100%;
   padding: 16px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 12px;
   font-size: 15px;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  background: ${(props) => (props.$isDark ? "#303030" : "#fafafa")};
   margin-bottom: 20px;
   box-sizing: border-box;
   transition: all 0.2s ease;
@@ -72,23 +106,23 @@ const Input = styled.input`
   &:focus {
     outline: none;
     border-color: #007aff;
-    background: #ffffff;
+    background: ${(props) => (props.$isDark ? "#404040" : "#ffffff")};
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
 
   &::placeholder {
-    color: #8e8e93;
+    color: ${(props) => (props.$isDark ? "#cccccc" : "#8e8e93")};
   }
 `;
 
-const Textarea = styled.textarea`
+const Textarea = styled.textarea<{ $isDark: boolean }>`
   width: 100%;
   padding: 16px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 12px;
   font-size: 15px;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  background: ${(props) => (props.$isDark ? "#303030" : "#fafafa")};
   margin-bottom: 20px;
   box-sizing: border-box;
   min-height: 120px;
@@ -99,12 +133,12 @@ const Textarea = styled.textarea`
   &:focus {
     outline: none;
     border-color: #007aff;
-    background: #ffffff;
+    background: ${(props) => (props.$isDark ? "#404040" : "#ffffff")};
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
 
   &::placeholder {
-    color: #8e8e93;
+    color: ${(props) => (props.$isDark ? "#cccccc" : "#8e8e93")};
   }
 `;
 
@@ -142,14 +176,14 @@ const SaveButton = styled(Button)`
   }
 `;
 
-const CancelButton = styled(Button)`
-  background: #f8f9fa;
-  color: #6c757d;
-  border: 1px solid #e9ecef;
+const CancelButton = styled(Button)<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#404040" : "#f8f9fa")};
+  color: ${(props) => (props.$isDark ? "#cccccc" : "#6c757d")};
+  border: 1px solid ${(props) => (props.$isDark ? "#606060" : "#e9ecef")};
 
   &:hover {
-    background: #e9ecef;
-    color: #495057;
+    background: ${(props) => (props.$isDark ? "#505050" : "#e9ecef")};
+    color: ${(props) => (props.$isDark ? "#ffffff" : "#495057")};
     transform: translateY(-1px);
   }
 
@@ -158,7 +192,7 @@ const CancelButton = styled(Button)`
   }
 `;
 
-const PhotoContainer = styled.div`
+const PhotoContainer = styled.div<{ $isDark: boolean }>`
   width: 140px;
   height: 140px;
   border-radius: 50%;
@@ -166,7 +200,7 @@ const PhotoContainer = styled.div`
   margin: 0 auto 32px;
   position: relative;
   cursor: pointer;
-  border: 4px solid #f8f9fa;
+  border: 4px solid ${(props) => (props.$isDark ? "#404040" : "#f8f9fa")};
   transition: all 0.2s ease;
 
   &:hover {
@@ -202,10 +236,10 @@ const Overlay = styled.div`
   }
 `;
 
-const SuccessBox = styled.div`
+const SuccessBox = styled.div<{ $isDark: boolean }>`
   text-align: center;
   padding: 60px 40px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
 `;
 
 const SuccessIcon = styled.div`
@@ -213,16 +247,16 @@ const SuccessIcon = styled.div`
   margin-bottom: 24px;
 `;
 
-const SuccessTitle = styled.h1`
+const SuccessTitle = styled.h1<{ $isDark: boolean }>`
   font-size: 28px;
   font-weight: 700;
   margin-bottom: 16px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
 `;
 
-const SuccessText = styled.p`
+const SuccessText = styled.p<{ $isDark: boolean }>`
   font-size: 16px;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#cccccc" : "#8e8e93")};
   max-width: 400px;
   margin: 0 auto 32px;
   line-height: 1.5;
@@ -247,15 +281,15 @@ const PreviewInfo = styled.div`
   flex: 1;
 `;
 
-const PreviewName = styled.div`
+const PreviewName = styled.div<{ $isDark: boolean }>`
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   margin-bottom: 4px;
 `;
 
-const PreviewLocation = styled.div`
-  color: #8e8e93;
+const PreviewLocation = styled.div<{ $isDark: boolean }>`
+  color: ${(props) => (props.$isDark ? "#cccccc" : "#8e8e93")};
   font-size: 14px;
 `;
 
@@ -267,27 +301,29 @@ const PreviewField = styled.div`
   }
 `;
 
-const PreviewLabel = styled.div`
+const PreviewLabel = styled.div<{ $isDark: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#cccccc" : "#8e8e93")};
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 `;
 
-const PreviewValue = styled.div`
+const PreviewValue = styled.div<{ $isDark: boolean }>`
   font-size: 15px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   line-height: 1.4;
 `;
 
-const EmptyValue = styled.span`
+const EmptyValue = styled.span<{ $isDark: boolean }>`
   font-style: italic;
-  color: #c7c7cc;
+  color: ${(props) => (props.$isDark ? "#888888" : "#c7c7cc")};
 `;
 
 const ProfileEditor = () => {
+  const { isDarkMode, toggleTheme } = useTheme();
+
   const {
     profile,
     showPreview,
@@ -308,13 +344,15 @@ const ProfileEditor = () => {
 
   if (isSubmitted) {
     return (
-      <Container>
+      <Container $isDark={isDarkMode}>
         <ContentArea>
-          <Card>
-            <SuccessBox>
+          <Card $isDark={isDarkMode}>
+            <SuccessBox $isDark={isDarkMode}>
               <SuccessIcon>🎉</SuccessIcon>
-              <SuccessTitle>프로필이 업데이트되었습니다!</SuccessTitle>
-              <SuccessText>
+              <SuccessTitle $isDark={isDarkMode}>
+                프로필이 업데이트되었습니다!
+              </SuccessTitle>
+              <SuccessText $isDark={isDarkMode}>
                 변경한 정보가 성공적으로 저장되었습니다.
               </SuccessText>
               <SaveButton onClick={handleBackToEdit}>
@@ -338,11 +376,13 @@ const ProfileEditor = () => {
   }
 
   return (
-    <Container>
+    <Container $isDark={isDarkMode}>
       <ContentArea>
         {showPreview && (
-          <PreviewCard>
-            <CardTitle>프로필 미리보기</CardTitle>
+          <PreviewCard $isDark={isDarkMode}>
+            <HeaderSection>
+              <CardTitle $isDark={isDarkMode}>프로필 미리보기</CardTitle>
+            </HeaderSection>
             <PreviewSection>
               <PreviewPhoto
                 src={
@@ -352,37 +392,80 @@ const ProfileEditor = () => {
                     : profile.photoUrl
                 }
                 alt="미리보기 이미지"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = "https://via.placeholder.com/150";
+                }}
               />
               <PreviewInfo>
-                <PreviewName>
-                  {profile.name || <EmptyValue>이름 미입력</EmptyValue>}
+                <PreviewName $isDark={isDarkMode}>
+                  {profile.name || (
+                    <EmptyValue $isDark={isDarkMode}>이름 미입력</EmptyValue>
+                  )}
                 </PreviewName>
-                <PreviewLocation>
-                  {profile.location || <EmptyValue>위치 미입력</EmptyValue>}
+                <PreviewLocation $isDark={isDarkMode}>
+                  {profile.location || (
+                    <EmptyValue $isDark={isDarkMode}>위치 미입력</EmptyValue>
+                  )}
                 </PreviewLocation>
               </PreviewInfo>
             </PreviewSection>
 
             <PreviewField>
-              <PreviewLabel>이메일</PreviewLabel>
-              <PreviewValue>
-                {profile.email || <EmptyValue>이메일 미입력</EmptyValue>}
+              <PreviewLabel $isDark={isDarkMode}>이메일</PreviewLabel>
+              <PreviewValue $isDark={isDarkMode}>
+                {profile.email || (
+                  <EmptyValue $isDark={isDarkMode}>이메일 미입력</EmptyValue>
+                )}
               </PreviewValue>
             </PreviewField>
 
             <PreviewField>
-              <PreviewLabel>소개</PreviewLabel>
-              <PreviewValue>
-                {profile.bio || <EmptyValue>소개 미입력</EmptyValue>}
+              <PreviewLabel $isDark={isDarkMode}>소개</PreviewLabel>
+              <PreviewValue $isDark={isDarkMode}>
+                {profile.bio || (
+                  <EmptyValue $isDark={isDarkMode}>소개 미입력</EmptyValue>
+                )}
               </PreviewValue>
             </PreviewField>
           </PreviewCard>
         )}
 
-        <Card>
-          <CardTitle>프로필 편집</CardTitle>
+        <Card $isDark={isDarkMode}>
+          <HeaderSection>
+            <CardTitle $isDark={isDarkMode}>프로필 편집</CardTitle>
+            <ThemeToggle $isDark={isDarkMode} onClick={toggleTheme}>
+              {isDarkMode ? (
+                <>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="5" />
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                  </svg>
+                  라이트 모드
+                </>
+              ) : (
+                <>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                  </svg>
+                  다크 모드
+                </>
+              )}
+            </ThemeToggle>
+          </HeaderSection>
 
           <PhotoContainer
+            $isDark={isDarkMode}
             onClick={handleUploadButtonClick}
             onMouseEnter={() => setHoverPhoto(true)}
             onMouseLeave={() => setHoverPhoto(false)}
@@ -395,6 +478,10 @@ const ProfileEditor = () => {
                   : profile.photoUrl
               }
               alt="프로필 사진"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = "https://via.placeholder.com/150";
+              }}
             />
             <Overlay style={{ opacity: hoverPhoto ? 1 : 0 }}>
               📷 사진 변경
@@ -410,8 +497,11 @@ const ProfileEditor = () => {
           />
 
           <form onSubmit={handleSubmit}>
-            <Label htmlFor="name">이름</Label>
+            <Label $isDark={isDarkMode} htmlFor="name">
+              이름
+            </Label>
             <Input
+              $isDark={isDarkMode}
               type="text"
               id="name"
               name="name"
@@ -420,8 +510,11 @@ const ProfileEditor = () => {
               placeholder="이름을 입력하세요"
             />
 
-            <Label htmlFor="email">이메일</Label>
+            <Label $isDark={isDarkMode} htmlFor="email">
+              이메일
+            </Label>
             <Input
+              $isDark={isDarkMode}
               type="email"
               id="email"
               name="email"
@@ -430,8 +523,11 @@ const ProfileEditor = () => {
               placeholder="이메일을 입력하세요"
             />
 
-            <Label htmlFor="bio">소개</Label>
+            <Label $isDark={isDarkMode} htmlFor="bio">
+              소개
+            </Label>
             <Textarea
+              $isDark={isDarkMode}
               id="bio"
               name="bio"
               value={profile.bio}
@@ -439,8 +535,11 @@ const ProfileEditor = () => {
               placeholder="자신을 소개해주세요"
             />
 
-            <Label htmlFor="location">위치</Label>
+            <Label $isDark={isDarkMode} htmlFor="location">
+              위치
+            </Label>
             <Input
+              $isDark={isDarkMode}
               type="text"
               id="location"
               name="location"
@@ -451,6 +550,7 @@ const ProfileEditor = () => {
 
             <ButtonRow>
               <CancelButton
+                $isDark={isDarkMode}
                 type="button"
                 onMouseEnter={() => setHoverCancel(true)}
                 onMouseLeave={() => setHoverCancel(false)}

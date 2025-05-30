@@ -10,6 +10,7 @@ import {
   deleteDoc,
   addDoc,
 } from "firebase/firestore";
+import { useTheme } from "../components/ThemeContext";
 
 interface Comment {
   userId: string;
@@ -34,6 +35,7 @@ const CommentSection = ({
   onCommentAdded,
   onCommentDeleted,
 }: CommentSectionProps) => {
+  const { isDarkMode } = useTheme();
   const user = auth.currentUser;
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState<Comment[]>(initialComments);
@@ -136,12 +138,15 @@ const CommentSection = ({
   return (
     <CommentWrapper>
       <CommentHeader>
-        <CommentCount>댓글 {comments.length}개</CommentCount>
+        <CommentCount $isDark={isDarkMode}>
+          댓글 {comments.length}개
+        </CommentCount>
       </CommentHeader>
 
       <InputSection>
-        <CommentInputContainer>
+        <CommentInputContainer $isDark={isDarkMode}>
           <CommentInput
+            $isDark={isDarkMode}
             value={editingCommentId ? editingContent : newComment}
             onChange={(e) =>
               editingCommentId
@@ -156,7 +161,9 @@ const CommentSection = ({
           <InputActions>
             {editingCommentId ? (
               <>
-                <CancelButton onClick={onCancelEdit}>취소</CancelButton>
+                <CancelButton $isDark={isDarkMode} onClick={onCancelEdit}>
+                  취소
+                </CancelButton>
                 <SubmitButton onClick={onSaveEdit}>수정</SubmitButton>
               </>
             ) : (
@@ -168,16 +175,21 @@ const CommentSection = ({
 
       <CommentList>
         {comments.map((comment) => (
-          <CommentItem key={comment.id}>
+          <CommentItem $isDark={isDarkMode} key={comment.id}>
             <CommentContent>
               <CommentInfo>
-                <CommentAuthor>{comment.nickname}</CommentAuthor>
-                <CommentTime>{formatTimeAgo(comment.createdAt)}</CommentTime>
+                <CommentAuthor $isDark={isDarkMode}>
+                  {comment.nickname}
+                </CommentAuthor>
+                <CommentTime $isDark={isDarkMode}>
+                  {formatTimeAgo(comment.createdAt)}
+                </CommentTime>
               </CommentInfo>
-              <CommentText>{comment.content}</CommentText>
+              <CommentText $isDark={isDarkMode}>{comment.content}</CommentText>
               {comment.userId === user?.uid && !editingCommentId && (
                 <CommentActions>
                   <ActionButton
+                    $isDark={isDarkMode}
                     onClick={() => onEditComment(comment.id!, comment.content)}
                   >
                     <EditIcon>
@@ -199,7 +211,10 @@ const CommentSection = ({
                     </EditIcon>
                     수정
                   </ActionButton>
-                  <ActionButton onClick={() => onDeleteComment(comment.id!)}>
+                  <ActionButton
+                    $isDark={isDarkMode}
+                    onClick={() => onDeleteComment(comment.id!)}
+                  >
                     <DeleteIcon>
                       <svg
                         width="14"
@@ -224,7 +239,7 @@ const CommentSection = ({
 
       {comments.length === 0 && (
         <EmptyState>
-          <EmptyIcon>
+          <EmptyIcon $isDark={isDarkMode}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
               <path
                 d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
@@ -234,8 +249,10 @@ const CommentSection = ({
               />
             </svg>
           </EmptyIcon>
-          <EmptyText>아직 댓글이 없습니다.</EmptyText>
-          <EmptySubText>첫 번째 댓글을 작성해보세요!</EmptySubText>
+          <EmptyText $isDark={isDarkMode}>아직 댓글이 없습니다.</EmptyText>
+          <EmptySubText $isDark={isDarkMode}>
+            첫 번째 댓글을 작성해보세요!
+          </EmptySubText>
         </EmptyState>
       )}
     </CommentWrapper>
@@ -251,20 +268,20 @@ const CommentHeader = styled.div`
   margin-bottom: 16px;
 `;
 
-const CommentCount = styled.div`
+const CommentCount = styled.div<{ $isDark: boolean }>`
   font-size: 15px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
 `;
 
 const InputSection = styled.div`
   margin-bottom: 20px;
 `;
 
-const CommentInputContainer = styled.div`
-  background: white;
+const CommentInputContainer = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#2c2c2c" : "#ffffff")};
   border-radius: 12px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   overflow: hidden;
   transition: border-color 0.2s ease;
 
@@ -273,7 +290,7 @@ const CommentInputContainer = styled.div`
   }
 `;
 
-const CommentInput = styled.textarea`
+const CommentInput = styled.textarea<{ $isDark: boolean }>`
   width: 100%;
   padding: 16px;
   border: none;
@@ -282,12 +299,12 @@ const CommentInput = styled.textarea`
   line-height: 1.5;
   resize: none;
   font-family: inherit;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   background: transparent;
   box-sizing: border-box;
 
   &::placeholder {
-    color: #8e8e93;
+    color: ${(props) => (props.$isDark ? "#888888" : "#8e8e93")};
   }
 `;
 
@@ -325,11 +342,11 @@ const SubmitButton = styled.button`
   }
 `;
 
-const CancelButton = styled.button`
+const CancelButton = styled.button<{ $isDark: boolean }>`
   padding: 8px 16px;
-  background: #f8f9fa;
-  color: #6c757d;
-  border: 1px solid #e9ecef;
+  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#6c757d")};
+  border: 1px solid ${(props) => (props.$isDark ? "#404040" : "#e9ecef")};
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -337,8 +354,8 @@ const CancelButton = styled.button`
   transition: all 0.15s ease;
 
   &:hover {
-    background: #e9ecef;
-    color: #495057;
+    background: ${(props) => (props.$isDark ? "#404040" : "#e9ecef")};
+    color: ${(props) => (props.$isDark ? "#ffffff" : "#495057")};
   }
 `;
 
@@ -348,16 +365,18 @@ const CommentList = styled.div`
   gap: 16px;
 `;
 
-const CommentItem = styled.div`
-  background: white;
+const CommentItem = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#2c2c2c" : "#ffffff")};
   border-radius: 12px;
   padding: 16px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: #e0e0e0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border-color: ${(props) => (props.$isDark ? "#555555" : "#e0e0e0")};
+    box-shadow: 0 2px 8px
+      ${(props) =>
+        props.$isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.04)"};
   }
 `;
 
@@ -373,21 +392,21 @@ const CommentInfo = styled.div`
   gap: 8px;
 `;
 
-const CommentAuthor = styled.div`
+const CommentAuthor = styled.div<{ $isDark: boolean }>`
   font-weight: 600;
   font-size: 14px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
 `;
 
-const CommentTime = styled.div`
+const CommentTime = styled.div<{ $isDark: boolean }>`
   font-size: 12px;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
 `;
 
-const CommentText = styled.div`
+const CommentText = styled.div<{ $isDark: boolean }>`
   font-size: 14px;
   line-height: 1.5;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   word-break: break-word;
   white-space: pre-wrap;
 `;
@@ -398,22 +417,22 @@ const CommentActions = styled.div`
   margin-top: 4px;
 `;
 
-const ActionButton = styled.button`
+const ActionButton = styled.button<{ $isDark: boolean }>`
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
   background: none;
   border: none;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
   font-size: 12px;
   cursor: pointer;
   border-radius: 6px;
   transition: all 0.15s ease;
 
   &:hover {
-    background: #f8f9fa;
-    color: #495057;
+    background: ${(props) => (props.$isDark ? "#404040" : "#f8f9fa")};
+    color: ${(props) => (props.$isDark ? "#ffffff" : "#495057")};
   }
 `;
 
@@ -438,21 +457,21 @@ const EmptyState = styled.div`
   text-align: center;
 `;
 
-const EmptyIcon = styled.div`
-  color: #c7c7cc;
+const EmptyIcon = styled.div<{ $isDark: boolean }>`
+  color: ${(props) => (props.$isDark ? "#666666" : "#c7c7cc")};
   margin-bottom: 12px;
 `;
 
-const EmptyText = styled.div`
+const EmptyText = styled.div<{ $isDark: boolean }>`
   font-size: 16px;
   font-weight: 500;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
   margin-bottom: 4px;
 `;
 
-const EmptySubText = styled.div`
+const EmptySubText = styled.div<{ $isDark: boolean }>`
   font-size: 14px;
-  color: #c7c7cc;
+  color: ${(props) => (props.$isDark ? "#666666" : "#c7c7cc")};
 `;
 
 export default CommentSection;

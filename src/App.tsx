@@ -1,4 +1,4 @@
-import { Outlet, RouterProvider, createBrowserRouter } from "react-router-dom";
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import styled, { createGlobalStyle } from "styled-components";
 import Home from "./screens/home";
 import Profile from "./screens/profile";
@@ -12,9 +12,10 @@ import ProtectedRouter from "./components/protected-router";
 import Layout from "./screens/layout";
 import "moment/locale/ko";
 import KategorieFunction from "./components/KategorieFunction";
-import InputPostScreen from "./screens/InputPostScreen"; // 상단 import
+import InputPostScreen from "./screens/InputPostScreen";
 import YouTubeMusicPlayer from "./screens/music";
 import { MusicPlayerProvider } from "./components/MusicFunction";
+import { ThemeProvider, useTheme } from "./components/ThemeContext";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -27,91 +28,100 @@ const router = createBrowserRouter([
     ),
     children: [
       {
-        // home
         path: "",
         element: <Home />,
       },
       {
-        // profile
         path: "profile",
         element: <Profile />,
       },
       {
-        // music
-        path: "music", // '/music' 경로 추가
-        element: <YouTubeMusicPlayer />, // YouTubeMusicPlayer 컴포넌트 추가
+        path: "music",
+        element: <YouTubeMusicPlayer />,
       },
       {
-        // KategorieFunction
-        path: "KategorieFunction", // '/music' 경로 추가
-        element: <KategorieFunction />, // YouTubeMusicPlayer 컴포넌트 추가
+        path: "KategorieFunction",
+        element: <KategorieFunction />,
       },
       {
-        // InputPostScreen
-        path: "InputPostScreen", // '/music' 경로 추가
-        element: <InputPostScreen />, // YouTubeMusicPlayer 컴포넌트 추가
+        path: "InputPostScreen",
+        element: <InputPostScreen />,
       },
     ],
   },
   {
-    // signin
     path: "/signin",
     element: <Signin />,
   },
   {
-    // signup
     path: "/signup",
     element: <Signup />,
   },
 ]);
 
-// 중앙정렬 & 화면크기만큼
 const Container = styled.div`
   height: 100vh;
   display: flex;
   justify-content: center;
 `;
 
-function App() {
-  // 로그인 여부 파악을 위한 로딩 상태(State)
+// GlobalStyle을 테마에 맞게 동적으로 적용하는 컴포넌트
+const ThemedGlobalStyle = createGlobalStyle<{ $isDark: boolean }>`
+  ${reset}
+  html, body, #root {
+    height: 100%;
+    background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  }
+
+  body {
+    background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+    color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+`;
+
+// 내부 App 컴포넌트 (테마 컨텍스트를 사용할 수 있음)
+const AppContent = () => {
+  const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
 
   const init = async () => {
-    // 로딩 Start (=이미 true 로딩이 시작되어있음)
     await auth.authStateReady();
-    // 로딩 Finish
     setLoading(false);
   };
 
   useEffect(() => {
-    // 로그인 여부 파악(1번만)
     init();
   }, []);
 
-  return loading ? (
-    <LoadingScreen />
-  ) : (
-    <MusicPlayerProvider>
-      <Container className="App">
-        <GlobalStyle />
-        <RouterProvider router={router}></RouterProvider>
-      </Container>
-    </MusicPlayerProvider>
+  return (
+    <>
+      <ThemedGlobalStyle $isDark={isDarkMode} />
+      {loading ? (
+        <LoadingScreen />
+      ) : (
+        <Container className="App">
+          <RouterProvider router={router} />
+        </Container>
+      )}
+    </>
+  );
+};
+
+// 메인 App 컴포넌트
+function App() {
+  return (
+    <ThemeProvider>
+      <MusicPlayerProvider>
+        <AppContent />
+      </MusicPlayerProvider>
+    </ThemeProvider>
   );
 }
 
 export default App;
-
-// 공통적으로 전역에서 사용할 Global CSS Style
-const GlobalStyle = createGlobalStyle`
-${reset}
-html, body, #root {
-  height: 100%;
-}
-
-  body{
-    background-color:rgb(0, 0, 0);
-    color: white;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  }
-`;

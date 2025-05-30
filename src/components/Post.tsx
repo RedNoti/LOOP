@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import CommentSection from "./Comment";
 import { useMusicPlayer } from "../components/MusicFunction";
+import { useTheme } from "../components/ThemeContext";
 
 interface PostProps {
   id: string;
@@ -54,6 +55,9 @@ const Post = ({
   playlist,
   playlistFileUrl,
 }: PostProps) => {
+  // 다크모드 훅 추가
+  const { isDarkMode } = useTheme();
+
   // 상태 관리 (기존과 동일)
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
@@ -204,11 +208,11 @@ const Post = ({
   };
 
   return (
-    <Container>
+    <Container $isDark={isDarkMode}>
       <ZoomStyle />
 
       {/* 헤더 영역 */}
-      <Header>
+      <Header $isDark={isDarkMode}>
         <ProfileSection>
           <ProfileImg
             src={currentPhotoUrl || defaultProfileImg}
@@ -220,15 +224,20 @@ const Post = ({
             }}
           />
           <UserInfo>
-            <UserName>{currentNickname}</UserName>
-            <PostTime>{new Date(createdAt).toLocaleDateString()}</PostTime>
+            <UserName $isDark={isDarkMode}>{currentNickname}</UserName>
+            <PostTime $isDark={isDarkMode}>
+              {new Date(createdAt).toLocaleDateString()}
+            </PostTime>
           </UserInfo>
         </ProfileSection>
 
         {/* 수정/삭제 버튼 */}
         {user?.uid === userId && (
           <ActionButtons>
-            <ActionBtn onClick={() => setIsEditing(!isEditing)}>
+            <ActionBtn
+              $isDark={isDarkMode}
+              onClick={() => setIsEditing(!isEditing)}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"
@@ -240,7 +249,7 @@ const Post = ({
                 />
               </svg>
             </ActionBtn>
-            <ActionBtn onClick={onDeletePost}>
+            <ActionBtn $isDark={isDarkMode} onClick={onDeletePost}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
@@ -257,6 +266,7 @@ const Post = ({
         {isEditing ? (
           <EditingArea>
             <EditTextarea
+              $isDark={isDarkMode}
               value={editedPost}
               onChange={(e) => setEditedPost(e.target.value)}
               placeholder="게시글을 작성해주세요..."
@@ -275,7 +285,7 @@ const Post = ({
             </SaveBtn>
           </EditingArea>
         ) : (
-          <PostContent>{post}</PostContent>
+          <PostContent $isDark={isDarkMode}>{post}</PostContent>
         )}
       </ContentArea>
 
@@ -283,7 +293,7 @@ const Post = ({
       {photoUrls.length > 0 && (
         <ImageGallery>
           {photoUrls.map((url, index) => (
-            <ImageContainer key={index}>
+            <ImageContainer $isDark={isDarkMode} key={index}>
               <StyledImage
                 src={url}
                 alt={`Post image ${index + 1}`}
@@ -348,9 +358,13 @@ const Post = ({
       )}
 
       {/* 하단 액션 영역 */}
-      <BottomSection>
+      <BottomSection $isDark={isDarkMode}>
         <InteractionBar>
-          <InteractionBtn onClick={handleLike} active={hasLiked}>
+          <InteractionBtn
+            $isDark={isDarkMode}
+            onClick={handleLike}
+            active={hasLiked}
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
@@ -362,7 +376,10 @@ const Post = ({
             <span>{likes}</span>
           </InteractionBtn>
 
-          <InteractionBtn onClick={() => setShowComments(!showComments)}>
+          <InteractionBtn
+            $isDark={isDarkMode}
+            onClick={() => setShowComments(!showComments)}
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
                 d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
@@ -459,7 +476,7 @@ const Post = ({
 
       {/* 댓글 섹션 */}
       {showComments && (
-        <CommentSectionWrapper>
+        <CommentSectionWrapper $isDark={isDarkMode}>
           <CommentSection
             postId={id}
             initialComments={commentList}
@@ -525,21 +542,24 @@ const ZoomStyle = createGlobalStyle`
 `;
 
 // 스타일드 컴포넌트
-const Container = styled.div`
-  background: #ffffff;
+const Container = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#1c1c1c" : "#ffffff")};
   border-radius: 20px;
   margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 12px
+    ${(props) => (props.$isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.04)")};
+  border: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
   overflow: hidden;
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 20px
+      ${(props) =>
+        props.$isDark ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.08)"};
   }
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $isDark: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -566,16 +586,16 @@ const UserInfo = styled.div`
   gap: 4px;
 `;
 
-const UserName = styled.div`
+const UserName = styled.div<{ $isDark: boolean }>`
   font-weight: 600;
   font-size: 15px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   line-height: 1.2;
 `;
 
-const PostTime = styled.div`
+const PostTime = styled.div<{ $isDark: boolean }>`
   font-size: 13px;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
   line-height: 1.2;
 `;
 
@@ -584,13 +604,13 @@ const ActionButtons = styled.div`
   gap: 8px;
 `;
 
-const ActionBtn = styled.button`
+const ActionBtn = styled.button<{ $isDark: boolean }>`
   width: 32px;
   height: 32px;
   border-radius: 8px;
   border: none;
-  background: #f8f9fa;
-  color: #6c757d;
+  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#6c757d")};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -598,8 +618,8 @@ const ActionBtn = styled.button`
   transition: all 0.15s ease;
 
   &:hover {
-    background: #e9ecef;
-    color: #495057;
+    background: ${(props) => (props.$isDark ? "#404040" : "#e9ecef")};
+    color: ${(props) => (props.$isDark ? "#ffffff" : "#495057")};
     transform: translateY(-1px);
   }
 
@@ -614,8 +634,8 @@ const ContentArea = styled.div`
   box-sizing: border-box;
 `;
 
-const PostContent = styled.div`
-  color: #1a1a1a;
+const PostContent = styled.div<{ $isDark: boolean }>`
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
   font-size: 15px;
   line-height: 1.5;
   word-break: break-word;
@@ -630,29 +650,29 @@ const EditingArea = styled.div`
   box-sizing: border-box;
 `;
 
-const EditTextarea = styled.textarea`
+const EditTextarea = styled.textarea<{ $isDark: boolean }>`
   width: 100%;
   min-height: 100px;
   padding: 16px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 12px;
   font-size: 15px;
   line-height: 1.5;
   resize: vertical;
   font-family: inherit;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  background: ${(props) => (props.$isDark ? "#2c2c2c" : "#fafafa")};
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 
   &:focus {
     outline: none;
     border-color: #007aff;
-    background: #ffffff;
+    background: ${(props) => (props.$isDark ? "#333333" : "#ffffff")};
   }
 
   &::placeholder {
-    color: #8e8e93;
+    color: ${(props) => (props.$isDark ? "#888888" : "#8e8e93")};
   }
 `;
 
@@ -685,10 +705,10 @@ const ImageGallery = styled.div`
   gap: 12px;
 `;
 
-const ImageContainer = styled.div`
+const ImageContainer = styled.div<{ $isDark: boolean }>`
   border-radius: 16px;
   overflow: hidden;
-  background: #f8f9fa;
+  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
   aspect-ratio: 4/3;
 `;
 
@@ -704,8 +724,8 @@ const StyledImage = styled.img`
   }
 `;
 
-const BottomSection = styled.div`
-  border-top: 1px solid #f0f0f0;
+const BottomSection = styled.div<{ $isDark: boolean }>`
+  border-top: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
   padding: 16px 24px 20px;
 `;
 
@@ -715,13 +735,16 @@ const InteractionBar = styled.div`
   gap: 20px;
 `;
 
-const InteractionBtn = styled.button<{ active?: boolean }>`
+const InteractionBtn = styled.button<{ $isDark: boolean; active?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   background: none;
   border: none;
-  color: ${(props) => (props.active ? "#ff6b6b" : "#8e8e93")};
+  color: ${(props) => {
+    if (props.active) return "#ff6b6b";
+    return props.$isDark ? "#aaaaaa" : "#8e8e93";
+  }};
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -730,8 +753,14 @@ const InteractionBtn = styled.button<{ active?: boolean }>`
   transition: all 0.15s ease;
 
   &:hover {
-    background: ${(props) => (props.active ? "#ffe6e6" : "#f8f9fa")};
-    color: ${(props) => (props.active ? "#ff5252" : "#495057")};
+    background: ${(props) => {
+      if (props.active) return props.$isDark ? "#3d1a1a" : "#ffe6e6";
+      return props.$isDark ? "#333333" : "#f8f9fa";
+    }};
+    color: ${(props) => {
+      if (props.active) return "#ff5252";
+      return props.$isDark ? "#ffffff" : "#495057";
+    }};
   }
 
   svg {
@@ -794,8 +823,8 @@ const PlaylistTitle = styled.span`
   font-size: 13px;
 `;
 
-const CommentSectionWrapper = styled.div`
-  border-top: 1px solid #f0f0f0;
+const CommentSectionWrapper = styled.div<{ $isDark: boolean }>`
+  border-top: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
   animation: slideDown 0.3s ease-out;
 
   @keyframes slideDown {

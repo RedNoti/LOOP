@@ -6,21 +6,24 @@ import {
   fetchPlaylistVideosReturn,
 } from "../components/MusicFunction";
 import { addDoc, collection, getDoc, doc } from "firebase/firestore";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../components/ThemeContext";
 import React from "react";
 
-const Container = styled.div`
-  background: #ffffff;
+const Container = styled.div<{ $isDark: boolean }>`
+  background: ${(props) => (props.$isDark ? "#1c1c1c" : "#ffffff")};
   border-radius: 20px;
   padding: 24px;
   margin-bottom: 24px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f0f0f0;
+  box-shadow: 0 4px 16px
+    ${(props) => (props.$isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.08)")};
+  border: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 24px
+      ${(props) =>
+        props.$isDark ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.12)"};
     transform: translateY(-2px);
   }
 `;
@@ -53,15 +56,15 @@ const UserInfo = styled.div`
   gap: 4px;
 `;
 
-const UserName = styled.div`
+const UserName = styled.div<{ $isDark: boolean }>`
   font-weight: 600;
   font-size: 15px;
-  color: #1a1a1a;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
 `;
 
-const UserEmail = styled.div`
+const UserEmail = styled.div<{ $isDark: boolean }>`
   font-size: 13px;
-  color: #8e8e93;
+  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
 `;
 
 const Form = styled.form`
@@ -71,30 +74,30 @@ const Form = styled.form`
   width: 100%;
 `;
 
-const TextArea = styled.textarea`
+const TextArea = styled.textarea<{ $isDark: boolean }>`
   width: 100%;
   min-height: 120px;
   padding: 16px;
-  border: 2px solid #f0f0f0;
+  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 12px;
   font-size: 15px;
   line-height: 1.5;
   resize: vertical;
   font-family: inherit;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  background: ${(props) => (props.$isDark ? "#2c2c2c" : "#fafafa")};
   transition: all 0.2s ease;
   box-sizing: border-box;
 
   &:focus {
     outline: none;
     border-color: #007aff;
-    background: #ffffff;
+    background: ${(props) => (props.$isDark ? "#333333" : "#ffffff")};
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
   }
 
   &::placeholder {
-    color: #8e8e93;
+    color: ${(props) => (props.$isDark ? "#888888" : "#8e8e93")};
   }
 `;
 
@@ -104,14 +107,14 @@ const ImagePreviewSection = styled.div`
   gap: 12px;
 `;
 
-const ImagePreviewContainer = styled.div`
+const ImagePreviewContainer = styled.div<{ $isDark: boolean }>`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 12px;
   padding: 16px;
-  background: #f8f9fa;
+  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
   border-radius: 12px;
-  border: 2px dashed #e9ecef;
+  border: 2px dashed ${(props) => (props.$isDark ? "#555555" : "#e9ecef")};
 `;
 
 const ImagePreviewWrapper = styled.div`
@@ -170,12 +173,12 @@ const ImageCountBadge = styled.div`
   font-weight: 600;
 `;
 
-const BottomSection = styled.div`
+const BottomSection = styled.div<{ $isDark: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
 `;
 
 const ActionButtons = styled.div`
@@ -184,7 +187,7 @@ const ActionButtons = styled.div`
   align-items: center;
 `;
 
-const ActionButton = styled.button<{ active?: boolean }>`
+const ActionButton = styled.button<{ $isDark: boolean; active?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,13 +195,19 @@ const ActionButton = styled.button<{ active?: boolean }>`
   height: 44px;
   border-radius: 12px;
   border: none;
-  background: ${(props) => (props.active ? "#007aff" : "#f8f9fa")};
+  background: ${(props) => {
+    if (props.active) return "#007aff";
+    return props.$isDark ? "#333333" : "#f8f9fa";
+  }};
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
 
   &:hover {
-    background: ${(props) => (props.active ? "#0051d0" : "#e9ecef")};
+    background: ${(props) => {
+      if (props.active) return "#0051d0";
+      return props.$isDark ? "#404040" : "#e9ecef";
+    }};
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
@@ -217,7 +226,10 @@ const ActionButton = styled.button<{ active?: boolean }>`
   img {
     width: 20px;
     height: 20px;
-    color: ${(props) => (props.active ? "#ffffff" : "#6c757d")};
+    color: ${(props) => {
+      if (props.active) return "#ffffff";
+      return props.$isDark ? "#aaaaaa" : "#6c757d";
+    }};
     filter: ${(props) => (props.active ? "brightness(0) invert(1)" : "none")};
   }
 `;
@@ -348,7 +360,8 @@ interface Playlist {
   };
 }
 
-export default () => {
+const InputPost = () => {
+  const { isDarkMode } = useTheme();
   const navigate = useNavigate();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -625,7 +638,7 @@ export default () => {
   };
 
   return (
-    <Container>
+    <Container $isDark={isDarkMode}>
       <Header>
         <ProfileArea>
           {profilePhotoUrl && (
@@ -633,13 +646,16 @@ export default () => {
           )}
         </ProfileArea>
         <UserInfo>
-          <UserName>{auth.currentUser?.displayName || "사용자"}</UserName>
-          <UserEmail>{userEmail}</UserEmail>
+          <UserName $isDark={isDarkMode}>
+            {auth.currentUser?.displayName || "사용자"}
+          </UserName>
+          <UserEmail $isDark={isDarkMode}>{userEmail}</UserEmail>
         </UserInfo>
       </Header>
 
       <Form onSubmit={onSubmit}>
         <TextArea
+          $isDark={isDarkMode}
           ref={textAreaRef}
           value={post}
           onChange={onChange}
@@ -648,7 +664,7 @@ export default () => {
 
         {previews.length > 0 && (
           <ImagePreviewSection>
-            <ImagePreviewContainer>
+            <ImagePreviewContainer $isDark={isDarkMode}>
               {previews.map((preview, index) => (
                 <ImagePreviewWrapper key={index}>
                   <ImagePreview src={preview} alt={`preview ${index}`} />
@@ -689,10 +705,10 @@ export default () => {
           </PlaylistAttachment>
         )}
 
-        <BottomSection>
+        <BottomSection $isDark={isDarkMode}>
           <ActionButtons>
             <label htmlFor="photo">
-              <ActionButton as="div">
+              <ActionButton $isDark={isDarkMode} as="div">
                 <svg
                   width="20"
                   height="20"
@@ -718,6 +734,7 @@ export default () => {
             />
 
             <ActionButton
+              $isDark={isDarkMode}
               type="button"
               onClick={handlePlaylistAttach}
               active={attachPlaylist}
@@ -761,3 +778,5 @@ export default () => {
     </Container>
   );
 };
+
+export default InputPost;
