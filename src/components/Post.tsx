@@ -475,31 +475,29 @@ const Post = ({
       </BottomSection>
 
       {/* 댓글 섹션 */}
-      {showComments && (
-        <CommentSectionWrapper $isDark={isDarkMode}>
-          <CommentSection
-            postId={id}
-            initialComments={commentList}
-            initialCount={commentList.length}
-            onCommentAdded={async (newComment) => {
-              const updatedComments = [...commentList, newComment];
-              setCommentList(updatedComments);
-              await updateDoc(doc(db, "posts", id), {
-                comments: updatedComments,
-              });
-            }}
-            onCommentDeleted={async (deletedCommentId) => {
-              const updatedComments = commentList.filter(
-                (c) => c.id !== deletedCommentId
-              );
-              setCommentList(updatedComments);
-              await updateDoc(doc(db, "posts", id), {
-                comments: updatedComments,
-              });
-            }}
-          />
-        </CommentSectionWrapper>
-      )}
+      <CommentSectionWrapper show={showComments}>
+        <CommentSection
+          postId={id}
+          initialComments={commentList}
+          initialCount={commentList.length}
+          onCommentAdded={async (newComment) => {
+            const updatedComments = [...commentList, newComment];
+            setCommentList(updatedComments);
+            await updateDoc(doc(db, "posts", id), {
+              comments: updatedComments,
+            });
+          }}
+          onCommentDeleted={async (deletedCommentId) => {
+            const updatedComments = commentList.filter(
+              (c) => c.id !== deletedCommentId
+            );
+            setCommentList(updatedComments);
+            await updateDoc(doc(db, "posts", id), {
+              comments: updatedComments,
+            });
+          }}
+        />
+      </CommentSectionWrapper>
     </Container>
   );
 };
@@ -823,18 +821,10 @@ const PlaylistTitle = styled.span`
   font-size: 13px;
 `;
 
-const CommentSectionWrapper = styled.div<{ $isDark: boolean }>`
-  border-top: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
-  animation: slideDown 0.3s ease-out;
-
-  @keyframes slideDown {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+const CommentSectionWrapper = styled.div<{ show: boolean }>`
+  border-top: 1px solid #f0f0f0;
+  overflow: hidden;
+  max-height: ${({ show }) => (show ? "1000px" : "0")};
+  opacity: ${({ show }) => (show ? 1 : 0)};
+  transition: max-height 0.44s cubic-bezier(0.43, 0.22, 0.16, 1), opacity 0.33s;
 `;
