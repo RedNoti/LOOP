@@ -1,0 +1,43 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+}
+
+/* ===== [2025-05-31 수행] React Error Overlay 완전 숨기기 ===== */
+/* React Error Overlay 컨테이너 숨기기 */
+iframe[data-reactroot] {
+  display: none !important;
+}
+
+/* React Error Overlay 모든 관련 요소 숨기기 */
+[data-reactroot] iframe,
+div[data-react-error-overlay-global-hook],
+div[style*="position: fixed"][style*="z-index: 9999"],
+div[style*="position: fixed"][style*="z-index: 2147483647"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* 오류 모달이나 오버레이 숨기기 */
+div[role="dialog"][aria-modal="true"] {
+  display: none !important;
+}
+
+/* 개발 모드에서 오류 화면 숨기기 */
+body > div:first-child > div[style*="position: fixed"] {
+  display: none !important;
+}
