@@ -1,0 +1,386 @@
+// // 📄 KategorieFunction 컴포넌트 - 특정 카테고리(장르 등)의 플레이리스트를 보여주는 기능입니다.
+// import styled from "styled-components";
+// import { useState } from "react";
+
+// const Section = styled.section`
+//   padding: 24px 32px;
+//   max-width: 1400px;
+//   margin: 0 auto;
+// `;
+
+// const SectionTitle = styled.h2`
+//   color: #ffffff;
+//   font-size: 24px;
+//   font-weight: 700;
+//   margin-bottom: 24px;
+// `;
+
+// const ToggleButton = styled.button`
+//   background: none;
+//   border: none;
+//   color: #aaaaaa;
+//   font-size: 14px;
+//   cursor: pointer;
+//   padding: 8px 16px;
+//   border-radius: 10px;
+//   transition: all 0.2s ease;
+//   display: block;
+//   margin: 16px auto 48px;
+
+//   &:hover {
+//     background-color: rgba(255, 255, 255, 0.1);
+//   }
+// `;
+
+// const AlbumCard = styled.div`
+//   padding: 12px;
+//   border-radius: 4px;
+//   text-align: left;
+//   background-color: rgba(255, 255, 255, 0.03);
+//   transition: all 0.3s ease;
+//   cursor: pointer;
+//   position: relative;
+//   overflow: hidden;
+
+//   &:hover {
+//     background-color: rgba(255, 255, 255, 0.1);
+    
+//     img {
+//       transform: scale(1.05);
+//     }
+
+//     &::after {
+//       opacity: 1;
+//     }
+//   }
+
+//   &::after {
+//     content: "▶";
+//     position: absolute;
+//     top: 50%;
+//     left: 50%;
+//     transform: translate(-50%, -50%);
+//     color: white;
+//     font-size: 24px;
+//     opacity: 0;
+//     transition: opacity 0.3s ease;
+//     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+//     pointer-events: none;
+//   }
+// `;
+
+// const ImageWrapper = styled.div`
+//   position: relative;
+//   width: 100%;
+//   aspect-ratio: 16/9;
+//   border-radius: 2px;
+//   overflow: hidden;
+//   margin-bottom: 8px;
+// `;
+
+// const AlbumImage = styled.img`
+//   width: 100%;
+//   height: 100%;
+//   object-fit: cover;
+//   transition: transform 0.3s ease;
+// `;
+
+// const AlbumTitle = styled.div`
+//   font-size: 14px;
+//   font-weight: 500;
+//   color: #ffffff;
+//   margin-bottom: 4px;
+//   white-space: nowrap;
+//   overflow: hidden;
+//   text-overflow: ellipsis;
+// `;
+
+// const AlbumDescription = styled.div`
+//   font-size: 12px;
+//   color: #aaaaaa;
+//   display: -webkit-box;
+//   -webkit-line-clamp: 2;
+//   -webkit-box-orient: vertical;
+//   overflow: hidden;
+//   text-overflow: ellipsis;
+//   height: 32px;
+// `;
+
+// const CardGrid = styled.div<{ expanded: boolean }>`
+//   display: grid;
+//   grid-template-columns: repeat(4, 1fr);
+//   gap: 12px;
+//   transition: all 0.3s ease;
+  
+//   & > ${AlbumCard} {
+//     display: ${props => props.expanded ? 'block' : 'none'};
+//     &:nth-child(-n+4) {
+//       display: block;
+//     }
+//   }
+// `;
+
+// const PageWrapper = styled.div`
+//   background-color: #030303;
+//   min-height: 100vh;
+// `;
+
+// const hotAlbums = [
+//   {
+//     title: "K-히트리스트: 인기 국내 음악",
+//     image: "/images/kimchi.png",
+//     description: "지금 국내에서 가장 뜨거운 인기곡들을 한꺼번에 감상하세요!",
+//   },
+//   {
+//     title: "BEAT ON",
+//     image: "/images/jpop.png",
+//     description: "지금 가장 핫한 국내 댄스 음악을 감상하세요!",
+//   },
+//   {
+//     title: "감성 ON",
+//     image: "/images/waktaverse.png",
+//     description: "지금 가장 인기 있는 국내 발라드를 감상하세요.",
+//   },
+//   {
+//     title: "트렌딩 뮤직",
+//     image: "/images/trending.png",
+//     description: "지금 이 순간 가장 인기 있는 음악!",
+//   },
+//   {
+//     title: "K-POP 최신곡",
+//     image: "/images/kimchi.png",
+//     description: "새로 나온 K-POP 히트곡을 만나보세요!",
+//   },
+//   {
+//     title: "인디씬 인기곡",
+//     image: "/images/indie.png",
+//     description: "주목받는 인디 뮤지션들의 음악!",
+//   },
+//   {
+//     title: "R&B 플레이리스트",
+//     image: "/images/waktaverse.png",
+//     description: "감미로운 R&B 음악을 만나보세요.",
+//   },
+//   {
+//     title: "힙합 컬렉션",
+//     image: "/images/trending.png",
+//     description: "핫한 힙합 아티스트들의 음악!",
+//   }
+// ];
+
+// const kpopAlbums = [
+//   {
+//     title: "K-POP 히트 플레이리스트",
+//     image: "/images/kimchi.png",
+//     description: "최신 K-POP 히트곡 모음",
+//   },
+//   {
+//     title: "K-POP 댄스 컬렉션",
+//     image: "/images/jpop.png",
+//     description: "신나는 K-POP 댄스 음악",
+//   },
+//   {
+//     title: "K-POP 발라드 셀렉션",
+//     image: "/images/waktaverse.png",
+//     description: "감성적인 K-POP 발라드",
+//   },
+//   {
+//     title: "K-POP 인디 믹스",
+//     image: "/images/indie.png",
+//     description: "숨겨진 보석 같은 인디 음악",
+//   },
+//   {
+//     title: "K-POP 걸그룹 컬렉션",
+//     image: "/images/kimchi.png",
+//     description: "인기 걸그룹의 히트곡 모음",
+//   },
+//   {
+//     title: "K-POP 보이그룹 컬렉션",
+//     image: "/images/jpop.png",
+//     description: "인기 보이그룹의 히트곡 모음",
+//   },
+//   {
+//     title: "K-POP 솔로 아티스트",
+//     image: "/images/waktaverse.png",
+//     description: "실력파 솔로 아티스트의 음악",
+//   },
+//   {
+//     title: "K-POP 신인 아티스트",
+//     image: "/images/indie.png",
+//     description: "주목받는 신인들의 데뷔곡",
+//   }
+// ];
+
+// const jpopAlbums = [
+//   {
+//     title: "J-POP 최신 히트곡",
+//     image: "/images/jpop.png",
+//     description: "현재 일본에서 가장 인기있는 곡들",
+//   },
+//   {
+//     title: "일본 아이돌 컬렉션",
+//     image: "/images/jpop.png",
+//     description: "인기 일본 아이돌 그룹의 히트곡",
+//   },
+//   {
+//     title: "J-POP 시티팝 플레이리스트",
+//     image: "/images/jpop.png",
+//     description: "도시적인 감성의 일본 음악",
+//   },
+//   {
+//     title: "애니메이션 OST 컬렉션",
+//     image: "/images/anime.png",
+//     description: "인기 애니메이션 주제곡 모음",
+//   },
+//   {
+//     title: "J-POP 발라드 컬렉션",
+//     image: "/images/jpop.png",
+//     description: "감성적인 일본 발라드 음악",
+//   },
+//   {
+//     title: "J-Rock 플레이리스트",
+//     image: "/images/jpop.png",
+//     description: "강렬한 일본 록 음악 모음",
+//   },
+//   {
+//     title: "J-POP 인디 음악",
+//     image: "/images/indie.png",
+//     description: "독특한 일본 인디 음악",
+//   },
+//   {
+//     title: "게임 OST 모음",
+//     image: "/images/anime.png",
+//     description: "인기 게임 사운드트랙",
+//   }
+// ];
+
+// const jazzAlbums = [
+//   {
+//     title: "재즈 클래식 컬렉션",
+//     image: "/images/jazz.png",
+//     description: "시대를 초월한 재즈의 명곡들",
+//   },
+//   {
+//     title: "모던 재즈 셀렉션",
+//     image: "/images/jazz.png",
+//     description: "현대적인 감각의 재즈 음악",
+//   },
+//   {
+//     title: "칠아웃 재즈",
+//     image: "/images/jazz.png",
+//     description: "편안한 분위기의 재즈 플레이리스트",
+//   },
+//   {
+//     title: "재즈 피아노 모음",
+//     image: "/images/piano.png",
+//     description: "감미로운 재즈 피아노 연주곡",
+//   },
+//   {
+//     title: "스윙 재즈 컬렉션",
+//     image: "/images/jazz.png",
+//     description: "경쾌한 스윙 재즈 음악",
+//   },
+//   {
+//     title: "보사노바 플레이리스트",
+//     image: "/images/jazz.png",
+//     description: "감미로운 브라질리언 재즈",
+//   },
+//   {
+//     title: "재즈 보컬 모음",
+//     image: "/images/jazz.png",
+//     description: "매력적인 재즈 보컬리스트",
+//   },
+//   {
+//     title: "빅밴드 재즈",
+//     image: "/images/piano.png",
+//     description: "웅장한 빅밴드 사운드",
+//   }
+// ];
+
+// const AlbumList = () => {
+//   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({
+//     hot: false,
+//     kpop: false,
+//     jpop: false,
+//     jazz: false
+//   });
+
+//   const toggleSection = (section: string) => {
+//     setExpandedSections(prev => ({
+//       ...prev,
+//       [section]: !prev[section]
+//     }));
+//   };
+
+//   return (
+//     <PageWrapper>
+//       <Section>
+//         <SectionTitle>인기 차트</SectionTitle>
+//         <CardGrid expanded={expandedSections.hot}>
+//           {hotAlbums.map((album) => (
+//             <AlbumCard key={album.title}>
+//               <ImageWrapper>
+//                 <AlbumImage src={album.image} alt={album.title} />
+//               </ImageWrapper>
+//               <AlbumTitle>{album.title}</AlbumTitle>
+//               <AlbumDescription>{album.description}</AlbumDescription>
+//             </AlbumCard>
+//           ))}
+//         </CardGrid>
+//         <ToggleButton onClick={() => toggleSection('hot')}>
+//           {expandedSections.hot ? '간략히' : '더보기'}
+//         </ToggleButton>
+
+//         <SectionTitle>K-POP 모음집</SectionTitle>
+//         <CardGrid expanded={expandedSections.kpop}>
+//           {kpopAlbums.map((album) => (
+//             <AlbumCard key={album.title}>
+//               <ImageWrapper>
+//                 <AlbumImage src={album.image} alt={album.title} />
+//               </ImageWrapper>
+//               <AlbumTitle>{album.title}</AlbumTitle>
+//               <AlbumDescription>{album.description}</AlbumDescription>
+//             </AlbumCard>
+//           ))}
+//         </CardGrid>
+//         <ToggleButton onClick={() => toggleSection('kpop')}>
+//           {expandedSections.kpop ? '간략히' : '더보기'}
+//         </ToggleButton>
+
+//         <SectionTitle>J-POP 컬렉션</SectionTitle>
+//         <CardGrid expanded={expandedSections.jpop}>
+//           {jpopAlbums.map((album) => (
+//             <AlbumCard key={album.title}>
+//               <ImageWrapper>
+//                 <AlbumImage src={album.image} alt={album.title} />
+//               </ImageWrapper>
+//               <AlbumTitle>{album.title}</AlbumTitle>
+//               <AlbumDescription>{album.description}</AlbumDescription>
+//             </AlbumCard>
+//           ))}
+//         </CardGrid>
+//         <ToggleButton onClick={() => toggleSection('jpop')}>
+//           {expandedSections.jpop ? '간략히' : '더보기'}
+//         </ToggleButton>
+
+//         <SectionTitle>재즈 스테이션</SectionTitle>
+//         <CardGrid expanded={expandedSections.jazz}>
+//           {jazzAlbums.map((album) => (
+//             <AlbumCard key={album.title}>
+//               <ImageWrapper>
+//                 <AlbumImage src={album.image} alt={album.title} />
+//               </ImageWrapper>
+//               <AlbumTitle>{album.title}</AlbumTitle>
+//               <AlbumDescription>{album.description}</AlbumDescription>
+//             </AlbumCard>
+//           ))}
+//         </CardGrid>
+//         <ToggleButton onClick={() => toggleSection('jazz')}>
+//           {expandedSections.jazz ? '간략히' : '더보기'}
+//         </ToggleButton>
+//       </Section>
+//     </PageWrapper>
+//   );
+// };
+
+// export default AlbumList;
