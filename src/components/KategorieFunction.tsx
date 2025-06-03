@@ -1,13 +1,85 @@
 // 📄 KategorieFunction.tsx - 음악 클릭 시 music.tsx UI에서 재생되도록 처리
 // + 검색 기능 및 캐싱 로직 추가
 // + API 호출 최적화 (2024-12-30)
-import React, { useEffect, useState, useRef, useCallback } from "react";
+// + 테마 시스템 적용 (2025-01-01)
+// + 성능 최적화 및 코드 구조 개선 (2025-01-01)
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  useReducer,
+} from "react";
 import { useNavigate } from "react-router-dom";
-import styled from "styled-components";
+import styled, { ThemeProvider } from "styled-components";
 import { useMusicPlayer, playerRef, playerReadyRef } from "./MusicFunction";
+import { useTheme } from "../components/ThemeContext";
+
+// ===== 타입 정의 =====
+interface CustomTheme {
+  background: string;
+  cardBackground: string;
+  textColor: string;
+  secondaryText: string;
+  borderColor: string;
+  inputBackground: string;
+  inputFocusBackground: string;
+}
+
+interface YouTubeVideo {
+  id:
+    | {
+        videoId: string;
+      }
+    | string;
+  snippet: {
+    title: string;
+    channelTitle: string;
+    thumbnails: {
+      high?: { url: string };
+      medium?: { url: string };
+      default?: { url: string };
+    };
+  };
+  contentDetails?: {
+    duration: string;
+  };
+  statistics?: {
+    viewCount: string;
+  };
+}
+
+interface Genre {
+  id: string;
+  name: string;
+  searchQuery: string;
+  categoryId: string;
+}
+
+interface CacheData {
+  data: YouTubeVideo[];
+  timestamp: number;
+}
+
+// ===== 상수 정의 =====
+const CONSTANTS = {
+  CACHE_DURATION: 15 * 60 * 1000, // 15분
+  DEBOUNCE_DELAY: 500, // 0.5초
+  DEFAULT_MAX_RESULTS: 8,
+  SEARCH_MAX_RESULTS: 20,
+  GRID_COLUMNS: 4,
+  ITEMS_PER_PAGE: 4,
+} as const;
+
+const API_CONFIG = {
+  BASE_URL: "https://www.googleapis.com/youtube/v3",
+  CATEGORY_ID: "10",
+  SAFE_SEARCH: "moderate",
+} as const;
 
 // ===== 2025.05.22 수정: 장르 데이터 구조 변경 =====
-const genres = [
+const GENRES: Genre[] = [
   { id: "kpop", name: "K-POP", searchQuery: "kpop mv", categoryId: "10" },
   { id: "jpop", name: "J-POP", searchQuery: "jpop mv", categoryId: "10" },
   {
@@ -26,15 +98,98 @@ const genres = [
   { id: "rock", name: "록", searchQuery: "rock music video", categoryId: "10" },
 ];
 
-// ===== [2024-05-23] HTML 엔티티 디코딩 함수 추가 =====
-function decodeHtmlEntities(str: string) {
+// ===== State 관리를 위한 Reducer =====
+interface AppState {
+  genreData: { [key: string]: YouTubeVideo[] };
+  loadingGenres: { [key: string]: boolean };
+  searchQuery: string;
+  searchResults: YouTubeVideo[];
+  isSearching: boolean;
+  hasSearched: boolean;
+  expandedSections: { [key: string]: boolean };
+  error: string | null;
+}
+
+type AppAction =
+  | { type: "SET_GENRE_LOADING"; genreId: string; loading: boolean }
+  | { type: "SET_GENRE_DATA"; genreId: string; data: YouTubeVideo[] }
+  | { type: "SET_SEARCH_QUERY"; query: string }
+  | { type: "SET_SEARCH_RESULTS"; results: YouTubeVideo[] }
+  | { type: "SET_SEARCHING"; searching: boolean }
+  | { type: "SET_HAS_SEARCHED"; hasSearched: boolean }
+  | { type: "TOGGLE_SECTION"; genreId: string }
+  | { type: "SET_ERROR"; error: string | null }
+  | { type: "RESET_SEARCH" };
+
+const initialState: AppState = {
+  genreData: {},
+  loadingGenres: {},
+  searchQuery: "",
+  searchResults: [],
+  isSearching: false,
+  hasSearched: false,
+  expandedSections: {},
+  error: null,
+};
+
+function appReducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case "SET_GENRE_LOADING":
+      return {
+        ...state,
+        loadingGenres: {
+          ...state.loadingGenres,
+          [action.genreId]: action.loading,
+        },
+      };
+    case "SET_GENRE_DATA":
+      return {
+        ...state,
+        genreData: {
+          ...state.genreData,
+          [action.genreId]: action.data,
+        },
+      };
+    case "SET_SEARCH_QUERY":
+      return { ...state, searchQuery: action.query };
+    case "SET_SEARCH_RESULTS":
+      return { ...state, searchResults: action.results };
+    case "SET_SEARCHING":
+      return { ...state, isSearching: action.searching };
+    case "SET_HAS_SEARCHED":
+      return { ...state, hasSearched: action.hasSearched };
+    case "TOGGLE_SECTION":
+      return {
+        ...state,
+        expandedSections: {
+          ...state.expandedSections,
+          [action.genreId]: !state.expandedSections[action.genreId],
+        },
+      };
+    case "SET_ERROR":
+      return { ...state, error: action.error };
+    case "RESET_SEARCH":
+      return {
+        ...state,
+        searchQuery: "",
+        searchResults: [],
+        hasSearched: false,
+        isSearching: false,
+        error: null,
+      };
+    default:
+      return state;
+  }
+}
+
+// ===== 유틸리티 함수들 =====
+function decodeHtmlEntities(str: string): string {
   const txt = document.createElement("textarea");
   txt.innerHTML = str;
   return txt.value;
 }
 
-// ===== [2024-05-23] ISO 8601 duration을 mm:ss로 변환하는 함수 추가 =====
-function formatDuration(isoDuration: string) {
+function formatDuration(isoDuration: string): string {
   if (!isoDuration) return "";
   const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return "";
@@ -50,138 +205,164 @@ function formatDuration(isoDuration: string) {
   );
 }
 
-// ===== [2024-05-23] 영상 상세 모달 컴포넌트 추가 (사용되지 않지만 스타일 정의는 남아있음) =====
-const VideoModalBackground = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
+// ===== 전역 캐시 시스템 =====
+class VideoCache {
+  private genres = new Map<string, CacheData>();
+  private searches = new Map<string, CacheData>();
+
+  get(key: string, isGenre: boolean): YouTubeVideo[] | null {
+    const cache = isGenre ? this.genres : this.searches;
+    const cached = cache.get(key);
+    const now = Date.now();
+
+    if (cached && now - cached.timestamp < CONSTANTS.CACHE_DURATION) {
+      console.log(`📖 캐시 사용: ${key}`);
+      return cached.data;
+    }
+
+    if (cached) {
+      cache.delete(key); // 만료된 캐시 삭제
+    }
+
+    return null;
+  }
+
+  set(key: string, data: YouTubeVideo[], isGenre: boolean): void {
+    const cache = isGenre ? this.genres : this.searches;
+    cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.genres.clear();
+    this.searches.clear();
+  }
+}
+
+const videoCache = new VideoCache();
+const ongoingRequests = new Map<string, AbortController>();
+
+// ===== 스타일드 컴포넌트 (테마 기반) =====
+const PageWrapper = styled.div<{ theme: CustomTheme }>`
+  background-color: ${({ theme }) => theme.background};
+  min-height: 100vh;
+  transition: background-color 0.3s ease;
+`;
+
+const Wrapper = styled.div<{ theme: CustomTheme }>`
+  padding: 25px 40px 40px 40px;
+  background-color: ${({ theme }) => theme.background};
+  color: ${({ theme }) => theme.textColor};
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: ${({ theme }) => theme.borderColor};
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: ${({ theme }) => theme.secondaryText};
+    border-radius: 4px;
+    opacity: 0.6;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    opacity: 1;
+  }
+`;
+
+const HeaderContainer = styled.div`
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  z-index: 9999;
-`;
-const VideoModalContent = styled.div`
-  background: #222;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 90vw;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
-const CloseButton = styled.button`
-  align-self: flex-end;
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 2rem;
-  cursor: pointer;
-  margin-bottom: 8px;
+  margin-bottom: 24px;
 `;
 
-// ===== [2024-05-23] 영상 길이 오버레이 스타일 추가 =====
-const DurationOverlay = styled.div`
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  font-size: 0.85rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  z-index: 2;
-`;
-const SongThumbnailWrapper = styled.div`
-  position: relative;
-`;
-
-// ===== CSS 스타일 업데이트 (기존 스타일 유지 및 검색 관련 스타일 추가) =====
-const Section = styled.section`
-  padding: 24px 32px;
-  max-width: 1400px;
-  margin: 0 auto;
-`;
-
-const SectionTitle = styled.h2<{ clickable?: boolean }>`
-  color: #ffffff; /* 흰색 */
+const SectionTitle = styled.h2<{ clickable?: boolean; theme: CustomTheme }>`
+  color: ${({ theme }) => theme.textColor};
   font-size: 24px;
   font-weight: 700;
   margin-bottom: 24px;
-  flex-grow: 1; /* 남은 공간 차지 */
+  flex-grow: 1;
   cursor: ${(props) => (props.clickable ? "pointer" : "default")};
-  transition: opacity 0.2s ease;
+  transition: all 0.15s ease-out;
 
   &:hover {
     opacity: ${(props) => (props.clickable ? "0.8" : "1")};
+  }
+
+  &:active {
+    transform: ${(props) => (props.clickable ? "scale(0.95)" : "none")};
   }
 `;
 
 const SearchContainer = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px; /* 입력 필드와 버튼 사이 간격 */
-  margin-bottom: 24px; /* 아래 여백 */
+  gap: 10px;
+  margin-bottom: 24px;
 `;
 
-const SearchInput = styled.input`
+const SearchInput = styled.input<{ theme: CustomTheme }>`
   padding: 8px 12px;
-  border: 1px solid #ccc;
+  border: 1px solid ${({ theme }) => theme.borderColor};
   border-radius: 4px;
   font-size: 1rem;
-  flex-grow: 1; /* 남은 공간 차지 */
+  flex-grow: 1;
+  color: ${({ theme }) => theme.textColor};
+  background: ${({ theme }) => theme.inputBackground};
+  transition: all 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #007aff;
+    background: ${({ theme }) => theme.inputFocusBackground};
+  }
+
+  &::placeholder {
+    color: ${({ theme }) => theme.secondaryText};
+  }
 `;
 
-const SearchButton = styled.button`
-  padding: 4px; /* 패딩 최소화 */
-  color: #000000; /* 이모지 색상 검정 */
+const SearchButton = styled.button<{ theme: CustomTheme }>`
+  padding: 4px;
+  color: ${({ theme }) => theme.textColor};
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1.5rem; /* 이모지 크기 약간 키우기 */
-  background-color: transparent; /* 배경색 투명 */
+  font-size: 1.5rem;
+  background-color: transparent;
+  transition: all 0.2s ease;
 
   &:hover {
-    background-color: transparent; /* 호버 시 배경색 없음 */
+    background-color: ${({ theme }) => theme.borderColor};
   }
 
   &:active {
-    background-color: transparent; /* 클릭 시 배경색 없음 */
+    background-color: transparent;
+    transform: scale(0.9);
   }
 `;
 
-const ToggleButton = styled.button`
-  background: none;
-  border: none;
-  color: #aaaaaa;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-  display: block;
-  margin: 16px auto 48px;
-
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-`;
-
-const AlbumCard = styled.div`
+const AlbumCard = styled.div<{ theme: CustomTheme }>`
   padding: 12px;
   border-radius: 4px;
   text-align: left;
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: ${({ theme }) => theme.cardBackground};
+  border: 1px solid ${({ theme }) => theme.borderColor};
   transition: all 0.3s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 
     img {
       transform: scale(1.05);
@@ -223,19 +404,31 @@ const AlbumImage = styled.img`
   transition: transform 0.3s ease;
 `;
 
-const AlbumTitle = styled.div`
+const DurationOverlay = styled.div`
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 2;
+`;
+
+const AlbumTitle = styled.div<{ theme: CustomTheme }>`
   font-size: 14px;
   font-weight: 500;
-  color: #ffffff;
+  color: ${({ theme }) => theme.textColor};
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `;
 
-const AlbumDescription = styled.div`
+const AlbumDescription = styled.div<{ theme: CustomTheme }>`
   font-size: 12px;
-  color: #aaaaaa;
+  color: ${({ theme }) => theme.secondaryText};
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -246,167 +439,98 @@ const AlbumDescription = styled.div`
 
 const CardGrid = styled.div<{ expanded: boolean }>`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(${CONSTANTS.GRID_COLUMNS}, 1fr);
   gap: 12px;
   transition: all 0.3s ease;
   margin-bottom: 20px;
 
   & > ${AlbumCard} {
     display: ${(props) => (props.expanded ? "block" : "none")};
-    &:nth-child(-n + 4) {
+    &:nth-child(-n + ${CONSTANTS.ITEMS_PER_PAGE}) {
       display: block;
     }
   }
 `;
 
-const PageWrapper = styled.div`
-  background-color: #030303;
-  min-height: 100vh;
-`;
-
-// 장르 선택을 위한 추가 스타일 (가로 스크롤 적용)
-const GenreList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin-bottom: 40px;
-  display: flex; /* 가로 배치 */
-  gap: 10px;
-  /* flex-wrap: wrap; // 🎯 줄바꿈 해제 */
-  overflow-x: auto; /* 🎯 가로 스크롤 */
-  -webkit-overflow-scrolling: touch; /* 부드러운 스크롤링 (iOS) */
-
-  /* 🎯 스크롤바 숨김 (선택 사항, YouTube는 스크롤바 보임) */
-  /*
-  &::-webkit-scrollbar {
-      display: none;
-  }
-  -ms-overflow-style: none; // IE and Edge
-  scrollbar-width: none; // Firefox
-  */
-`;
-
-const GenreItem = styled.li<{ isSelected?: boolean }>`
-  padding: 12px 20px;
-  background-color: ${(props) => (props.isSelected ? "#1db954" : "#333")};
-  margin-bottom: 0;
-  border-radius: 20px;
+const ToggleButton = styled.button<{ theme: CustomTheme }>`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.secondaryText};
+  font-size: 14px;
   cursor: pointer;
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
-  flex-shrink: 0; /* 🎯 컨테이너가 줄어들 때 아이템 크기 유지 */
+  padding: 8px 16px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  display: block;
+  margin: 16px auto 48px;
 
   &:hover {
-    background-color: ${(props) => (props.isSelected ? "#1ed760" : "#555")};
+    background-color: ${({ theme }) => theme.borderColor};
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
-// 기존 컴포넌트와 호환성을 위한 추가 스타일
-const Wrapper = styled.div`
-  padding: 25px 40px 40px 40px;
-  background-color: #030303; /* 어두운 배경 */
-  color: white; /* 흰색 텍스트 */
-  min-height: 100vh;
-  max-height: 100vh;
-  overflow-y: auto;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #1e1e1e; /* 어두운 스크롤바 트랙 */
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3); /* 밝은 스크롤바 핸들 */
-    border-radius: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.6); /* 호버 시 더 밝게 */
-  }
+const StatusMessage = styled.p<{ theme: CustomTheme }>`
+  color: ${({ theme }) => theme.secondaryText};
+  text-align: center;
+  padding: 20px;
+  font-size: 16px;
 `;
 
-// 썸네일 이미지 스타일
-const Thumbnail = styled.img`
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  display: block;
-  border-radius: 4px;
-  margin-bottom: 12px;
+const ErrorMessage = styled.div`
+  background-color: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  text-align: center;
 `;
 
-// 영상 정보를 표시할 작은 글씨 스타일
-const VideoInfoText = styled.p`
-  color: #aaaaaa; /* 회색 */
-  font-size: 0.8rem;
-  padding: 0 8px;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 12px; /* 제목과의 간격 */
-`;
-
-// ===== [2024-12-30] API 호출 최적화: AbortController와 강화된 캐싱 =====
-// 🎯 전역 캐시 객체 (장르별 + 검색 캐싱)
-const globalCache = {
-  genres: new Map<string, { data: any[]; timestamp: number }>(),
-  searches: new Map<string, { data: any[]; timestamp: number }>(),
-  cacheDuration: 15 * 60 * 1000, // 15분 캐시 유지
-};
-
-// 🎯 진행 중인 요청들을 관리하는 Map
-const ongoingRequests = new Map<string, AbortController>();
-
-// ===== [2024-12-30] 최적화된 영상 fetch 함수 =====
+// ===== API 호출 함수 최적화 =====
 async function fetchOptimizedVideos(
-  maxResults = 8,
-  searchQuery = "",
-  isGenre = false
-) {
+  maxResults: number = CONSTANTS.DEFAULT_MAX_RESULTS,
+  searchQuery: string = "",
+  isGenre: boolean = false
+): Promise<YouTubeVideo[]> {
   const requestKey = `${isGenre ? "genre" : "search"}_${searchQuery}`;
 
-  // 🎯 1. 캐시 확인
-  const cache = isGenre ? globalCache.genres : globalCache.searches;
-  const cached = cache.get(searchQuery);
-  const now = Date.now();
-
-  if (cached && now - cached.timestamp < globalCache.cacheDuration) {
-    console.log(`📖 캐시 사용: ${searchQuery}`);
-    return cached.data;
+  // 캐시 확인
+  const cached = videoCache.get(searchQuery, isGenre);
+  if (cached) {
+    return cached;
   }
 
-  // 🎯 2. 진행 중인 동일한 요청이 있다면 취소
+  // 진행 중인 동일한 요청이 있다면 취소
   if (ongoingRequests.has(requestKey)) {
     ongoingRequests.get(requestKey)?.abort();
     ongoingRequests.delete(requestKey);
   }
 
-  // 🎯 3. 새로운 AbortController 생성
+  // 새로운 AbortController 생성
   const abortController = new AbortController();
   ongoingRequests.set(requestKey, abortController);
 
   try {
     const token = localStorage.getItem("ytAccessToken");
     if (!token) {
-      console.warn("🔑 YouTube 액세스 토큰이 없습니다");
-      return [];
+      throw new Error("YouTube 액세스 토큰이 없습니다");
     }
 
     console.log(
       `🎵 API 호출 시작: ${searchQuery} (${isGenre ? "장르" : "검색"})`
     );
 
-    // 🎯 4. 최적화된 단일 API 호출 (search API만 사용, videos API 생략)
-    // search API에서 snippet 정보가 충분하므로 duration이 꼭 필요하지 않다면 생략 가능
+    // 1) search API로 기본 정보 가져오기
     const searchRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&q=${encodeURIComponent(
+      `${API_CONFIG.BASE_URL}/search?part=snippet&type=video&videoCategoryId=${
+        API_CONFIG.CATEGORY_ID
+      }&q=${encodeURIComponent(
         searchQuery
-      )}&maxResults=${maxResults}&safeSearch=moderate`,
+      )}&maxResults=${maxResults}&safeSearch=${API_CONFIG.SAFE_SEARCH}`,
       {
         headers: { Authorization: `Bearer ${token}` },
         signal: abortController.signal,
@@ -414,57 +538,167 @@ async function fetchOptimizedVideos(
     );
 
     if (!searchRes.ok) {
-      console.error(`Search API 요청 실패: ${searchRes.status}`);
-      return [];
+      throw new Error(`Search API 요청 실패: ${searchRes.status}`);
     }
 
     const searchData = await searchRes.json();
-    const items = searchData.items || [];
+    const items: YouTubeVideo[] = searchData.items || [];
 
     if (!items.length) {
       console.log(`✅ ${searchQuery} 검색 완료: 결과 없음`);
       return [];
     }
 
-    // 🎯 5. 캐시에 저장
-    cache.set(searchQuery, { data: items, timestamp: now });
-    console.log(`✅ ${searchQuery} 검색 완료: ${items.length}개 영상 (캐시됨)`);
+    // 2) videos API로 상세 정보(조회수, 영상 길이 등) 가져오기
+    const videoIds = items.map((item: any) => item.id.videoId).join(",");
+    const videosRes = await fetch(
+      `${API_CONFIG.BASE_URL}/videos?part=statistics,contentDetails&id=${videoIds}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: abortController.signal,
+      }
+    );
 
-    return items;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      console.log(`🚫 요청 취소됨: ${searchQuery}`);
-      return [];
+    if (!videosRes.ok) {
+      throw new Error(`Videos API 요청 실패: ${videosRes.status}`);
     }
-    console.error(`❌ ${searchQuery} 검색 실패:`, error);
-    return [];
+
+    const videosData = await videosRes.json();
+    const videoDetails = videosData.items || [];
+
+    // 3) 검색 결과와 상세 정보 병합
+    const enrichedItems = items.map((item: any) => {
+      const videoId = item.id.videoId;
+      const details = videoDetails.find((v: any) => v.id === videoId);
+      return {
+        ...item,
+        contentDetails: details?.contentDetails,
+        statistics: details?.statistics,
+      };
+    });
+
+    // 캐시에 저장
+    videoCache.set(searchQuery, enrichedItems, isGenre);
+    console.log(
+      `✅ ${searchQuery} 검색 완료: ${enrichedItems.length}개 영상 (캐시됨)`
+    );
+
+    return enrichedItems;
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === "AbortError") {
+        console.log(`🚫 요청 취소됨: ${searchQuery}`);
+        return [];
+      }
+      console.error(`❌ ${searchQuery} 검색 실패:`, error.message);
+      throw error;
+    }
+    throw new Error("알 수 없는 오류가 발생했습니다");
   } finally {
     ongoingRequests.delete(requestKey);
   }
 }
 
+// ===== 컴포넌트 분리 =====
+const VideoCard: React.FC<{
+  video: YouTubeVideo;
+  onPlay: (video: YouTubeVideo) => void;
+}> = React.memo(({ video, onPlay }) => {
+  const handleClick = useCallback(() => {
+    onPlay(video);
+  }, [video, onPlay]);
+
+  return (
+    <AlbumCard onClick={handleClick}>
+      <ImageWrapper>
+        <AlbumImage
+          src={
+            video.snippet.thumbnails.medium?.url ||
+            video.snippet.thumbnails.high?.url
+          }
+          alt={video.snippet.title}
+          loading="lazy"
+        />
+        {video.contentDetails?.duration && (
+          <DurationOverlay>
+            {formatDuration(video.contentDetails.duration)}
+          </DurationOverlay>
+        )}
+      </ImageWrapper>
+      <AlbumTitle>{decodeHtmlEntities(video.snippet.title)}</AlbumTitle>
+      <AlbumDescription>
+        {video.snippet.channelTitle} • 조회수{" "}
+        {video.statistics?.viewCount
+          ? Number(video.statistics.viewCount).toLocaleString()
+          : "정보 없음"}
+      </AlbumDescription>
+    </AlbumCard>
+  );
+});
+
+VideoCard.displayName = "VideoCard";
+
+const GenreSection: React.FC<{
+  genre: Genre;
+  videos: YouTubeVideo[];
+  isLoading: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onRetry: () => void;
+  onPlay: (video: YouTubeVideo) => void;
+}> = React.memo(
+  ({ genre, videos, isLoading, isExpanded, onToggle, onRetry, onPlay }) => {
+    const hasData = videos.length > 0;
+
+    return (
+      <div>
+        <SectionTitle>{genre.name} 모음</SectionTitle>
+        {isLoading ? (
+          <StatusMessage>
+            {genre.name} 음악을 불러오는 중입니다...
+          </StatusMessage>
+        ) : hasData ? (
+          <>
+            <CardGrid expanded={isExpanded}>
+              {videos.map((video) => (
+                <VideoCard
+                  key={
+                    typeof video.id === "object" ? video.id.videoId : video.id
+                  }
+                  video={video}
+                  onPlay={onPlay}
+                />
+              ))}
+            </CardGrid>
+            {videos.length > CONSTANTS.ITEMS_PER_PAGE && (
+              <ToggleButton onClick={onToggle}>
+                {isExpanded ? "간략히" : "더보기"}
+              </ToggleButton>
+            )}
+          </>
+        ) : (
+          <>
+            <StatusMessage>{genre.name} 영상이 없습니다.</StatusMessage>
+            <ToggleButton onClick={onRetry}>다시 시도</ToggleButton>
+          </>
+        )}
+      </div>
+    );
+  }
+);
+
+GenreSection.displayName = "GenreSection";
+
+// ===== 메인 컴포넌트 =====
 const KategorieFunction: React.FC = () => {
+  const { isDarkMode, theme } = useTheme();
   const navigate = useNavigate();
+  const [state, dispatch] = useReducer(appReducer, initialState);
 
-  // ===== [2024-12-30] 상태 관리 최적화 =====
-  const [genreData, setGenreData] = useState<{ [key: string]: any[] }>({});
-  const [loadingGenres, setLoadingGenres] = useState<Set<string>>(new Set());
-
-  // 검색 관련 상태
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  // 🎯 [2024-12-30] 각 장르별 확장/축소 상태 관리
-  const [expandedSections, setExpandedSections] = useState<{
-    [key: string]: boolean;
-  }>({});
-
-  // 🎯 디바운싱 타이머 ID를 저장할 Ref
+  // Refs
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ===== 수정: MusicFunction.tsx와 연동되는 실제 존재하는 속성들만 사용 =====
+  // Music Player 훅
   const {
     playPlaylist,
     setVideos,
@@ -473,118 +707,230 @@ const KategorieFunction: React.FC = () => {
     currentVideoThumbnail,
   } = useMusicPlayer();
 
-  // ===== [2024-12-30] 단일 장르 데이터 로드 함수 =====
-  const loadGenreData = async (genreId: string, searchQuery: string) => {
-    if (genreData[genreId] || loadingGenres.has(genreId)) {
-      return; // 이미 로드되었거나 로딩 중인 경우 스킵
-    }
+  // ===== 메모이제이션된 함수들 =====
+  const loadGenreData = useCallback(
+    async (genreId: string, searchQuery: string) => {
+      if (state.genreData[genreId] || state.loadingGenres[genreId]) {
+        return;
+      }
 
-    setLoadingGenres((prev) => new Set([...Array.from(prev), genreId]));
+      dispatch({ type: "SET_GENRE_LOADING", genreId, loading: true });
+      dispatch({ type: "SET_ERROR", error: null });
 
-    try {
-      const videos = await fetchOptimizedVideos(8, searchQuery, true);
-      setGenreData((prev) => ({
-        ...prev,
-        [genreId]: videos,
-      }));
-    } catch (error) {
-      console.error(`❌ 장르 데이터 로드 실패: ${genreId}`, error);
-      setGenreData((prev) => ({
-        ...prev,
-        [genreId]: [],
-      }));
-    } finally {
-      setLoadingGenres((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(genreId);
-        return newSet;
-      });
-    }
-  };
+      try {
+        const videos = await fetchOptimizedVideos(
+          CONSTANTS.DEFAULT_MAX_RESULTS,
+          searchQuery,
+          true
+        );
+        dispatch({ type: "SET_GENRE_DATA", genreId, data: videos });
+      } catch (error) {
+        console.error(`❌ 장르 데이터 로드 실패: ${genreId}`, error);
+        dispatch({ type: "SET_GENRE_DATA", genreId, data: [] });
+      } finally {
+        dispatch({ type: "SET_GENRE_LOADING", genreId, loading: false });
+      }
+    },
+    [state.genreData, state.loadingGenres]
+  );
 
-  // ===== [2024-12-30] 초기 로딩 최적화: 모든 장르 로드 =====
-  useEffect(() => {
-    if (!hasSearched && Object.keys(genreData).length === 0) {
-      // 모든 장르 데이터 로드
-      genres.forEach((genre) => {
-        loadGenreData(genre.id, genre.searchQuery);
-      });
-    }
-  }, [hasSearched]);
-
-  // ===== [2024-12-30] 검색 기능 최적화 =====
-  const performSearch = async (query: string) => {
+  const performSearch = useCallback(async (query: string) => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
-      setSearchResults([]);
-      setHasSearched(false);
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      dispatch({ type: "RESET_SEARCH" });
       return;
     }
 
     try {
-      setIsSearching(true);
-      setHasSearched(true);
+      dispatch({ type: "SET_SEARCHING", searching: true });
+      dispatch({ type: "SET_HAS_SEARCHED", hasSearched: true });
+      dispatch({ type: "SET_ERROR", error: null });
 
-      // 🎯 스크롤 상단으로 이동
+      // 스크롤 상단으로 이동
       const wrapperElement = document.getElementById("wrapper-scroll");
       if (wrapperElement) {
         wrapperElement.scrollTo({ top: 0, behavior: "smooth" });
       }
 
-      const videos = await fetchOptimizedVideos(20, trimmedQuery, false);
-      setSearchResults(videos);
+      const videos = await fetchOptimizedVideos(
+        CONSTANTS.SEARCH_MAX_RESULTS,
+        trimmedQuery,
+        false
+      );
+      dispatch({ type: "SET_SEARCH_RESULTS", results: videos });
     } catch (error) {
       console.error("검색 실패:", error);
-      setSearchResults([]);
-      setHasSearched(true);
+      dispatch({ type: "SET_SEARCH_RESULTS", results: [] });
+      dispatch({
+        type: "SET_ERROR",
+        error:
+          error instanceof Error
+            ? error.message
+            : "검색 중 오류가 발생했습니다.",
+      });
     } finally {
-      setIsSearching(false);
+      dispatch({ type: "SET_SEARCHING", searching: false });
     }
-  };
-
-  // 🎯 디바운싱된 검색 실행 함수
-  const debouncedPerformSearch = useCallback((query: string) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      performSearch(query);
-    }, 500);
   }, []);
 
-  // 검색 입력 변경 핸들러
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-
-    if (!query.trim()) {
-      setSearchResults([]);
-      setHasSearched(false);
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      return;
-    }
-
-    debouncedPerformSearch(query);
-  };
-
-  // Enter 키 입력 핸들러
-  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
+  const debouncedPerformSearch = useCallback(
+    (query: string) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      performSearch(searchQuery);
-    }
-  };
+      debounceTimerRef.current = setTimeout(() => {
+        performSearch(query);
+      }, CONSTANTS.DEBOUNCE_DELAY);
+    },
+    [performSearch]
+  );
 
-  // 컴포넌트 언마운트 시 정리
+  const handleSearchInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const query = e.target.value;
+      dispatch({ type: "SET_SEARCH_QUERY", query });
+
+      if (!query.trim()) {
+        dispatch({ type: "RESET_SEARCH" });
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        return;
+      }
+
+      debouncedPerformSearch(query);
+    },
+    [debouncedPerformSearch]
+  );
+
+  const handleKeyPress = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+        performSearch(state.searchQuery);
+      }
+    },
+    [performSearch, state.searchQuery]
+  );
+
+  const playSelectedVideo = useCallback(
+    (video: YouTubeVideo) => {
+      const videoId =
+        typeof video.id === "object" ? video.id.videoId : video.id;
+      const videoTitle = decodeHtmlEntities(video.snippet.title);
+      const videoThumbnail =
+        video.snippet.thumbnails.high?.url ||
+        video.snippet.thumbnails.medium?.url;
+
+      console.log(`🎵 단일 영상 재생: ${videoTitle} (ID: ${videoId})`);
+
+      // 임시 플레이리스트 생성
+      const tempPlaylistId = `single_${videoId}_${Date.now()}`;
+      const singleVideoData = [
+        {
+          id: { videoId },
+          snippet: {
+            title: videoTitle,
+            thumbnails: {
+              high: { url: videoThumbnail },
+              medium: { url: videoThumbnail },
+              default: { url: videoThumbnail },
+            },
+            playlistId: tempPlaylistId,
+            resourceId: { videoId },
+            channelTitle: video.snippet.channelTitle,
+          },
+          contentDetails: {
+            duration: video.contentDetails?.duration,
+          },
+          statistics: {
+            viewCount: video.statistics?.viewCount,
+          },
+        },
+      ];
+
+      // 상태 업데이트
+      setVideos(singleVideoData);
+
+      // sessionStorage 업데이트
+      const updates = {
+        musicPlayerVideos: JSON.stringify(singleVideoData),
+        currentVideoId: videoId,
+        currentPlaylistId: tempPlaylistId,
+        currentVideoIndex: "0",
+        isPlaying: "true",
+      };
+
+      Object.entries(updates).forEach(([key, value]) => {
+        sessionStorage.setItem(key, value);
+      });
+
+      // 전역 이벤트 발송
+      window.dispatchEvent(
+        new CustomEvent("updateCurrentVideo", {
+          detail: {
+            videoId,
+            title: videoTitle,
+            thumbnail: videoThumbnail,
+            index: 0,
+          },
+        })
+      );
+
+      // 플레이어 제어
+      if (
+        playerRef.current &&
+        playerReadyRef.current &&
+        typeof playerRef.current.loadVideoById === "function"
+      ) {
+        try {
+          playerRef.current.loadVideoById(videoId);
+          setTimeout(() => {
+            if (
+              playerRef.current &&
+              typeof playerRef.current.playVideo === "function"
+            ) {
+              playerRef.current.playVideo();
+            }
+          }, 100);
+        } catch (error) {
+          console.error(`❌ 플레이어 로드 실패:`, error);
+        }
+      }
+
+      console.log(`✅ 단일 영상 재생 설정 완료: ${videoTitle}`);
+    },
+    [setVideos]
+  );
+
+  const handlePlaylistTitleClick = useCallback(() => {
+    dispatch({ type: "RESET_SEARCH" });
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    console.log("🏠 장르 목록으로 돌아가기");
+  }, []);
+
+  const handleToggleSection = useCallback((genreId: string) => {
+    dispatch({ type: "TOGGLE_SECTION", genreId });
+  }, []);
+
+  // ===== Effects =====
+  useEffect(() => {
+    if (!state.hasSearched && Object.keys(state.genreData).length === 0) {
+      GENRES.forEach((genre) => {
+        loadGenreData(genre.id, genre.searchQuery);
+      });
+    }
+  }, [state.hasSearched, state.genreData, loadGenreData]);
+
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      // 진행 중인 모든 요청 취소
       Array.from(ongoingRequests.values()).forEach((controller) =>
         controller.abort()
       );
@@ -592,127 +938,10 @@ const KategorieFunction: React.FC = () => {
     };
   }, []);
 
-  // ===== 🎯 단일 영상 재생 함수 (기존과 동일) =====
-  const playSelectedVideo = (video: any) => {
-    const videoId = typeof video.id === "object" ? video.id.videoId : video.id;
-    const videoTitle = decodeHtmlEntities(video.snippet.title);
-    const videoThumbnail =
-      video.snippet.thumbnails.high?.url ||
-      video.snippet.thumbnails.medium?.url;
-
-    console.log(`🎵 단일 영상 재생: ${videoTitle} (ID: ${videoId})`);
-
-    // 🎯 간단한 임시 플레이리스트 생성
-    const tempPlaylistId = `single_${videoId}_${Date.now()}`;
-    const singleVideoData = [
-      {
-        id: { videoId },
-        snippet: {
-          title: videoTitle,
-          thumbnails: {
-            high: { url: videoThumbnail },
-            medium: { url: videoThumbnail },
-            default: { url: videoThumbnail },
-          },
-          playlistId: tempPlaylistId,
-          resourceId: { videoId },
-          channelTitle: video.snippet.channelTitle,
-        },
-        contentDetails: {
-          duration: video.contentDetails?.duration,
-        },
-        statistics: {
-          viewCount: video.statistics?.viewCount,
-        },
-      },
-    ];
-
-    // 🎯 상태 업데이트
-    setVideos(singleVideoData);
-
-    // 🎯 sessionStorage 업데이트
-    const updates = {
-      musicPlayerVideos: JSON.stringify(singleVideoData),
-      currentVideoId: videoId,
-      currentPlaylistId: tempPlaylistId,
-      currentVideoIndex: "0",
-      isPlaying: "true",
-    };
-
-    Object.entries(updates).forEach(([key, value]) => {
-      sessionStorage.setItem(key, value);
-    });
-
-    // 🎯 전역 이벤트 발송
-    window.dispatchEvent(
-      new CustomEvent("updateCurrentVideo", {
-        detail: {
-          videoId,
-          title: videoTitle,
-          thumbnail: videoThumbnail,
-          index: 0,
-        },
-      })
-    );
-
-    // 🎯 플레이어 제어
-    if (
-      playerRef.current &&
-      playerReadyRef.current &&
-      typeof playerRef.current.loadVideoById === "function"
-    ) {
-      try {
-        playerRef.current.loadVideoById(videoId);
-        setTimeout(() => {
-          if (
-            playerRef.current &&
-            typeof playerRef.current.playVideo === "function"
-          ) {
-            playerRef.current.playVideo();
-          }
-        }, 100);
-      } catch (error) {
-        console.error(`❌ 플레이어 로드 실패:`, error);
-      }
-    }
-
-    console.log(`✅ 단일 영상 재생 설정 완료: ${videoTitle}`);
-  };
-
-  // ===== [2024-12-30] Playlist 제목 클릭 시 장르 목록으로 돌아가는 핸들러 =====
-  const handlePlaylistTitleClick = () => {
-    // 검색 상태 초기화
-    setSearchQuery("");
-    setSearchResults([]);
-    setHasSearched(false);
-    setIsSearching(false);
-
-    // 디바운싱 타이머 정리
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    console.log("🏠 장르 목록으로 돌아가기");
-  };
-
-  // ===== [2024-12-30] 장르별 확장/축소 토글 함수 =====
-  const toggleSection = (genreId: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [genreId]: !prev[genreId],
-    }));
-  };
-
-  return (
-    <Wrapper id="wrapper-scroll">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "24px",
-        }}
-      >
+  // ===== 메모이제이션된 컴포넌트들 =====
+  const searchSection = useMemo(
+    () => (
+      <HeaderContainer>
         <SectionTitle clickable onClick={handlePlaylistTitleClick}>
           Playlist 🎧
         </SectionTitle>
@@ -720,132 +949,90 @@ const KategorieFunction: React.FC = () => {
           <SearchInput
             type="text"
             placeholder="음악 검색..."
-            value={searchQuery}
+            value={state.searchQuery}
             onChange={handleSearchInputChange}
             onKeyPress={handleKeyPress}
           />
-          <SearchButton onClick={() => performSearch(searchQuery)}>
+          <SearchButton onClick={() => performSearch(state.searchQuery)}>
             🔍
           </SearchButton>
         </SearchContainer>
-      </div>
+      </HeaderContainer>
+    ),
+    [
+      state.searchQuery,
+      handlePlaylistTitleClick,
+      handleSearchInputChange,
+      handleKeyPress,
+      performSearch,
+    ]
+  );
 
-      {/* 🎯 검색 결과 또는 장르별 목록 조건부 렌더링 */}
-      {hasSearched ? (
-        // ===== 검색 결과 표시 =====
-        <>
-          <SectionTitle clickable>검색 결과</SectionTitle>
-          {isSearching ? (
-            <p>검색 중입니다...</p>
-          ) : searchResults.length === 0 ? (
-            <p>검색 결과가 없습니다.</p>
-          ) : (
-            <CardGrid expanded={true}>
-              {searchResults.map((video) => (
-                <AlbumCard
-                  key={video.id.videoId || video.id}
-                  onClick={() => playSelectedVideo(video)}
-                >
-                  <ImageWrapper>
-                    <AlbumImage
-                      src={
-                        video.snippet.thumbnails.medium?.url ||
-                        video.snippet.thumbnails.high?.url
+  const styledTheme = useMemo(
+    () => ({
+      background: isDarkMode ? "#000000" : "#ffffff",
+      cardBackground: isDarkMode ? "#202020" : "#ffffff",
+      textColor: isDarkMode ? "#ffffff" : "#1a1a1a",
+      secondaryText: isDarkMode ? "#cccccc" : "#8e8e93",
+      borderColor: isDarkMode ? "#404040" : "#f0f0f0",
+      inputBackground: isDarkMode ? "#303030" : "#fafafa",
+      inputFocusBackground: isDarkMode ? "#404040" : "#ffffff",
+    }),
+    [isDarkMode]
+  );
+
+  return (
+    <ThemeProvider theme={styledTheme}>
+      <PageWrapper>
+        <Wrapper id="wrapper-scroll">
+          {searchSection}
+
+          {state.error && <ErrorMessage>{state.error}</ErrorMessage>}
+
+          {state.hasSearched ? (
+            // 검색 결과 표시
+            <>
+              <SectionTitle>검색 결과</SectionTitle>
+              {state.isSearching ? (
+                <StatusMessage>검색 중입니다...</StatusMessage>
+              ) : state.searchResults.length === 0 ? (
+                <StatusMessage>검색 결과가 없습니다.</StatusMessage>
+              ) : (
+                <CardGrid expanded={true}>
+                  {state.searchResults.map((video) => (
+                    <VideoCard
+                      key={
+                        typeof video.id === "object"
+                          ? video.id.videoId
+                          : video.id
                       }
-                      alt={video.snippet.title}
+                      video={video}
+                      onPlay={playSelectedVideo}
                     />
-                    {video.contentDetails?.duration && (
-                      <DurationOverlay>
-                        {formatDuration(video.contentDetails.duration)}
-                      </DurationOverlay>
-                    )}
-                  </ImageWrapper>
-                  <AlbumTitle>
-                    {decodeHtmlEntities(video.snippet.title)}
-                  </AlbumTitle>
-                  <AlbumDescription>
-                    {video.snippet.channelTitle} • 조회수{" "}
-                    {video.statistics?.viewCount
-                      ? Number(video.statistics.viewCount).toLocaleString()
-                      : "N/A"}
-                  </AlbumDescription>
-                </AlbumCard>
+                  ))}
+                </CardGrid>
+              )}
+            </>
+          ) : (
+            // 장르별 목록 표시
+            <>
+              {GENRES.map((genre) => (
+                <GenreSection
+                  key={genre.id}
+                  genre={genre}
+                  videos={state.genreData[genre.id] || []}
+                  isLoading={state.loadingGenres[genre.id] || false}
+                  isExpanded={state.expandedSections[genre.id] || false}
+                  onToggle={() => handleToggleSection(genre.id)}
+                  onRetry={() => loadGenreData(genre.id, genre.searchQuery)}
+                  onPlay={playSelectedVideo}
+                />
               ))}
-            </CardGrid>
+            </>
           )}
-        </>
-      ) : (
-        // ===== 모든 장르 목록 표시 =====
-        <>
-          {genres.map((genre) => {
-            const videos = genreData[genre.id] || [];
-            const isLoading = loadingGenres.has(genre.id);
-            const isExpanded = expandedSections[genre.id] || false;
-            const hasData = videos.length > 0;
-
-            return (
-              <div key={genre.id}>
-                <SectionTitle>{genre.name} 모음</SectionTitle>
-                {isLoading ? (
-                  <p>{genre.name} 음악을 불러오는 중입니다...</p>
-                ) : hasData ? (
-                  <>
-                    <CardGrid expanded={isExpanded}>
-                      {videos.map((video) => (
-                        <AlbumCard
-                          key={video.id.videoId || video.id}
-                          onClick={() => playSelectedVideo(video)}
-                        >
-                          <ImageWrapper>
-                            <AlbumImage
-                              src={
-                                video.snippet.thumbnails.medium?.url ||
-                                video.snippet.thumbnails.high?.url
-                              }
-                              alt={video.snippet.title}
-                            />
-                            {video.contentDetails?.duration && (
-                              <DurationOverlay>
-                                {formatDuration(video.contentDetails.duration)}
-                              </DurationOverlay>
-                            )}
-                          </ImageWrapper>
-                          <AlbumTitle>
-                            {decodeHtmlEntities(video.snippet.title)}
-                          </AlbumTitle>
-                          <AlbumDescription>
-                            {video.snippet.channelTitle} • 조회수{" "}
-                            {video.statistics?.viewCount
-                              ? Number(
-                                  video.statistics.viewCount
-                                ).toLocaleString()
-                              : "N/A"}
-                          </AlbumDescription>
-                        </AlbumCard>
-                      ))}
-                    </CardGrid>
-                    {videos.length > 4 && (
-                      <ToggleButton onClick={() => toggleSection(genre.id)}>
-                        {isExpanded ? "간략히" : "더보기"}
-                      </ToggleButton>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p>{genre.name} 영상이 없습니다.</p>
-                    <ToggleButton
-                      onClick={() => loadGenreData(genre.id, genre.searchQuery)}
-                    >
-                      다시 시도
-                    </ToggleButton>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </>
-      )}
-    </Wrapper>
+        </Wrapper>
+      </PageWrapper>
+    </ThemeProvider>
   );
 };
 
