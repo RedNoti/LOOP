@@ -16,6 +16,7 @@ import InputPostScreen from "./screens/InputPostScreen";
 import YouTubeMusicPlayer from "./screens/music";
 import { MusicPlayerProvider } from "./components/MusicFunction";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
+import { Music } from "lucide-react";
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -37,7 +38,7 @@ const router = createBrowserRouter([
       },
       {
         path: "music",
-        element: <YouTubeMusicPlayer />,
+        element: <Music />,
       },
       {
         path: "KategorieFunction",
