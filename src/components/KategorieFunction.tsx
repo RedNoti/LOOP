@@ -450,6 +450,7 @@ const ErrorMessage = styled.div`
 
 // ===== API 호출 함수 최적화 =====
 // YouTube API를 통한 비디오 검색 (캐싱, 중복 방지, 에러 처리 포함)
+// 2단계 API 호출: search API + videos API로 완전한 정보 수집
 async function fetchOptimizedVideos(
   maxResults: number = CONSTANTS.DEFAULT_MAX_RESULTS,
   searchQuery: string = "",
@@ -481,6 +482,7 @@ async function fetchOptimizedVideos(
 
     console.log(`🎵 API 호출 시작: ${searchQuery} (${isGenre ? '장르' : '검색'})`);
 
+    // 1단계: Search API로 기본 비디오 정보 가져오기 (제목, 썸네일, 채널명)
     const searchRes = await fetch(
       `${API_CONFIG.BASE_URL}/search?part=snippet&type=video&videoCategoryId=${API_CONFIG.CATEGORY_ID}&q=${encodeURIComponent(
         searchQuery
@@ -496,18 +498,56 @@ async function fetchOptimizedVideos(
     }
 
     const searchData = await searchRes.json();
-    const items: YouTubeVideo[] = searchData.items || [];
+    const searchItems: any[] = searchData.items || [];
 
-    if (!items.length) {
+    if (!searchItems.length) {
       console.log(`✅ ${searchQuery} 검색 완료: 결과 없음`);
       return [];
     }
 
-    // 캐시에 저장
-    videoCache.set(searchQuery, items, isGenre);
-    console.log(`✅ ${searchQuery} 검색 완료: ${items.length}개 영상 (캐시됨)`);
+    // 2단계: Videos API로 상세 정보 가져오기 (조회수, 영상 시간)
+    console.log(`📊 상세 정보 요청 중: ${searchItems.length}개 영상`);
+    
+    // videoId 목록을 콤마로 구분된 문자열로 변환
+    const videoIds = searchItems.map(item => item.id.videoId).join(',');
+    
+    const videosRes = await fetch(
+      `${API_CONFIG.BASE_URL}/videos?part=statistics,contentDetails&id=${videoIds}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: abortController.signal
+      }
+    );
 
-    return items;
+    if (!videosRes.ok) {
+      throw new Error(`Videos API 요청 실패: ${videosRes.status}`);
+    }
+
+    const videosData = await videosRes.json();
+    const videoDetails: any[] = videosData.items || [];
+
+    // 3단계: Search 결과와 Videos 결과 병합
+    console.log(`🔗 데이터 병합 중: search(${searchItems.length}) + videos(${videoDetails.length})`);
+    
+    const enrichedVideos: YouTubeVideo[] = searchItems.map(searchItem => {
+      // 동일한 videoId를 가진 상세 정보 찾기
+      const detailItem = videoDetails.find(detail => detail.id === searchItem.id.videoId);
+      
+      return {
+        // 기본 search 정보 유지
+        id: searchItem.id,
+        snippet: searchItem.snippet,
+        // 상세 정보 추가 (조회수, 영상 시간)
+        statistics: detailItem?.statistics || { viewCount: "0" },
+        contentDetails: detailItem?.contentDetails || { duration: "PT0S" }
+      };
+    });
+
+    // 캐시에 저장 (완전한 정보를 가진 데이터)
+    videoCache.set(searchQuery, enrichedVideos, isGenre);
+    console.log(`✅ ${searchQuery} 검색 완료: ${enrichedVideos.length}개 영상 (조회수+시간 포함, 캐시됨)`);
+
+    return enrichedVideos;
   } catch (error) {
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
