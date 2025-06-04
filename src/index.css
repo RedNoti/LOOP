@@ -10,16 +10,6 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 전역 스크롤바 숨김  2025-06-03 박성한*/
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;

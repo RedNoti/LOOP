@@ -197,11 +197,6 @@ const TooltipContainer = styled.div`
   justify-content: center;
 `;
 
-const PageWrapper = styled.div`
-  background-color: #030303;
-  min-height: 100vh;
-`;
-
 const Layout = () => {
   const { isDarkMode } = useTheme();
   const [gradientLayers, setGradientLayers] = useState<

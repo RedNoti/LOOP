@@ -164,12 +164,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
 }
 
 // ===== 유틸리티 함수들 =====
+// HTML 엔티티를 일반 텍스트로 변환 (&amp; → &)
 function decodeHtmlEntities(str: string): string {
   const txt = document.createElement("textarea");
   txt.innerHTML = str;
   return txt.value;
 }
 
+// ISO 8601 시간 형식을 분:초 형태로 변환 (PT3M45S → 3:45)
 function formatDuration(isoDuration: string): string {
   if (!isoDuration) return "";
   const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -191,6 +193,7 @@ class VideoCache {
   private genres = new Map<string, CacheData>();
   private searches = new Map<string, CacheData>();
 
+  // 캐시에서 데이터 조회 (15분 유효기간)
   get(key: string, isGenre: boolean): YouTubeVideo[] | null {
     const cache = isGenre ? this.genres : this.searches;
     const cached = cache.get(key);
@@ -208,11 +211,13 @@ class VideoCache {
     return null;
   }
 
+  // 캐시에 데이터 저장 (타임스탬프와 함께)
   set(key: string, data: YouTubeVideo[], isGenre: boolean): void {
     const cache = isGenre ? this.genres : this.searches;
     cache.set(key, { data, timestamp: Date.now() });
   }
 
+  // 모든 캐시 데이터 삭제
   clear(): void {
     this.genres.clear();
     this.searches.clear();
@@ -227,34 +232,6 @@ const PageWrapper = styled.div<{ theme: CustomTheme }>`
   background-color: ${({ theme }) => theme.background};
   min-height: 100vh;
   transition: background-color 0.3s ease;
-`;
-
-const Wrapper = styled.div<{ theme: CustomTheme }>`
-  padding: 25px 40px 40px 40px;
-  background-color: ${({ theme }) => theme.background};
-  color: ${({ theme }) => theme.textColor};
-  min-height: 100vh;
-  max-height: 100vh;
-  overflow-y: auto;
-  transition: all 0.3s ease;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: ${({ theme }) => theme.borderColor};
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: ${({ theme }) => theme.secondaryText};
-    border-radius: 4px;
-    opacity: 0.6;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    opacity: 1;
-  }
 `;
 
 const HeaderContainer = styled.div`
@@ -472,6 +449,7 @@ const ErrorMessage = styled.div`
 `;
 
 // ===== API 호출 함수 최적화 =====
+// YouTube API를 통한 비디오 검색 (캐싱, 중복 방지, 에러 처리 포함)
 async function fetchOptimizedVideos(
   maxResults: number = CONSTANTS.DEFAULT_MAX_RESULTS,
   searchQuery: string = "",
@@ -546,10 +524,12 @@ async function fetchOptimizedVideos(
 }
 
 // ===== 컴포넌트 분리 =====
+// 개별 비디오 카드 컴포넌트 (썸네일, 제목, 조회수 표시)
 const VideoCard: React.FC<{
   video: YouTubeVideo;
   onPlay: (video: YouTubeVideo) => void;
 }> = React.memo(({ video, onPlay }) => {
+  // 비디오 클릭 시 재생 처리
   const handleClick = useCallback(() => {
     onPlay(video);
   }, [video, onPlay]);
@@ -584,6 +564,7 @@ const VideoCard: React.FC<{
 
 VideoCard.displayName = 'VideoCard';
 
+// 장르별 섹션 컴포넌트 (로딩, 더보기/간략히, 재시도 기능 포함)
 const GenreSection: React.FC<{
   genre: Genre;
   videos: YouTubeVideo[];
@@ -648,6 +629,7 @@ const KategorieFunction: React.FC = () => {
   } = useMusicPlayer();
 
   // ===== 메모이제이션된 함수들 =====
+  // 특정 장르의 음악 데이터 로드 (중복 방지)
   const loadGenreData = useCallback(async (genreId: string, searchQuery: string) => {
     if (state.genreData[genreId] || state.loadingGenres[genreId]) {
       return;
@@ -662,12 +644,12 @@ const KategorieFunction: React.FC = () => {
     } catch (error) {
       console.error(`❌ 장르 데이터 로드 실패: ${genreId}`, error);
       dispatch({ type: 'SET_GENRE_DATA', genreId, data: [] });
-
     } finally {
       dispatch({ type: 'SET_GENRE_LOADING', genreId, loading: false });
     }
   }, [state.genreData, state.loadingGenres]);
 
+  // 사용자 입력에 따른 음악 검색 실행
   const performSearch = useCallback(async (query: string) => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
@@ -700,6 +682,7 @@ const KategorieFunction: React.FC = () => {
     }
   }, []);
 
+  // 검색 입력 디바운싱 (0.5초 지연으로 과도한 API 호출 방지)
   const debouncedPerformSearch = useCallback((query: string) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -709,6 +692,7 @@ const KategorieFunction: React.FC = () => {
     }, CONSTANTS.DEBOUNCE_DELAY);
   }, [performSearch]);
 
+  // 검색 입력 필드 변경 처리
   const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     dispatch({ type: 'SET_SEARCH_QUERY', query });
@@ -722,6 +706,7 @@ const KategorieFunction: React.FC = () => {
     debouncedPerformSearch(query);
   }, [debouncedPerformSearch]);
 
+  // Enter 키 눌렀을 때 즉시 검색 실행
   const handleKeyPress = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       if (debounceTimerRef.current) {
@@ -731,6 +716,7 @@ const KategorieFunction: React.FC = () => {
     }
   }, [performSearch, state.searchQuery]);
 
+  // 선택된 비디오를 음악 플레이어에서 재생 (임시 플레이리스트 생성)
   const playSelectedVideo = useCallback((video: YouTubeVideo) => {
     const videoId = typeof video.id === "object" ? video.id.videoId : video.id;
     const videoTitle = decodeHtmlEntities(video.snippet.title);
@@ -817,6 +803,7 @@ const KategorieFunction: React.FC = () => {
     console.log(`✅ 단일 영상 재생 설정 완료: ${videoTitle}`);
   }, [setVideos]);
 
+  // 제목 클릭 시 검색 초기화, 메인 화면으로 복귀
   const handlePlaylistTitleClick = useCallback(() => {
     dispatch({ type: 'RESET_SEARCH' });
     
@@ -827,11 +814,13 @@ const KategorieFunction: React.FC = () => {
     console.log("🏠 장르 목록으로 돌아가기");
   }, []);
 
+  // 장르 섹션의 더보기/간략히 토글
   const handleToggleSection = useCallback((genreId: string) => {
     dispatch({ type: 'TOGGLE_SECTION', genreId });
   }, []);
 
   // ===== Effects =====
+  // 컴포넌트 마운트 시 모든 장르 데이터 로드
   useEffect(() => {
     if (!state.hasSearched && Object.keys(state.genreData).length === 0) {
       GENRES.forEach(genre => {
@@ -840,6 +829,7 @@ const KategorieFunction: React.FC = () => {
     }
   }, [state.hasSearched, state.genreData, loadGenreData]);
 
+  // 컴포넌트 언마운트 시 리소스 정리 (타이머, API 요청, 캐시)
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -851,6 +841,7 @@ const KategorieFunction: React.FC = () => {
   }, []);
 
   // ===== 메모이제이션된 컴포넌트들 =====
+  // 검색 섹션 UI 메모이제이션 (리렌더링 최적화)
   const searchSection = useMemo(() => (
     <HeaderContainer>
       <SectionTitle clickable onClick={handlePlaylistTitleClick}>
@@ -871,6 +862,7 @@ const KategorieFunction: React.FC = () => {
     </HeaderContainer>
   ), [state.searchQuery, handlePlaylistTitleClick, handleSearchInputChange, handleKeyPress, performSearch]);
 
+  // 테마 색상 객체 메모이제이션 (다크/라이트 모드)
   const styledTheme = useMemo(() => ({
     background: isDarkMode ? "#000000" : "#ffffff",
     cardBackground: isDarkMode ? "#202020" : "#ffffff", 
@@ -884,7 +876,6 @@ const KategorieFunction: React.FC = () => {
   return (
     <ThemeProvider theme={styledTheme}>
       <PageWrapper>
-        <Wrapper id="wrapper-scroll">
           {searchSection}
           
           {state.error && (
@@ -928,7 +919,6 @@ const KategorieFunction: React.FC = () => {
               ))}
             </>
           )}
-        </Wrapper>
       </PageWrapper>
     </ThemeProvider>
   );
