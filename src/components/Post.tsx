@@ -21,6 +21,7 @@ interface PostProps {
   post: string;
   createdAt: number;
   photoUrl?: string;
+  photoUrls?: string[]; // ✅ 이 줄을 추가
   comments?: {
     userId: string;
     nickname: string;
