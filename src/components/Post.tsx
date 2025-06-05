@@ -21,7 +21,7 @@ interface PostProps {
   post: string;
   createdAt: number;
   photoUrl?: string;
-  photoUrls?: string[]; // ✅ 이 줄을 추가
+  photoUrls?: string[];
   comments?: {
     userId: string;
     nickname: string;
@@ -56,10 +56,9 @@ const Post = ({
   playlist,
   playlistFileUrl,
 }: PostProps) => {
-  // 다크모드 훅 추가
   const { isDarkMode } = useTheme();
 
-  // 상태 관리 (기존과 동일)
+  // 상태 관리
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
@@ -74,6 +73,7 @@ const Post = ({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
+  const [currentPost, setCurrentPost] = useState(post); // 본문 실시간 반영용
   const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
 
@@ -84,7 +84,7 @@ const Post = ({
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const [isZooming, setIsZooming] = useState(false);
 
-  // useEffect 훅들 (기존과 동일)
+  // useEffect 훅들
   useEffect(() => {
     const fetchPost = async () => {
       const postRef = doc(db, "posts", id);
@@ -102,9 +102,12 @@ const Post = ({
               : `http://loopmusic.kro.kr:4001/uploads/post_images/${url}`
           )
         );
+        setCurrentPost(data.post); // DB에 저장된 최신 post 반영
+        setEditedPost(data.post); // 수정창 내용도 최신값으로 동기화
       }
     };
     fetchPost();
+    // eslint-disable-next-line
   }, [id, user?.uid, nickname]);
 
   useEffect(() => {
@@ -136,7 +139,7 @@ const Post = ({
     fetchPlaylistFile();
   }, [playlistFileUrl]);
 
-  // 이벤트 핸들러들 (기존과 동일)
+  // 이벤트 핸들러들
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
     if (hasLiked) {
@@ -237,7 +240,10 @@ const Post = ({
           <ActionButtons>
             <ActionBtn
               $isDark={isDarkMode}
-              onClick={() => setIsEditing(!isEditing)}
+              onClick={() => {
+                setIsEditing(!isEditing);
+                setEditedPost(currentPost); // 수정 시작 시, 최신 본문으로 동기화
+              }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
@@ -264,30 +270,43 @@ const Post = ({
 
       {/* 콘텐츠 영역 */}
       <ContentArea>
-        {isEditing ? (
+        <PostContent $isDark={isDarkMode}>{currentPost}</PostContent>
+        {/* === [수정창: 댓글창처럼 펼쳐지기] === */}
+        <EditingAreaWrapper show={isEditing}>
           <EditingArea>
             <EditTextarea
               $isDark={isDarkMode}
               value={editedPost}
               onChange={(e) => setEditedPost(e.target.value)}
               placeholder="게시글을 작성해주세요..."
+              autoFocus
             />
-            <SaveBtn
-              onClick={async () => {
-                try {
-                  await updateDoc(doc(db, "posts", id), { post: editedPost });
+            <div style={{ display: "flex", gap: 8 }}>
+              <SaveBtn
+                onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, "posts", id), { post: editedPost });
+                    setIsEditing(false);
+                    setCurrentPost(editedPost); // 본문 실시간 갱신
+                  } catch (err) {
+                    console.error("게시글 수정 오류:", err);
+                  }
+                }}
+              >
+                저장
+              </SaveBtn>
+              <SaveBtn
+                style={{ background: "#bbb", color: "#fff" }}
+                onClick={() => {
                   setIsEditing(false);
-                } catch (err) {
-                  console.error("게시글 수정 오류:", err);
-                }
-              }}
-            >
-              저장
-            </SaveBtn>
+                  setEditedPost(currentPost);
+                }}
+              >
+                취소
+              </SaveBtn>
+            </div>
           </EditingArea>
-        ) : (
-          <PostContent $isDark={isDarkMode}>{post}</PostContent>
-        )}
+        </EditingAreaWrapper>
       </ContentArea>
 
       {/* 이미지 갤러리 */}
@@ -505,7 +524,8 @@ const Post = ({
 
 export default Post;
 
-// 글로벌 스타일
+// === 스타일드 컴포넌트 ===
+
 const ZoomStyle = createGlobalStyle`
   .zoom-img.active {
     left: 50% !important;
@@ -540,21 +560,34 @@ const ZoomStyle = createGlobalStyle`
   }
 `;
 
-// 스타일드 컴포넌트
+// 댓글창처럼 펼쳐지는 애니메이션
+const EditingAreaWrapper = styled.div<{ show: boolean }>`
+  overflow: hidden;
+  max-height: ${({ show }) => (show ? "400px" : "0")};
+  opacity: ${({ show }) => (show ? 1 : 0)};
+  transition: max-height 0.44s cubic-bezier(0.43, 0.22, 0.16, 1), opacity 0.33s;
+  pointer-events: ${({ show }) => (show ? "auto" : "none")};
+`;
+
+// 이하 기존 스타일 동일...
 const Container = styled.div<{ $isDark: boolean }>`
   background: ${(props) => (props.$isDark ? "#1c1c1c" : "#ffffff")};
   border-radius: 20px;
   margin-bottom: 24px;
-  box-shadow: 0 2px 12px
-    ${(props) => (props.$isDark ? "rgba(0, 0, 0, 0.3)" : "rgba(0, 0, 0, 0.04)")};
+  box-shadow: ${(props) =>
+    props.$isDark
+      ? "0 4px 20px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)"
+      : "0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)"};
   border: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
   overflow: hidden;
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 20px
-      ${(props) =>
-        props.$isDark ? "rgba(0, 0, 0, 0.4)" : "rgba(0, 0, 0, 0.08)"};
+    box-shadow: ${(props) =>
+      props.$isDark
+        ? "0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4)"
+        : "0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06)"};
+    transform: translateY(-2px);
   }
 `;
 
@@ -641,12 +674,14 @@ const PostContent = styled.div<{ $isDark: boolean }>`
   white-space: pre-wrap;
 `;
 
+// === 수정창 내부 ===
 const EditingArea = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 100%;
   box-sizing: border-box;
+  margin-top: 14px;
 `;
 
 const EditTextarea = styled.textarea<{ $isDark: boolean }>`
