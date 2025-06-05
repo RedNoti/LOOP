@@ -1,6 +1,5 @@
 import ColorThief from "colorthief/dist/color-thief";
 import React, { useRef, useEffect, useState } from "react";
-import Lyrics from "../components/Lyrics";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -403,10 +402,12 @@ export default function YouTubeMusicPlayer({
   onColorExtract,
   onColorExtractSecondary,
   onColorExtractHover,
+  isFullScreenMode = false,
 }: {
   onColorExtract?: (color: string) => void;
   onColorExtractSecondary?: (color: string) => void;
   onColorExtractHover?: (color: string) => void;
+  isFullScreenMode?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
     null

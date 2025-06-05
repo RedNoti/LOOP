@@ -37,6 +37,7 @@ const Body = styled.div`
   height: calc(100vh - 70px);
   display: flex;
   overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 `;
 
 const Navigator = styled.div<{ $isDark: boolean }>`
@@ -133,41 +134,60 @@ const BottomMenu = styled.div`
   gap: 6px;
 `;
 
-const MainContent = styled.div<{ $isDark: boolean }>`
+const MainContent = styled.div<{
+  $isDark: boolean;
+  $isFullscreenMusic: boolean;
+}>`
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
   background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
-  transition: background-color 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: ${(props) => (props.$isFullscreenMusic ? "none" : "flex")};
+  flex-direction: column;
+  min-height: 100%;
 `;
 
-const ContentContainer = styled.div`
+const ContentContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   display: flex;
   width: 100%;
   height: 100%;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  justify-content: ${(props) =>
+    props.$isFullscreenMusic ? "flex-end" : "flex-start"};
 `;
 
-const MusicPlayerContainer = styled.div`
-  width: 33.33%;
+const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
+  width: ${(props) => (props.$isFullscreenMusic ? "100%" : "33.33%")};
   min-width: 320px;
   height: 100%;
   box-sizing: border-box;
   padding: 0;
   overflow: hidden;
-  border-radius: 20px 0 0 0;
+  border-radius: ${(props) =>
+    props.$isFullscreenMusic ? "10px" : "20px 0 0 0"};
   position: relative;
   background: #ffffff;
-  border-left: 1px solid #f0f0f0;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.04);
+  border-left: ${(props) =>
+    props.$isFullscreenMusic ? "none" : "1px solid #f0f0f0"};
+  box-shadow: ${(props) =>
+    props.$isFullscreenMusic ? "none" : "-2px 0 8px rgba(0, 0, 0, 0.04)"};
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: right center;
 `;
 
-const GradientOverlay = styled.div<{ color1: string; color2: string }>`
+const GradientOverlay = styled.div<{
+  color1: string;
+  color2: string;
+  $isFullscreenMusic: boolean;
+}>`
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   left: 0;
-  border-radius: 20px 0 0 0;
+  border-radius: ${(props) =>
+    props.$isFullscreenMusic ? "10px" : "20px 0 0 0"};
   background: linear-gradient(
     135deg,
     ${(props) => props.color1},
@@ -175,6 +195,7 @@ const GradientOverlay = styled.div<{ color1: string; color2: string }>`
   );
   opacity: 1;
   animation: fadeIn 0.8s ease;
+  transition: border-radius 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 
   &.fading {
     opacity: 0;
@@ -188,6 +209,35 @@ const GradientOverlay = styled.div<{ color1: string; color2: string }>`
     to {
       opacity: 1;
     }
+  }
+`;
+
+const FullscreenExitButton = styled.button<{ $isVisible: boolean }>`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  cursor: pointer;
+  z-index: 1000;
+  display: ${(props) => (props.$isVisible ? "flex" : "none")};
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+    transform: scale(1.1);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
   }
 `;
 
@@ -206,17 +256,21 @@ const Layout = () => {
   const [secondaryColor, setSecondaryColor] = useState<string | null>(null);
   const navi = useNavigate();
   const location = useLocation();
+
+  // music 페이지 여부 및 숨김 여부 확인
   const hidePlayer =
     location.pathname === "/signin" || location.pathname === "/signup";
+  const isFullscreenMusic = location.pathname === "/music";
 
   const MemoizedMusicPlayer = useMemo(
     () => (
       <YouTubeMusicPlayer
         onColorExtract={setDominantColor}
         onColorExtractSecondary={setSecondaryColor}
+        isFullScreenMode={isFullscreenMusic}
       />
     ),
-    []
+    [isFullscreenMusic]
   );
 
   const signOut = async () => {
@@ -225,6 +279,10 @@ const Layout = () => {
       await auth.signOut();
       navi("/signin");
     }
+  };
+
+  const exitFullscreen = () => {
+    navi("/"); // 홈으로 이동
   };
 
   useEffect(() => {
@@ -353,20 +411,23 @@ const Layout = () => {
           </BottomMenu>
         </Navigator>
 
-        <ContentContainer>
-          <MainContent $isDark={isDarkMode}>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                minHeight: "100%",
-              }}
-            >
-              <Outlet />
-            </div>
+        <ContentContainer $isFullscreenMusic={isFullscreenMusic}>
+          <MainContent
+            $isDark={isDarkMode}
+            $isFullscreenMusic={isFullscreenMusic}
+          >
+            <Outlet />
           </MainContent>
           {!hidePlayer && (
-            <MusicPlayerContainer>
+            <MusicPlayerContainer $isFullscreenMusic={isFullscreenMusic}>
+              <FullscreenExitButton
+                $isVisible={isFullscreenMusic}
+                onClick={exitFullscreen}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </svg>
+              </FullscreenExitButton>
               {gradientLayers.map((layer, index) => (
                 <GradientOverlay
                   key={layer.id}
@@ -375,6 +436,7 @@ const Layout = () => {
                   }
                   color1={layer.color1}
                   color2={layer.color2}
+                  $isFullscreenMusic={isFullscreenMusic}
                 />
               ))}
               {MemoizedMusicPlayer}
