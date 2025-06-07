@@ -124,7 +124,7 @@ const ProgressBar = styled.input`
   flex: 1;
   appearance: none;
   height: 4px;
-  background: linear-gradient(to right, #1db954 0%, #444 0%);
+  background: linear-gradient(to right, #4d76fc 0%, #444 0%);
   border-radius: 2px;
   outline: none;
   position: relative;
@@ -160,7 +160,7 @@ const VolumeSlider = styled.input`
   width: 100px;
   height: 6px;
   appearance: none;
-  background: linear-gradient(to right, #1db954 50%, #444 50%);
+  background: linear-gradient(to right, #4d76fc 50%, #444 50%);
   border-radius: 10px;
   outline: none;
   cursor: pointer;
@@ -194,7 +194,7 @@ const PlaybackControlsWrapper = styled.div`
 const PlaybackControlButton = styled.button<{ active?: boolean }>`
   background: none;
   border: none;
-  color: ${(props) => (props.active ? "#1db954" : "white")};
+  color: ${(props) => (props.active ? "#4d76fc" : "white")};
   cursor: pointer;
   transition: transform 0.2s ease, color 0.2s ease;
 
@@ -635,7 +635,7 @@ export default function YouTubeMusicPlayer({
 
   const progressPercentage = duration > 0 ? (sliderValue / duration) * 100 : 0;
   const progressStyle = {
-    background: `linear-gradient(to right, #1db954 ${progressPercentage}%, #444 ${progressPercentage}%)`,
+    background: `linear-gradient(to right, #4d76fc ${progressPercentage}%, #444 ${progressPercentage}%)`,
   };
 
   const toggleRepeatMode = () => {
@@ -787,7 +787,7 @@ export default function YouTubeMusicPlayer({
                   value={volume}
                   onChange={changeVolume}
                   style={{
-                    background: `linear-gradient(to right, #1db954 ${volume}%, #444 ${volume}%)`,
+                    background: `linear-gradient(to right, #4d76fc ${volume}%, #444 ${volume}%)`,
                   }}
                 />
               </VolumeWrapper>

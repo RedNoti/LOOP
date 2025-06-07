@@ -164,12 +164,9 @@ const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   box-sizing: border-box;
   padding: 0;
   overflow: hidden;
-  border-radius: ${(props) =>
-    props.$isFullscreenMusic ? "10px" : "20px 0 0 0"};
+  border-radius: 15px;
   position: relative;
-  background: #ffffff;
-  border-left: ${(props) =>
-    props.$isFullscreenMusic ? "none" : "1px solid #f0f0f0"};
+  border-left: none;
   box-shadow: ${(props) =>
     props.$isFullscreenMusic ? "none" : "-2px 0 8px rgba(0, 0, 0, 0.04)"};
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
