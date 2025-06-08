@@ -101,7 +101,7 @@ const Post = ({
           (data.photoUrls || []).map((url: string) =>
             url.includes("http://")
               ? url
-              : `http://loopmusic.kro.kr:4001/uploads/post_images/${url}`
+              : `https://loopmusic.o-r.kr:4003/uploads/post_images/${url}`
           )
         );
         setCurrentPost(data.post); // DB에 저장된 최신 post 반영
@@ -167,7 +167,7 @@ const Post = ({
         for (const url of photoUrls) {
           try {
             const filename = url.split("/").pop();
-            await fetch("http://loopmusic.kro.kr:4001/delete", {
+            await fetch("https://loopmusic.o-r.kr:4003/delete", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -182,7 +182,7 @@ const Post = ({
       if (playlistFileUrl) {
         try {
           const filename = playlistFileUrl.split("/").pop();
-          await fetch("http://loopmusic.kro.kr:4001/delete", {
+          await fetch("https://loopmusic.o-r.kr:4003/delete", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
