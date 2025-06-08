@@ -1,7 +1,15 @@
 # LOOP - 내 음악 스타일을 공유하는 SNS 웹페이지 프로젝트
-안녕하세요 나만의 음악 플레이 리스트를 공유하는 SNS 웹페이지를 개발중인 LOOP팀입니다.
-## 사용중인 스크립트
 
+안녕하세요 나만의 음악 플레이 리스트를 공유하는 SNS 웹페이지를 개발중인 LOOP팀입니다.
+
+## 프로젝트 파일 로드
+
+도커 사용시 : docker load -i loop_last.tar
+Git : https://github.com/RedNoti/LOOP.git
+
+### 실행 코드
+
+`npm start` or https://loopmusic.o-r.kr:4003/ 으로 접속
 
 In the project directory, you can run:
 
