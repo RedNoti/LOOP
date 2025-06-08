@@ -1,3 +1,4 @@
+import { useImageModal } from "../screens/layout";
 import { useState, useEffect, useRef } from "react";
 import styled, { createGlobalStyle } from "styled-components";
 import { auth, db } from "../firebaseConfig";
@@ -59,6 +60,7 @@ const Post = ({
   const { isDarkMode } = useTheme();
 
   // 상태 관리
+  const { openModal } = useImageModal();
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
   const [likes, setLikes] = useState(0);
@@ -318,7 +320,7 @@ const Post = ({
                 src={url}
                 alt={`Post image ${index + 1}`}
                 ref={(el) => (imgRefs.current[index] = el)}
-                onClick={() => handleImageClick(url, index)}
+                onClick={() => openModal(url)} // ✅ 기존 zoom 대신
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.onerror = null;

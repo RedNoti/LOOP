@@ -4,7 +4,30 @@ import styled from "styled-components";
 import { auth } from "../firebaseConfig";
 import YouTubeMusicPlayer from "../screens/music";
 import { useTheme } from "../components/ThemeContext";
-import React, { useEffect, useState, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  createContext,
+  useContext,
+  useRef,
+} from "react";
+
+// 이미지 모달 컨텍스트 생성
+interface ImageModalContextType {
+  openModal: (src: string) => void;
+  closeModal: () => void;
+}
+
+const ImageModalContext = createContext<ImageModalContextType | null>(null);
+
+export const useImageModal = () => {
+  const context = useContext(ImageModalContext);
+  if (!context) {
+    throw new Error("useImageModal must be used within ImageModalProvider");
+  }
+  return context;
+};
 
 const LayoutWrapper = styled.div<{ $isDark: boolean }>`
   display: flex;
@@ -143,9 +166,29 @@ const MainContent = styled.div<{
   overflow-y: auto;
   background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  display: ${(props) => (props.$isFullscreenMusic ? "none" : "flex")};
-  flex-direction: column;
-  min-height: 100%;
+  position: relative;
+  height: calc(100vh - 70px); /* 명시적 높이 설정 */
+  min-height: 0;
+
+  /* 스크롤바 스타일링 */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: ${(props) => (props.$isDark ? "#202020" : "#f1f1f1")};
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: ${(props) => (props.$isDark ? "#404040" : "#c1c1c1")};
+    border-radius: 4px;
+    transition: background 0.3s ease;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: ${(props) => (props.$isDark ? "#606060" : "#a1a1a1")};
+  }
 `;
 
 const ContentContainer = styled.div<{ $isFullscreenMusic: boolean }>`
@@ -155,6 +198,7 @@ const ContentContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   justify-content: ${(props) =>
     props.$isFullscreenMusic ? "flex-end" : "flex-start"};
+  overflow: hidden; /* 부모에서 overflow 제어 */
 `;
 
 const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
@@ -244,6 +288,70 @@ const TooltipContainer = styled.div`
   justify-content: center;
 `;
 
+// 이미지 모달 스타일 추가
+const ImageModal = styled.div<{ $isOpen: boolean; $isDark: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  backdrop-filter: blur(10px);
+  opacity: ${(props) => (props.$isOpen ? 1 : 0)};
+  visibility: ${(props) => (props.$isOpen ? "visible" : "hidden")};
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  pointer-events: ${(props) => (props.$isOpen ? "auto" : "none")};
+`;
+
+const ModalImage = styled.img<{ $isOpen: boolean }>`
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  user-select: none;
+  pointer-events: auto;
+  transform: ${(props) => (props.$isOpen ? "scale(1)" : "scale(0.8)")};
+  transition: transform 0.2s ease;
+`;
+
+const ModalCloseButton = styled.button<{ $isOpen: boolean }>`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  z-index: 100000;
+  pointer-events: auto;
+  opacity: ${(props) => (props.$isOpen ? 1 : 0)};
+  transform: ${(props) => (props.$isOpen ? "scale(1)" : "scale(0.8)")};
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: ${(props) => (props.$isOpen ? "scale(1.1)" : "scale(0.8)")};
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
 const Layout = () => {
   const { isDarkMode } = useTheme();
   const [gradientLayers, setGradientLayers] = useState<
@@ -251,6 +359,7 @@ const Layout = () => {
   >([]);
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [secondaryColor, setSecondaryColor] = useState<string | null>(null);
+  const [imageModalSrc, setImageModalSrc] = useState<string | null>(null);
   const navi = useNavigate();
   const location = useLocation();
 
@@ -259,15 +368,16 @@ const Layout = () => {
     location.pathname === "/signin" || location.pathname === "/signup";
   const isFullscreenMusic = location.pathname === "/music";
 
+  // 음악 플레이어를 한 번만 생성하고 재사용 (의존성 배열에서 isFullscreenMusic 제거)
   const MemoizedMusicPlayer = useMemo(
     () => (
       <YouTubeMusicPlayer
         onColorExtract={setDominantColor}
         onColorExtractSecondary={setSecondaryColor}
-        isFullScreenMode={isFullscreenMusic}
+        isFullScreenMode={isFullscreenMusic} // props로 전달하되 의존성에서 제외
       />
     ),
-    [isFullscreenMusic]
+    [] // 빈 의존성 배열로 한 번만 생성
   );
 
   const signOut = async () => {
@@ -281,6 +391,36 @@ const Layout = () => {
   const exitFullscreen = () => {
     navi("/"); // 홈으로 이동
   };
+
+  const closeImageModal = () => {
+    setImageModalSrc(null);
+    document.body.style.overflow = "auto";
+  };
+
+  // 컨텍스트 값
+  const imageModalContextValue = useMemo(
+    () => ({
+      openModal: (src: string) => {
+        // 딜레이 없이 즉시 설정
+        setImageModalSrc(src);
+        document.body.style.overflow = "hidden";
+      },
+      closeModal: closeImageModal,
+    }),
+    []
+  );
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && imageModalSrc) {
+        closeImageModal();
+      }
+    };
+
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [imageModalSrc]);
 
   useEffect(() => {
     if (dominantColor && secondaryColor) {
@@ -297,16 +437,100 @@ const Layout = () => {
   }, [dominantColor, secondaryColor]);
 
   return (
-    <LayoutWrapper $isDark={isDarkMode}>
-      <Header $isDark={isDarkMode}>
-        <Logo src="/uplogo.png" alt="uplogo" />
-      </Header>
-      <Body>
-        <Navigator $isDark={isDarkMode}>
-          <MenuSection>
-            <Link to="/" style={{ textDecoration: "none" }}>
+    <ImageModalContext.Provider value={imageModalContextValue}>
+      <LayoutWrapper $isDark={isDarkMode}>
+        <Header $isDark={isDarkMode}>
+          <Logo src="/uplogo.png" alt="uplogo" />
+        </Header>
+        <Body>
+          <Navigator $isDark={isDarkMode}>
+            <MenuSection>
+              <Link to="/" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
+              <Link to="/music" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/music"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
+              <Link to="/InputPostScreen" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/InputPostScreen"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4.5v15m7.5-7.5h-15"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
+              <Link to="/profile" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/profile"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+            </MenuSection>
+
+            <MenuDivider />
+
+            <BottomMenu>
               <TooltipContainer>
-                <MenuItem isActive={location.pathname === "/"}>
+                <MenuItem onClick={signOut}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
@@ -317,131 +541,88 @@ const Layout = () => {
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+                      d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
                     />
                   </svg>
                 </MenuItem>
               </TooltipContainer>
-            </Link>
+            </BottomMenu>
+          </Navigator>
 
-            <Link to="/music" style={{ textDecoration: "none" }}>
-              <TooltipContainer>
-                <MenuItem isActive={location.pathname === "/music"}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
-                    />
-                  </svg>
-                </MenuItem>
-              </TooltipContainer>
-            </Link>
-
-            <Link to="/InputPostScreen" style={{ textDecoration: "none" }}>
-              <TooltipContainer>
-                <MenuItem isActive={location.pathname === "/InputPostScreen"}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                </MenuItem>
-              </TooltipContainer>
-            </Link>
-
-            <Link to="/profile" style={{ textDecoration: "none" }}>
-              <TooltipContainer>
-                <MenuItem isActive={location.pathname === "/profile"}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-                    />
-                  </svg>
-                </MenuItem>
-              </TooltipContainer>
-            </Link>
-          </MenuSection>
-
-          <MenuDivider />
-
-          <BottomMenu>
-            <TooltipContainer>
-              <MenuItem onClick={signOut}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
-                  />
-                </svg>
-              </MenuItem>
-            </TooltipContainer>
-          </BottomMenu>
-        </Navigator>
-
-        <ContentContainer $isFullscreenMusic={isFullscreenMusic}>
-          <MainContent
-            $isDark={isDarkMode}
-            $isFullscreenMusic={isFullscreenMusic}
-          >
-            <Outlet />
-          </MainContent>
-          {!hidePlayer && (
-            <MusicPlayerContainer $isFullscreenMusic={isFullscreenMusic}>
-              <FullscreenExitButton
-                $isVisible={isFullscreenMusic}
-                onClick={exitFullscreen}
+          <ContentContainer $isFullscreenMusic={isFullscreenMusic}>
+            {!isFullscreenMusic && (
+              <MainContent
+                $isDark={isDarkMode}
+                $isFullscreenMusic={isFullscreenMusic}
               >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                </svg>
-              </FullscreenExitButton>
-              {gradientLayers.map((layer, index) => (
-                <GradientOverlay
-                  key={layer.id}
-                  className={
-                    index === gradientLayers.length - 1 ? "fading" : ""
-                  }
-                  color1={layer.color1}
-                  color2={layer.color2}
-                  $isFullscreenMusic={isFullscreenMusic}
-                />
-              ))}
-              {MemoizedMusicPlayer}
-            </MusicPlayerContainer>
+                <div
+                  style={{
+                    minHeight: "100%",
+                    position: "relative",
+                    paddingBottom: "20px",
+                  }}
+                  data-timeline-container
+                >
+                  <Outlet />
+                </div>
+              </MainContent>
+            )}
+            {!hidePlayer && (
+              <MusicPlayerContainer $isFullscreenMusic={isFullscreenMusic}>
+                <FullscreenExitButton
+                  $isVisible={isFullscreenMusic}
+                  onClick={exitFullscreen}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  </svg>
+                </FullscreenExitButton>
+                {gradientLayers.map((layer, index) => (
+                  <GradientOverlay
+                    key={layer.id}
+                    className={
+                      index === gradientLayers.length - 1 ? "fading" : ""
+                    }
+                    color1={layer.color1}
+                    color2={layer.color2}
+                    $isFullscreenMusic={isFullscreenMusic}
+                  />
+                ))}
+                {MemoizedMusicPlayer}
+              </MusicPlayerContainer>
+            )}
+          </ContentContainer>
+        </Body>
+
+        {/* 이미지 전체화면 모달 - 항상 렌더링 */}
+        <ImageModal
+          $isOpen={!!imageModalSrc}
+          $isDark={isDarkMode}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeImageModal();
+            }
+          }}
+        >
+          <ModalCloseButton $isOpen={!!imageModalSrc} onClick={closeImageModal}>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </ModalCloseButton>
+          {imageModalSrc && (
+            <ModalImage
+              src={imageModalSrc}
+              alt="확대된 이미지"
+              $isOpen={!!imageModalSrc}
+              onError={() => {
+                console.log("이미지 로드 실패");
+                closeImageModal();
+              }}
+            />
           )}
-        </ContentContainer>
-      </Body>
-    </LayoutWrapper>
+        </ImageModal>
+      </LayoutWrapper>
+    </ImageModalContext.Provider>
   );
 };
 

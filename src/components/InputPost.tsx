@@ -461,13 +461,10 @@ const InputPost = () => {
     let playlistInfo = null;
 
     if (attachPlaylist && currentPlaylistId && attachedPlaylist) {
-      console.log("재생목록 첨부 시작:", currentPlaylistId);
       try {
         const playlistTracks = await fetchPlaylistVideosReturn(
           attachedPlaylist.id
         );
-        console.log("재생목록 트랙 가져옴:", playlistTracks.length);
-
         playlistInfo = {
           id: attachedPlaylist.id,
           title: attachedPlaylist.snippet.title,
@@ -485,8 +482,6 @@ const InputPost = () => {
           })),
         };
 
-        console.log("재생목록 정보 생성됨:", playlistInfo);
-
         const blob = new Blob([JSON.stringify(playlistInfo)], {
           type: "application/json",
         });
@@ -502,12 +497,9 @@ const InputPost = () => {
             body: formData,
           }
         );
-        if (!response.ok) throw new Error("업로드 실패");
         const data = await response.json();
         if (data.success && data.data && data.data.filename) {
           playlistFileUrl = `http://loopmusic.kro.kr:4001/uploads/shared_playlists/${data.data.filename}`;
-        } else {
-          throw new Error(data.error || "업로드 실패");
         }
       } catch (err) {
         console.error("재생목록 처리 중 오류:", err);
@@ -522,7 +514,6 @@ const InputPost = () => {
         formData.append("file", file);
         formData.append("postId", Date.now().toString());
 
-        console.log("이미지 업로드 시작:", file.name);
         const response = await fetch(
           "http://loopmusic.kro.kr:4001/upload/post",
           {
@@ -532,35 +523,18 @@ const InputPost = () => {
         );
 
         const responseText = await response.text();
-        console.log("서버 응답:", responseText);
-
-        if (!response.ok) {
-          throw new Error(
-            `업로드 실패: ${response.status} ${response.statusText}`
-          );
-        }
-
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (e) {
-          console.error("JSON 파싱 실패:", e);
-          throw new Error("서버 응답 형식이 올바르지 않습니다.");
-        }
+        const data = JSON.parse(responseText);
 
         if (data.success && data.data && data.data.filename) {
           const imageUrl = `http://loopmusic.kro.kr:4001/uploads/post_images/${data.data.filename}`;
-          console.log("이미지 업로드 성공:", imageUrl);
           photoUrls.push(imageUrl);
         } else {
-          console.error("업로드 실패 응답:", data);
-          console.error("data 객체 내용:", JSON.stringify(data.data, null, 2));
-          throw new Error(data.error || "업로드 실패");
+          throw new Error(data.error || "이미지 업로드 실패");
         }
       }
 
-      let profileName = user.displayName || "";
-      let profilePhoto = user.photoURL || "";
+      let profileName = user.displayName ?? "";
+      let profilePhoto = user.photoURL ?? "";
 
       try {
         const profileDoc = await getDoc(doc(db, "profiles", user.uid));
@@ -574,18 +548,18 @@ const InputPost = () => {
       }
 
       const myPost = {
-        nickname: profileName || "",
+        nickname: profileName ?? "",
         userId: user.uid,
-        email: user.email || "",
+        email: user.email ?? "",
         createdAt: Date.now(),
-        post: post || "",
-        photoUrls: photoUrls || [],
-        photoUrl: profilePhoto || "",
+        post: post ?? "",
+        photoUrls: photoUrls ?? [],
+        photoUrl: profilePhoto ?? "",
         likeCount: 0,
         commentCount: 0,
         likedBy: [],
-        playlist: playlistInfo || null,
-        playlistFileUrl: playlistFileUrl || null,
+        playlist: playlistInfo ?? null,
+        playlistFileUrl: playlistFileUrl ?? null,
       };
 
       await addDoc(collection(db, "posts"), myPost);
