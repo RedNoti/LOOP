@@ -491,7 +491,7 @@ const InputPost = () => {
         formData.append("playlistTitle", playlistInfo.title);
 
         const response = await fetch(
-          "http://loopmusic.o-r.kr:4001/upload/playlist",
+          "https://loopmusic.o-r.kr:4001/upload/playlist",
           {
             method: "POST",
             body: formData,
@@ -499,7 +499,7 @@ const InputPost = () => {
         );
         const data = await response.json();
         if (data.success && data.data && data.data.filename) {
-          playlistFileUrl = `http://loopmusic.o-r.kr:4001/uploads/shared_playlists/${data.data.filename}`;
+          playlistFileUrl = `https://loopmusic.o-r.kr:4001/uploads/shared_playlists/${data.data.filename}`;
         }
       } catch (err) {
         console.error("재생목록 처리 중 오류:", err);
@@ -515,7 +515,7 @@ const InputPost = () => {
         formData.append("postId", Date.now().toString());
 
         const response = await fetch(
-          "http://loopmusic.o-r.kr:4001/upload/post",
+          "https://loopmusic.o-r.kr:4001/upload/post",
           {
             method: "POST",
             body: formData,
@@ -526,7 +526,7 @@ const InputPost = () => {
         const data = JSON.parse(responseText);
 
         if (data.success && data.data && data.data.filename) {
-          const imageUrl = `http://loopmusic.o-r.kr:4001/uploads/post_images/${data.data.filename}`;
+          const imageUrl = `https://loopmusic.o-r.kr:4001/uploads/post_images/${data.data.filename}`;
           photoUrls.push(imageUrl);
         } else {
           throw new Error(data.error || "이미지 업로드 실패");
