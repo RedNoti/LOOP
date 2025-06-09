@@ -46,6 +46,20 @@ interface PostProps {
 const defaultProfileImg =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
 
+// URL 처리 함수 추가
+const normalizeImageUrl = (url: string): string => {
+  // 빈 문자열이나 null 체크
+  if (!url) return "";
+
+  // 이미 완전한 URL인 경우 그대로 반환
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  // 파일명만 있는 경우 전체 URL 구성
+  return `https://loopmusic.o-r.kr:4003/uploads/post_images/${url}`;
+};
+
 const Post = ({
   id,
   userId,
@@ -97,13 +111,14 @@ const Post = ({
         setHasLiked(data.likedBy?.includes(user?.uid));
         setCurrentPhotoUrl(data.photoUrl || defaultProfileImg);
         setCurrentNickname(data.nickname || nickname);
+
+        // ✅ 수정된 URL 처리 로직
         setPhotoUrls(
-          (data.photoUrls || []).map((url: string) =>
-            url.includes("http://")
-              ? url
-              : `https://loopmusic.o-r.kr:4003/uploads/post_images/${url}`
-          )
+          (data.photoUrls || [])
+            .filter((url: any) => url) // 빈 값 제거
+            .map(normalizeImageUrl)
         );
+
         setCurrentPost(data.post); // DB에 저장된 최신 post 반영
         setEditedPost(data.post); // 수정창 내용도 최신값으로 동기화
       }

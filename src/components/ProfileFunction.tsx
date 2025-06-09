@@ -162,7 +162,7 @@ export const useProfileFunctions = () => {
 
         console.log("프로필 이미지 업로드 시작:", file.name);
         const response = await fetch(
-          "http://loopmusic.kro.kr:4001/upload/profile",
+          "https://loopmusic.kro.kr:4001/upload/profile",
           {
             method: "POST",
             body: formData,
@@ -187,7 +187,7 @@ export const useProfileFunctions = () => {
         }
 
         if (data.success && data.data && data.data.filename) {
-          const imageUrl = `http://loopmusic.kro.kr:4001/uploads/profile_images/${data.data.filename}`;
+          const imageUrl = `https://loopmusic.kro.kr:4001/uploads/profile_images/${data.data.filename}`;
           console.log("이미지 업로드 성공:", imageUrl);
           setProfile((prev) => ({
             ...prev,
