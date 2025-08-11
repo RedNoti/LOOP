@@ -17,6 +17,9 @@ import YouTubeMusicPlayer from "./screens/music";
 import { MusicPlayerProvider } from "./components/MusicFunction";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import Playlist from "./components/playlist";
+import UserProfileScreen from "./screens/user-profile";
+import { RelationsProvider } from "./components/RelationsContext";
+
 
 // React-Router-Dom 을 활용해 사이트의 Page 관리
 const router = createBrowserRouter([
@@ -47,6 +50,10 @@ const router = createBrowserRouter([
       {
         path: "InputPostScreen",
         element: <InputPostScreen />,
+      },
+      { 
+        path: "user/:uid", 
+        element: <UserProfileScreen /> 
       },
     ],
   },
@@ -119,7 +126,9 @@ function App() {
   return (
     <ThemeProvider>
       <MusicPlayerProvider>
-        <AppContent />
+        <RelationsProvider>
+          <AppContent />
+        </RelationsProvider>
       </MusicPlayerProvider>
     </ThemeProvider>
   );

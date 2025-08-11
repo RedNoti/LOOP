@@ -14,6 +14,9 @@ import {
 import CommentSection from "./Comment";
 import { useMusicPlayer } from "../components/MusicFunction";
 import { useTheme } from "../components/ThemeContext";
+import MiniProfileHover from "./MiniProfileHover";
+import { Link } from "react-router-dom";
+import { useRelations } from "../components/RelationsContext";
 
 interface PostProps {
   id: string;
@@ -46,17 +49,10 @@ interface PostProps {
 const defaultProfileImg =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
 
-// URL 처리 함수 추가
+// 업로드 서버 경로 보정
 const normalizeImageUrl = (url: string): string => {
-  // 빈 문자열이나 null 체크
   if (!url) return "";
-
-  // 이미 완전한 URL인 경우 그대로 반환
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-
-  // 파일명만 있는 경우 전체 URL 구성
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
   return `https://loopmusic.o-r.kr:4003/uploads/post_images/${url}`;
 };
 
@@ -72,8 +68,10 @@ const Post = ({
   playlistFileUrl,
 }: PostProps) => {
   const { isDarkMode } = useTheme();
+  const { isMuted, isFollowing } = useRelations();
+  const myUid = auth.currentUser?.uid || null;
 
-  // 상태 관리
+  // === 상태 ===
   const { openModal } = useImageModal();
   const [commentList, setCommentList] = useState(comments || []);
   const user = auth.currentUser;
@@ -89,7 +87,7 @@ const Post = ({
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
-  const [currentPost, setCurrentPost] = useState(post); // 본문 실시간 반영용
+  const [currentPost, setCurrentPost] = useState(post);
   const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
 
@@ -100,31 +98,28 @@ const Post = ({
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const [isZooming, setIsZooming] = useState(false);
 
-  // useEffect 훅들
+  // === 데이터 로딩 ===
   useEffect(() => {
     const fetchPost = async () => {
       const postRef = doc(db, "posts", id);
       const docSnap = await getDoc(postRef);
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = docSnap.data() as any;
         setLikes(data.likeCount || 0);
         setHasLiked(data.likedBy?.includes(user?.uid));
         setCurrentPhotoUrl(data.photoUrl || defaultProfileImg);
         setCurrentNickname(data.nickname || nickname);
-
-        // ✅ 수정된 URL 처리 로직
         setPhotoUrls(
           (data.photoUrls || [])
-            .filter((url: any) => url) // 빈 값 제거
+            .filter((url: any) => url)
             .map(normalizeImageUrl)
         );
-
-        setCurrentPost(data.post); // DB에 저장된 최신 post 반영
-        setEditedPost(data.post); // 수정창 내용도 최신값으로 동기화
+        setCurrentPost(data.post);
+        setEditedPost(data.post);
       }
     };
     fetchPost();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user?.uid, nickname]);
 
   useEffect(() => {
@@ -132,7 +127,7 @@ const Post = ({
       const postRef = doc(db, "posts", id);
       const docSnap = await getDoc(postRef);
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = docSnap.data() as any;
         setCommentList(data.comments || []);
       }
     };
@@ -141,22 +136,19 @@ const Post = ({
 
   useEffect(() => {
     const fetchPlaylistFile = async () => {
-      if (playlistFileUrl) {
-        try {
-          const playlistRes = await fetch(
-            playlistFileUrl.replace("4000", "4001")
-          );
-          const data = await playlistRes.json();
-          setFetchedPlaylist(data);
-        } catch (err) {
-          console.error("재생목록 JSON 불러오기 실패:", err);
-        }
+      if (!playlistFileUrl) return;
+      try {
+        const playlistRes = await fetch(playlistFileUrl.replace("4000", "4001"));
+        const data = await playlistRes.json();
+        setFetchedPlaylist(data);
+      } catch (err) {
+        console.error("재생목록 JSON 불러오기 실패:", err);
       }
     };
     fetchPlaylistFile();
   }, [playlistFileUrl]);
 
-  // 이벤트 핸들러들
+  // === 이벤트 ===
   const handleLike = async () => {
     const postRef = doc(db, "posts", id);
     if (hasLiked) {
@@ -164,13 +156,13 @@ const Post = ({
         likeCount: increment(-1),
         likedBy: arrayRemove(user?.uid),
       });
-      setLikes(likes - 1);
+      setLikes((v) => v - 1);
     } else {
       await updateDoc(postRef, {
         likeCount: increment(1),
         likedBy: arrayUnion(user?.uid),
       });
-      setLikes(likes + 1);
+      setLikes((v) => v + 1);
     }
     setHasLiked(!hasLiked);
   };
@@ -184,9 +176,7 @@ const Post = ({
             const filename = url.split("/").pop();
             await fetch("https://loopmusic.o-r.kr:4003/delete", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ filename }),
             });
           } catch (error) {
@@ -199,9 +189,7 @@ const Post = ({
           const filename = playlistFileUrl.split("/").pop();
           await fetch("https://loopmusic.o-r.kr:4003/delete", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ filename }),
           });
         } catch (error) {
@@ -217,10 +205,9 @@ const Post = ({
 
   const handleImageClick = (url: string, index: number) => {
     const rect = imgRefs.current[index]?.getBoundingClientRect();
-    if (rect) {
-      setZoomedImage({ url, rect });
-      setTimeout(() => setIsZooming(true), 10);
-    }
+    if (!rect) return;
+    setZoomedImage({ url, rect });
+    setTimeout(() => setIsZooming(true), 10);
   };
 
   const handleZoomClose = () => {
@@ -228,38 +215,54 @@ const Post = ({
     setTimeout(() => setZoomedImage(null), 400);
   };
 
+  // === 뮤트된 사용자 글 숨기기 (내 글은 제외) ===
+  if (myUid && userId !== myUid && isMuted(userId)) {
+    return null;
+  }
+
+  // === 렌더 ===
   return (
     <Container $isDark={isDarkMode}>
       <ZoomStyle />
 
-      {/* 헤더 영역 */}
+      {/* 헤더 */}
       <Header $isDark={isDarkMode}>
         <ProfileSection>
-          <ProfileImg
-            src={currentPhotoUrl || defaultProfileImg}
-            alt="Profile"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.onerror = null;
-              target.src = defaultProfileImg;
-            }}
-          />
+          <MiniProfileHover userId={userId}>
+            <Link to={`/user/${userId}`} style={{ display: "inline-flex" }}>
+              <ProfileImg
+                src={currentPhotoUrl || defaultProfileImg}
+                alt="Profile"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = defaultProfileImg;
+                }}
+              />
+            </Link>
+          </MiniProfileHover>
+
           <UserInfo>
-            <UserName $isDark={isDarkMode}>{currentNickname}</UserName>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <UserName $isDark={isDarkMode}>{currentNickname}</UserName>
+              {myUid && userId !== myUid && isFollowing(userId) && (
+                <FollowBadge $isDark={isDarkMode}>팔로잉</FollowBadge>
+              )}
+            </div>
             <PostTime $isDark={isDarkMode}>
               {new Date(createdAt).toLocaleDateString()}
             </PostTime>
           </UserInfo>
         </ProfileSection>
 
-        {/* 수정/삭제 버튼 */}
+        {/* 수정/삭제 (내 글일 때만) */}
         {user?.uid === userId && (
           <ActionButtons>
             <ActionBtn
               $isDark={isDarkMode}
               onClick={() => {
-                setIsEditing(!isEditing);
-                setEditedPost(currentPost); // 수정 시작 시, 최신 본문으로 동기화
+                setIsEditing((v) => !v);
+                setEditedPost(currentPost);
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -285,10 +288,10 @@ const Post = ({
         )}
       </Header>
 
-      {/* 콘텐츠 영역 */}
+      {/* 본문 + 수정영역 */}
       <ContentArea>
         <PostContent $isDark={isDarkMode}>{currentPost}</PostContent>
-        {/* === [수정창: 댓글창처럼 펼쳐지기] === */}
+
         <EditingAreaWrapper show={isEditing}>
           <EditingArea>
             <EditTextarea
@@ -304,7 +307,7 @@ const Post = ({
                   try {
                     await updateDoc(doc(db, "posts", id), { post: editedPost });
                     setIsEditing(false);
-                    setCurrentPost(editedPost); // 본문 실시간 갱신
+                    setCurrentPost(editedPost);
                   } catch (err) {
                     console.error("게시글 수정 오류:", err);
                   }
@@ -335,7 +338,7 @@ const Post = ({
                 src={url}
                 alt={`Post image ${index + 1}`}
                 ref={(el) => (imgRefs.current[index] = el)}
-                onClick={() => openModal(url)} // ✅ 기존 zoom 대신
+                onClick={() => openModal(url)}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.onerror = null;
@@ -347,7 +350,7 @@ const Post = ({
         </ImageGallery>
       )}
 
-      {/* 확대 모달 */}
+      {/* 확대 모달 (줌 애니메이션) */}
       {zoomedImage && (
         <div
           className={`zoom-overlay${isZooming ? " active" : ""}`}
@@ -394,7 +397,7 @@ const Post = ({
         </div>
       )}
 
-      {/* 하단 액션 영역 */}
+      {/* 하단 액션 */}
       <BottomSection $isDark={isDarkMode}>
         <InteractionBar>
           <InteractionBtn
@@ -415,7 +418,7 @@ const Post = ({
 
           <InteractionBtn
             $isDark={isDarkMode}
-            onClick={() => setShowComments(!showComments)}
+            onClick={() => setShowComments((v) => !v)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
@@ -431,61 +434,62 @@ const Post = ({
           {playlistFileUrl && fetchedPlaylist && (
             <PlaylistButton
               onClick={() => {
-                if (fetchedPlaylist?.tracks?.length > 0) {
-                  const existingPlaylists = JSON.parse(
-                    sessionStorage.getItem("playlists") || "[]"
-                  );
-                  const playlistExists = existingPlaylists.some(
-                    (p: any) => p.id === fetchedPlaylist.id
-                  );
-                  if (!playlistExists) {
-                    const newPlaylist = {
-                      id: fetchedPlaylist.id,
-                      snippet: {
-                        title: fetchedPlaylist.title,
-                        thumbnails: {
-                          high: { url: fetchedPlaylist.thumbnail },
-                          medium: { url: fetchedPlaylist.thumbnail },
-                          default: { url: fetchedPlaylist.thumbnail },
-                        },
+                if (!fetchedPlaylist?.tracks?.length) return;
+
+                const existingPlaylists = JSON.parse(
+                  sessionStorage.getItem("playlists") || "[]"
+                );
+                const playlistExists = existingPlaylists.some(
+                  (p: any) => p.id === fetchedPlaylist.id
+                );
+                if (!playlistExists) {
+                  const newPlaylist = {
+                    id: fetchedPlaylist.id,
+                    snippet: {
+                      title: fetchedPlaylist.title,
+                      thumbnails: {
+                        high: { url: fetchedPlaylist.thumbnail },
+                        medium: { url: fetchedPlaylist.thumbnail },
+                        default: { url: fetchedPlaylist.thumbnail },
                       },
-                    };
-                    existingPlaylists.push(newPlaylist);
-                    sessionStorage.setItem(
-                      "playlists",
-                      JSON.stringify(existingPlaylists)
-                    );
-                  }
+                    },
+                  };
+                  existingPlaylists.push(newPlaylist);
                   sessionStorage.setItem(
-                    "currentPlaylistId",
-                    fetchedPlaylist.id
-                  );
-                  sessionStorage.setItem("currentVideoIndex", "0");
-                  window.dispatchEvent(
-                    new CustomEvent("play_playlist_from_file", {
-                      detail: {
-                        videos: fetchedPlaylist.tracks.map((track: any) => ({
-                          id: { videoId: track.videoId },
-                          snippet: {
-                            title: track.title,
-                            thumbnails: {
-                              default: { url: track.thumbnail },
-                              medium: { url: track.thumbnail },
-                              high: { url: track.thumbnail },
-                            },
-                            playlistId: fetchedPlaylist.id,
-                          },
-                        })),
-                        playlistMeta: {
-                          id: fetchedPlaylist.id,
-                          title: fetchedPlaylist.title,
-                          thumbnail: fetchedPlaylist.thumbnail,
-                        },
-                        existingPlaylists,
-                      },
-                    })
+                    "playlists",
+                    JSON.stringify(existingPlaylists)
                   );
                 }
+                sessionStorage.setItem(
+                  "currentPlaylistId",
+                  fetchedPlaylist.id
+                );
+                sessionStorage.setItem("currentVideoIndex", "0");
+
+                window.dispatchEvent(
+                  new CustomEvent("play_playlist_from_file", {
+                    detail: {
+                      videos: fetchedPlaylist.tracks.map((track: any) => ({
+                        id: { videoId: track.videoId },
+                        snippet: {
+                          title: track.title,
+                          thumbnails: {
+                            default: { url: track.thumbnail },
+                            medium: { url: track.thumbnail },
+                            high: { url: track.thumbnail },
+                          },
+                          playlistId: fetchedPlaylist.id,
+                        },
+                      })),
+                      playlistMeta: {
+                        id: fetchedPlaylist.id,
+                        title: fetchedPlaylist.title,
+                        thumbnail: fetchedPlaylist.thumbnail,
+                      },
+                      existingPlaylists,
+                    },
+                  })
+                );
               }}
             >
               <PlaylistIcon
@@ -511,7 +515,7 @@ const Post = ({
         </InteractionBar>
       </BottomSection>
 
-      {/* 댓글 섹션 */}
+      {/* 댓글 */}
       <CommentSectionWrapper show={showComments}>
         <CommentSection
           postId={id}
@@ -541,7 +545,7 @@ const Post = ({
 
 export default Post;
 
-// === 스타일드 컴포넌트 ===
+/* ===================== 스타일 ===================== */
 
 const ZoomStyle = createGlobalStyle`
   .zoom-img.active {
@@ -577,7 +581,6 @@ const ZoomStyle = createGlobalStyle`
   }
 `;
 
-// 댓글창처럼 펼쳐지는 애니메이션
 const EditingAreaWrapper = styled.div<{ show: boolean }>`
   overflow: hidden;
   max-height: ${({ show }) => (show ? "400px" : "0")};
@@ -586,22 +589,21 @@ const EditingAreaWrapper = styled.div<{ show: boolean }>`
   pointer-events: ${({ show }) => (show ? "auto" : "none")};
 `;
 
-// 이하 기존 스타일 동일...
 const Container = styled.div<{ $isDark: boolean }>`
-  background: ${(props) => (props.$isDark ? "#1c1c1c" : "#ffffff")};
+  background: ${(p) => (p.$isDark ? "#1c1c1c" : "#ffffff")};
   border-radius: 20px;
   margin-bottom: 24px;
-  box-shadow: ${(props) =>
-    props.$isDark
+  box-shadow: ${(p) =>
+    p.$isDark
       ? "0 4px 20px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3)"
       : "0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)"};
-  border: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
+  border: 1px solid ${(p) => (p.$isDark ? "#333333" : "#f0f0f0")};
   overflow: hidden;
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: ${(props) =>
-      props.$isDark
+    box-shadow: ${(p) =>
+      p.$isDark
         ? "0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4)"
         : "0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06)"};
     transform: translateY(-2px);
@@ -638,13 +640,24 @@ const UserInfo = styled.div`
 const UserName = styled.div<{ $isDark: boolean }>`
   font-weight: 600;
   font-size: 15px;
-  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  color: ${(p) => (p.$isDark ? "#ffffff" : "#1a1a1a")};
   line-height: 1.2;
+`;
+
+const FollowBadge = styled.span<{ $isDark?: boolean }>`
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  border: 1px solid ${(p) => (p.$isDark ? "#3a66f7" : "#bcd2ff")};
+  color: ${(p) => (p.$isDark ? "#dbe6ff" : "#1d4ed8")};
+  background: ${(p) =>
+    p.$isDark ? "rgba(30, 64, 175, 0.25)" : "rgba(59,130,246,0.08)"};
 `;
 
 const PostTime = styled.div<{ $isDark: boolean }>`
   font-size: 13px;
-  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#8e8e93")};
+  color: ${(p) => (p.$isDark ? "#aaaaaa" : "#8e8e93")};
   line-height: 1.2;
 `;
 
@@ -658,8 +671,8 @@ const ActionBtn = styled.button<{ $isDark: boolean }>`
   height: 32px;
   border-radius: 8px;
   border: none;
-  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
-  color: ${(props) => (props.$isDark ? "#aaaaaa" : "#6c757d")};
+  background: ${(p) => (p.$isDark ? "#333333" : "#f8f9fa")};
+  color: ${(p) => (p.$isDark ? "#aaaaaa" : "#6c757d")};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -667,8 +680,8 @@ const ActionBtn = styled.button<{ $isDark: boolean }>`
   transition: all 0.15s ease;
 
   &:hover {
-    background: ${(props) => (props.$isDark ? "#404040" : "#e9ecef")};
-    color: ${(props) => (props.$isDark ? "#ffffff" : "#495057")};
+    background: ${(p) => (p.$isDark ? "#404040" : "#e9ecef")};
+    color: ${(p) => (p.$isDark ? "#ffffff" : "#495057")};
     transform: translateY(-1px);
   }
 
@@ -684,14 +697,13 @@ const ContentArea = styled.div`
 `;
 
 const PostContent = styled.div<{ $isDark: boolean }>`
-  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
+  color: ${(p) => (p.$isDark ? "#ffffff" : "#1a1a1a")};
   font-size: 15px;
   line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
 `;
 
-// === 수정창 내부 ===
 const EditingArea = styled.div`
   display: flex;
   flex-direction: column;
@@ -705,25 +717,25 @@ const EditTextarea = styled.textarea<{ $isDark: boolean }>`
   width: 100%;
   min-height: 100px;
   padding: 16px;
-  border: 2px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
+  border: 2px solid ${(p) => (p.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 12px;
   font-size: 15px;
   line-height: 1.5;
   resize: vertical;
   font-family: inherit;
-  color: ${(props) => (props.$isDark ? "#ffffff" : "#1a1a1a")};
-  background: ${(props) => (props.$isDark ? "#2c2c2c" : "#fafafa")};
+  color: ${(p) => (p.$isDark ? "#ffffff" : "#1a1a1a")};
+  background: ${(p) => (p.$isDark ? "#2c2c2c" : "#fafafa")};
   transition: border-color 0.2s ease;
   box-sizing: border-box;
 
   &:focus {
     outline: none;
     border-color: #007aff;
-    background: ${(props) => (props.$isDark ? "#333333" : "#ffffff")};
+    background: ${(p) => (p.$isDark ? "#333333" : "#ffffff")};
   }
 
   &::placeholder {
-    color: ${(props) => (props.$isDark ? "#888888" : "#8e8e93")};
+    color: ${(p) => (p.$isDark ? "#888888" : "#8e8e93")};
   }
 `;
 
@@ -759,7 +771,7 @@ const ImageGallery = styled.div`
 const ImageContainer = styled.div<{ $isDark: boolean }>`
   border-radius: 16px;
   overflow: hidden;
-  background: ${(props) => (props.$isDark ? "#333333" : "#f8f9fa")};
+  background: ${(p) => (p.$isDark ? "#333333" : "#f8f9fa")};
   aspect-ratio: 4/3;
 `;
 
@@ -776,7 +788,7 @@ const StyledImage = styled.img`
 `;
 
 const BottomSection = styled.div<{ $isDark: boolean }>`
-  border-top: 1px solid ${(props) => (props.$isDark ? "#333333" : "#f0f0f0")};
+  border-top: 1px solid ${(p) => (p.$isDark ? "#333333" : "#f0f0f0")};
   padding: 16px 24px 20px;
 `;
 
@@ -792,10 +804,7 @@ const InteractionBtn = styled.button<{ $isDark: boolean; active?: boolean }>`
   gap: 8px;
   background: none;
   border: none;
-  color: ${(props) => {
-    if (props.active) return "#ff6b6b";
-    return props.$isDark ? "#aaaaaa" : "#8e8e93";
-  }};
+  color: ${(p) => (p.active ? "#ff6b6b" : p.$isDark ? "#aaaaaa" : "#8e8e93")};
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -804,20 +813,14 @@ const InteractionBtn = styled.button<{ $isDark: boolean; active?: boolean }>`
   transition: all 0.15s ease;
 
   &:hover {
-    background: ${(props) => {
-      if (props.active) return props.$isDark ? "#3d1a1a" : "#ffe6e6";
-      return props.$isDark ? "#333333" : "#f8f9fa";
-    }};
-    color: ${(props) => {
-      if (props.active) return "#ff5252";
-      return props.$isDark ? "#ffffff" : "#495057";
-    }};
+    background: ${(p) =>
+      p.active ? (p.$isDark ? "#3d1a1a" : "#ffe6e6") : p.$isDark ? "#333333" : "#f8f9fa"};
+    color: ${(p) => (p.active ? "#ff5252" : p.$isDark ? "#ffffff" : "#495057")};
   }
 
   svg {
     transition: transform 0.15s ease;
   }
-
   &:hover svg {
     transform: scale(1.1);
   }
@@ -842,7 +845,6 @@ const PlaylistButton = styled.button`
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   }
-
   &:active {
     transform: translateY(0);
   }

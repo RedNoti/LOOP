@@ -11,7 +11,7 @@
     "@types/node": "^16.18.108",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "axios": "^1.10.0",
+    "axios": "^1.11.0",
     "colorthief": "^2.6.0",
     "firebase": "^10.13.2",
     "genius-lyrics": "^4.4.7",
