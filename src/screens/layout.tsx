@@ -504,7 +504,13 @@ const Layout = () => {
                   </MenuItem>
                 </TooltipContainer>
               </Link>
+            </MenuSection>
 
+            {/* 상단 구분선은 삭제 */}
+            {/* <MenuDivider /> */}
+
+            <MenuSection>
+              {/* 프로필 버튼 */}
               <Link to="/profile" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/profile"}>
@@ -524,11 +530,55 @@ const Layout = () => {
                   </MenuItem>
                 </TooltipContainer>
               </Link>
+
+              {/* 알림 버튼 */}
+              <TooltipContainer>
+                <MenuItem>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.57 3.535.882 5.454 1.312m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.75 21h16.5"
+                    />
+                  </svg>
+                </MenuItem>
+              </TooltipContainer>
+
+              {/* 설정 버튼 */}
+              <TooltipContainer>
+                <MenuItem>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                    />
+                  </svg>
+                </MenuItem>
+              </TooltipContainer>
+
+              <MenuDivider />
             </MenuSection>
 
-            <MenuDivider />
-
             <BottomMenu>
+              {/* 로그아웃 버튼 */}
               <TooltipContainer>
                 <MenuItem onClick={signOut}>
                   <svg
