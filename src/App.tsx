@@ -18,7 +18,9 @@ import UserProfileScreen from "./screens/user-profile";
 import { MusicPlayerProvider } from "./components/MusicFunction";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import { RelationsProvider } from "./components/RelationsContext";
-import MusicStation from "./screens/station"; // ✅ 추가
+import MusicStation from "./screens/station";
+import FollowingFeed from "./screens/following";
+
 
 // 라우터 설정
 const router = createBrowserRouter([
@@ -29,6 +31,7 @@ const router = createBrowserRouter([
         <Layout />
       </ProtectedRouter>
     ),
+    errorElement: <div style={{ padding: 24 }}>페이지를 찾을 수 없습니다. <a href="/">홈으로</a></div>,
     children: [
       { path: "", element: <Home /> },
       { path: "profile", element: <Profile /> },
@@ -36,7 +39,8 @@ const router = createBrowserRouter([
       { path: "KategorieFunction", element: <KategorieFunction /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
-      { path: "station", element: <MusicStation /> }, // ✅ 추가
+      { path: "station", element: <MusicStation /> }, 
+      { path: "following", element: <FollowingFeed /> },
     ],
   },
   { path: "/signin", element: <Signin /> },
