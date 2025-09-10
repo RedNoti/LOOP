@@ -16,6 +16,7 @@ import {
   playerRef,
   playerReadyRef,
 } from "../components/MusicFunction";
+import { useNavigate } from "react-router-dom"; // ✅ 추가
 
 const Container = styled.div<{ $isCollapsed: boolean }>`
   color: white;
@@ -375,6 +376,36 @@ const PlaylistItem = styled.li<{ hoverColor?: string }>`
   }
 `;
 
+/* ✅ 스테이션 시작 FAB */
+const StationFab = styled.button`
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 3000;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: #1f2937;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  @media (max-width: 768px) {
+    right: 16px;
+    bottom: 16px;
+    padding: 10px 14px;
+  }
+`;
+
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -409,9 +440,7 @@ export default function YouTubeMusicPlayer({
   onColorExtractHover?: (color: string) => void;
   isFullScreenMode?: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
-    null
-  );
+  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(null);
   const {
     currentVideoId,
     currentVideoTitle,
@@ -446,6 +475,8 @@ export default function YouTubeMusicPlayer({
     const savedShuffleMode = localStorage.getItem(STORAGE_KEYS.SHUFFLE_MODE);
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
+
+  const navigate = useNavigate(); // ✅ 추가
 
   useEffect(() => {
     const handlePostPlaylist = () => {
@@ -673,7 +704,7 @@ export default function YouTubeMusicPlayer({
   };
 
   const handleTrackEnd = () => {
-    if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
+    if (RepeatMode.REPEAT_ONE === repeatMode && playerRef.current) {
       playerRef.current.seekTo(0, true);
       playerRef.current.playVideo();
     } else {
@@ -909,6 +940,21 @@ export default function YouTubeMusicPlayer({
           </TabContent>
         </TabContentWrapper>
       </BottomTabsWrapper>
+
+      {/* ✅ 스테이션 시작 FAB – 현재 곡/제목을 시드로 /station 이동 */}
+      <StationFab
+        onClick={() =>
+          navigate("/station", {
+            state: {
+              seedVideoId: currentVideoId || undefined,
+              seedKeyword: currentVideoTitle || undefined,
+            },
+          })
+        }
+        title="현재 곡 기준 스테이션 시작"
+      >
+        ▶️ 스테이션 시작
+      </StationFab>
     </Container>
   );
 }

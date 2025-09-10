@@ -1,4 +1,3 @@
-// src/App.tsx
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import styled, { createGlobalStyle } from "styled-components";
 import Home from "./screens/home";
@@ -14,14 +13,14 @@ import Layout from "./screens/layout";
 import "moment/locale/ko";
 import KategorieFunction from "./components/KategorieFunction";
 import InputPostScreen from "./screens/InputPostScreen";
-import YouTubeMusicPlayer from "./screens/music";
-import { MusicPlayerProvider } from "./components/MusicFunction";
-import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import Playlist from "./components/playlist";
 import UserProfileScreen from "./screens/user-profile";
+import { MusicPlayerProvider } from "./components/MusicFunction";
+import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import { RelationsProvider } from "./components/RelationsContext";
+import MusicStation from "./screens/station"; // ✅ 추가
 
-// 라우터 정의
+// 라우터 설정
 const router = createBrowserRouter([
   {
     path: "/",
@@ -37,6 +36,7 @@ const router = createBrowserRouter([
       { path: "KategorieFunction", element: <KategorieFunction /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
+      { path: "station", element: <MusicStation /> }, // ✅ 추가
     ],
   },
   { path: "/signin", element: <Signin /> },
@@ -107,7 +107,6 @@ function App() {
   return (
     <ThemeProvider>
       <MusicPlayerProvider>
-        {/* RelationsProvider는 AppContent 내부로 이동 */}
         <AppContent />
       </MusicPlayerProvider>
     </ThemeProvider>
