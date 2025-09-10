@@ -1,94 +1,176 @@
 // src/components/RelationsContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { auth, db } from "../firebaseConfig";
-import { doc, onSnapshot, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { auth, db } from "../firebaseConfig"; // ✅ 경로 수정
+import {
+  arrayRemove,
+  arrayUnion,
+  doc,
+  onSnapshot,
+  setDoc,
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
-type RelationsState = {
-  following: Set<string>;
-  muted: Set<string>;
+type RelationsContextValue = {
   loading: boolean;
-  follow: (targetUid: string) => Promise<void>;
-  unfollow: (targetUid: string) => Promise<void>;
-  mute: (targetUid: string) => Promise<void>;
-  unmute: (targetUid: string) => Promise<void>;
   isFollowing: (uid: string) => boolean;
   isMuted: (uid: string) => boolean;
+  follow: (uid: string) => Promise<void>;
+  unfollow: (uid: string) => Promise<void>;
+  mute: (uid: string) => Promise<void>;
+  unmute: (uid: string) => Promise<void>;
 };
 
-const RelationsContext = createContext<RelationsState | null>(null);
+const RelationsContext = createContext<RelationsContextValue | null>(null);
+
+const useMeRef = () => auth.currentUser?.uid ?? null;
 
 export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
+  // 현재 로그인한 내 user_relations 문서 ref
+  const refForMe = () => {
+    const me = useMeRef();
+    return me ? doc(db, "user_relations", me) : null;
+  };
+
+  // ✅ 로그인 상태 변화를 구독하여 Firestore 구독을 동적으로 연결/해제
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      setFollowing(new Set());
-      setMuted(new Set());
-      setLoading(false);
-      return;
-    }
+    let unsubscribeRelations: (() => void) | null = null;
 
-    const ref = doc(db, "user_relations", user.uid);
-    const unsub = onSnapshot(ref, (snap) => {
-      const data = snap.data() || {};
-      setFollowing(new Set<string>(data.following || []));
-      setMuted(new Set<string>(data.muted || []));
-      setLoading(false);
+    const stopAuth = onAuthStateChanged(auth, (user) => {
+      // 이전 구독 해제
+      if (unsubscribeRelations) {
+        unsubscribeRelations();
+        unsubscribeRelations = null;
+      }
+
+      if (!user) {
+        setFollowing(new Set());
+        setMuted(new Set());
+        setLoading(false);
+        return;
+      }
+
+      const ref = doc(db, "user_relations", user.uid);
+      unsubscribeRelations = onSnapshot(
+        ref,
+        (snap) => {
+          const data = snap.data() || {};
+          setFollowing(new Set<string>(Array.isArray(data.following) ? data.following : []));
+          setMuted(new Set<string>(Array.isArray(data.muted) ? data.muted : []));
+          setLoading(false);
+        },
+        (err) => {
+          console.error("[Relations] onSnapshot error:", err);
+          setLoading(false);
+        }
+      );
     });
 
-    return () => unsub();
+    return () => {
+      stopAuth();
+      if (unsubscribeRelations) unsubscribeRelations();
+    };
   }, []);
 
-  const refForMe = () => doc(db, "user_relations", auth.currentUser!.uid);
+  const isFollowing = (uid: string) => following.has(uid);
+  const isMuted = (uid: string) => muted.has(uid);
 
   const follow = async (targetUid: string) => {
-    if (!auth.currentUser || targetUid === auth.currentUser.uid) return;
+    const me = useMeRef();
+    if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
-    await setDoc(
-      ref,
-      { following: arrayUnion(targetUid), muted: arrayRemove(targetUid) },
-      { merge: true }
-    );
+    if (!ref) return;
+
+    try {
+      await setDoc(
+        ref,
+        {
+          following: arrayUnion(targetUid),
+          muted: arrayRemove(targetUid), // 팔로우 시 뮤트 해제(충돌 방지)
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("[Relations] follow 실패:", e);
+      alert("팔로우에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
+    }
   };
 
   const unfollow = async (targetUid: string) => {
-    if (!auth.currentUser || targetUid === auth.currentUser.uid) return;
+    const me = useMeRef();
+    if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
-    await setDoc(ref, { following: arrayRemove(targetUid) }, { merge: true });
+    if (!ref) return;
+
+    try {
+      await setDoc(
+        ref,
+        {
+          following: arrayRemove(targetUid),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("[Relations] unfollow 실패:", e);
+      alert("언팔로우에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
+    }
   };
 
   const mute = async (targetUid: string) => {
-    if (!auth.currentUser || targetUid === auth.currentUser.uid) return;
+    const me = useMeRef();
+    if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
-    await setDoc(
-      ref,
-      { muted: arrayUnion(targetUid), following: arrayRemove(targetUid) },
-      { merge: true }
-    );
+    if (!ref) return;
+
+    try {
+      await setDoc(
+        ref,
+        {
+          muted: arrayUnion(targetUid),
+          following: arrayRemove(targetUid), // 뮤트 시 팔로우 해제(충돌 방지)
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("[Relations] mute 실패:", e);
+      alert("뮤트에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
+    }
   };
 
   const unmute = async (targetUid: string) => {
-    if (!auth.currentUser || targetUid === auth.currentUser.uid) return;
+    const me = useMeRef();
+    if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
-    await setDoc(ref, { muted: arrayRemove(targetUid) }, { merge: true });
+    if (!ref) return;
+
+    try {
+      await setDoc(
+        ref,
+        {
+          muted: arrayRemove(targetUid),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("[Relations] unmute 실패:", e);
+      alert("뮤트 해제에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
+    }
   };
 
-  const value = useMemo<RelationsState>(
+  const value = useMemo<RelationsContextValue>(
     () => ({
-      following,
-      muted,
       loading,
+      isFollowing,
+      isMuted,
       follow,
       unfollow,
       mute,
       unmute,
-      isFollowing: (uid) => following.has(uid),
-      isMuted: (uid) => muted.has(uid),
     }),
-    [following, muted, loading]
+    [loading, following, muted]
   );
 
   return <RelationsContext.Provider value={value}>{children}</RelationsContext.Provider>;

@@ -1,3 +1,4 @@
+// src/App.tsx
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import styled, { createGlobalStyle } from "styled-components";
 import Home from "./screens/home";
@@ -20,8 +21,7 @@ import Playlist from "./components/playlist";
 import UserProfileScreen from "./screens/user-profile";
 import { RelationsProvider } from "./components/RelationsContext";
 
-
-// React-Router-Dom 을 활용해 사이트의 Page 관리
+// 라우터 정의
 const router = createBrowserRouter([
   {
     path: "/",
@@ -31,40 +31,16 @@ const router = createBrowserRouter([
       </ProtectedRouter>
     ),
     children: [
-      {
-        path: "",
-        element: <Home />,
-      },
-      {
-        path: "profile",
-        element: <Profile />,
-      },
-      {
-        path: "music",
-        element: <Playlist />,
-      },
-      {
-        path: "KategorieFunction",
-        element: <KategorieFunction />,
-      },
-      {
-        path: "InputPostScreen",
-        element: <InputPostScreen />,
-      },
-      { 
-        path: "user/:uid", 
-        element: <UserProfileScreen /> 
-      },
+      { path: "", element: <Home /> },
+      { path: "profile", element: <Profile /> },
+      { path: "music", element: <Playlist /> },
+      { path: "KategorieFunction", element: <KategorieFunction /> },
+      { path: "InputPostScreen", element: <InputPostScreen /> },
+      { path: "user/:uid", element: <UserProfileScreen /> },
     ],
   },
-  {
-    path: "/signin",
-    element: <Signin />,
-  },
-  {
-    path: "/signup",
-    element: <Signup />,
-  },
+  { path: "/signin", element: <Signin /> },
+  { path: "/signup", element: <Signup /> },
 ]);
 
 const Container = styled.div`
@@ -73,7 +49,7 @@ const Container = styled.div`
   justify-content: center;
 `;
 
-// GlobalStyle을 테마에 맞게 동적으로 적용하는 컴포넌트
+// 테마 전역 스타일
 const ThemedGlobalStyle = createGlobalStyle<{ $isDark: boolean }>`
   ${reset}
   html, body, #root {
@@ -88,47 +64,51 @@ const ThemedGlobalStyle = createGlobalStyle<{ $isDark: boolean }>`
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 `;
 
-// 내부 App 컴포넌트 (테마 컨텍스트를 사용할 수 있음)
+// auth 준비 이후 렌더링
 const AppContent = () => {
   const { isDarkMode } = useTheme();
   const [loading, setLoading] = useState<boolean>(true);
 
-  const init = async () => {
-    await auth.authStateReady();
-    setLoading(false);
-  };
-
   useEffect(() => {
+    const init = async () => {
+      await auth.authStateReady();
+      setLoading(false);
+    };
     init();
   }, []);
+
+  if (loading) {
+    return (
+      <>
+        <ThemedGlobalStyle $isDark={isDarkMode} />
+        <LoadingScreen />
+      </>
+    );
+  }
 
   return (
     <>
       <ThemedGlobalStyle $isDark={isDarkMode} />
-      {loading ? (
-        <LoadingScreen />
-      ) : (
-        <Container className="App">
+      <Container className="App">
+        {/* ✅ 로그인 준비가 끝난 뒤 RelationsProvider 마운트 */}
+        <RelationsProvider>
           <RouterProvider router={router} />
-        </Container>
-      )}
+        </RelationsProvider>
+      </Container>
     </>
   );
 };
 
-// 메인 App 컴포넌트
+// 메인 App
 function App() {
   return (
     <ThemeProvider>
       <MusicPlayerProvider>
-        <RelationsProvider>
-          <AppContent />
-        </RelationsProvider>
+        {/* RelationsProvider는 AppContent 내부로 이동 */}
+        <AppContent />
       </MusicPlayerProvider>
     </ThemeProvider>
   );
