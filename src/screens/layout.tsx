@@ -531,6 +531,49 @@ const Layout = () => {
                 </TooltipContainer>
               </Link>
 
+              {/* ✅ 스테이션 버튼 (알림 위에 추가) */}
+              <Link to="/station" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/station"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      {/* 라디오/방송 아이콘 */}
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 6v6h4.5M19.5 12a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0z"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
+              {/*  팔로우 피드 버튼 */}
+              <Link to="/following" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/following"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      {/* 사람 + 리스트 모양 아이콘 */}
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7zM18 14h4M18 18h4"
+                      />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
               {/* 알림 버튼 */}
               <TooltipContainer>
                 <MenuItem>
