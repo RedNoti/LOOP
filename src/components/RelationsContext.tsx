@@ -1,6 +1,12 @@
 // src/components/RelationsContext.tsx
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { auth, db } from "../firebaseConfig"; // ✅ 경로 수정
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { auth, db } from "../firebaseConfig";
 import {
   arrayRemove,
   arrayUnion,
@@ -22,44 +28,48 @@ type RelationsContextValue = {
 
 const RelationsContext = createContext<RelationsContextValue | null>(null);
 
+// useMeRef 훅은 RelationsProvider 컴포넌트 최상단에서만 호출해야 합니다.
 const useMeRef = () => auth.currentUser?.uid ?? null;
 
-export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [muted, setMuted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 현재 로그인한 내 user_relations 문서 ref
+  // ⭐️ 훅을 컴포넌트 최상단에 한번만 호출하여 변수에 저장
+  const me = useMeRef();
+
+  // refForMe 함수는 훅을 호출하지 않고 me 변수를 사용하도록 수정
   const refForMe = () => {
-    const me = useMeRef();
     return me ? doc(db, "user_relations", me) : null;
   };
 
-  // ✅ 로그인 상태 변화를 구독하여 Firestore 구독을 동적으로 연결/해제
   useEffect(() => {
     let unsubscribeRelations: (() => void) | null = null;
-
     const stopAuth = onAuthStateChanged(auth, (user) => {
-      // 이전 구독 해제
       if (unsubscribeRelations) {
         unsubscribeRelations();
         unsubscribeRelations = null;
       }
-
       if (!user) {
         setFollowing(new Set());
         setMuted(new Set());
         setLoading(false);
         return;
       }
-
       const ref = doc(db, "user_relations", user.uid);
       unsubscribeRelations = onSnapshot(
         ref,
         (snap) => {
           const data = snap.data() || {};
-          setFollowing(new Set<string>(Array.isArray(data.following) ? data.following : []));
-          setMuted(new Set<string>(Array.isArray(data.muted) ? data.muted : []));
+          setFollowing(
+            new Set<string>(Array.isArray(data.following) ? data.following : [])
+          );
+          setMuted(
+            new Set<string>(Array.isArray(data.muted) ? data.muted : [])
+          );
           setLoading(false);
         },
         (err) => {
@@ -68,7 +78,6 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       );
     });
-
     return () => {
       stopAuth();
       if (unsubscribeRelations) unsubscribeRelations();
@@ -78,8 +87,8 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const isFollowing = (uid: string) => following.has(uid);
   const isMuted = (uid: string) => muted.has(uid);
 
+  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
   const follow = async (targetUid: string) => {
-    const me = useMeRef();
     if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
     if (!ref) return;
@@ -89,7 +98,7 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ref,
         {
           following: arrayUnion(targetUid),
-          muted: arrayRemove(targetUid), // 팔로우 시 뮤트 해제(충돌 방지)
+          muted: arrayRemove(targetUid),
         },
         { merge: true }
       );
@@ -99,8 +108,8 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
   const unfollow = async (targetUid: string) => {
-    const me = useMeRef();
     if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
     if (!ref) return;
@@ -119,8 +128,8 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
   const mute = async (targetUid: string) => {
-    const me = useMeRef();
     if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
     if (!ref) return;
@@ -130,7 +139,7 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ref,
         {
           muted: arrayUnion(targetUid),
-          following: arrayRemove(targetUid), // 뮤트 시 팔로우 해제(충돌 방지)
+          following: arrayRemove(targetUid),
         },
         { merge: true }
       );
@@ -140,8 +149,8 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
   const unmute = async (targetUid: string) => {
-    const me = useMeRef();
     if (!me || !targetUid || me === targetUid) return;
     const ref = refForMe();
     if (!ref) return;
@@ -170,14 +179,19 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       mute,
       unmute,
     }),
-    [loading, following, muted]
-  );
+    [loading, following, muted, me]
+  ); // me를 의존성 배열에 추가
 
-  return <RelationsContext.Provider value={value}>{children}</RelationsContext.Provider>;
+  return (
+    <RelationsContext.Provider value={value}>
+      {children}
+    </RelationsContext.Provider>
+  );
 };
 
 export const useRelations = () => {
   const ctx = useContext(RelationsContext);
-  if (!ctx) throw new Error("useRelations must be used within RelationsProvider");
+  if (!ctx)
+    throw new Error("useRelations must be used within RelationsProvider");
   return ctx;
 };

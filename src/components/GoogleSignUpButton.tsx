@@ -6,7 +6,8 @@ import { auth } from "../firebaseConfig";
 import { FirebaseError } from "firebase/app";
 import { useState, useEffect } from "react";
 
-const Button = styled.div`  // 🎨 styled-components 스타일 정의
+const Button = styled.div`
+  // 🎨 styled-components 스타일 정의
   display: flex;
   justify-content: center;
   align-items: center;
@@ -17,9 +18,15 @@ const Button = styled.div`  // 🎨 styled-components 스타일 정의
   border-radius: 15px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.3s ease; // 부드러운 전환 효과 추가
+
+  &:hover {
+    background-color: #c9c9c9; // 호버 시 배경색 변경
+  }
 `;
-const Title = styled.p``;  // 🎨 styled-components 스타일 정의
-const Icon = styled.img`  // 🎨 styled-components 스타일 정의
+const Title = styled.p``; // 🎨 styled-components 스타일 정의
+const Icon = styled.img`
+  // 🎨 styled-components 스타일 정의
   width: 12px;
   height: 12px;
 `;
@@ -50,7 +57,8 @@ export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
     }
   };
 
-  useEffect(() => {  // 🔁 컴포넌트 마운트 시 실행되는 훅
+  useEffect(() => {
+    // 🔁 컴포넌트 마운트 시 실행되는 훅
     const token = localStorage.getItem("ytAccessToken");
     if (!token) return;
 
@@ -76,7 +84,8 @@ export default ({ showPlaylists = false }: { showPlaylists?: boolean }) => {
     fetchPlaylists();
   }, []);
 
-  return (  // 🔚 컴포넌트의 JSX 반환 시작
+  return (
+    // 🔚 컴포넌트의 JSX 반환 시작
     <div>
       <Button onClick={onClick}>
         <Icon src={`${process.env.PUBLIC_URL}/google-icon.png`} />

@@ -9,7 +9,7 @@ Git : https://github.com/RedNoti/LOOP.git
 
 ### 실행 코드
 
-프로젝트 다운로드 후 `npm start` or https://loopmusic.o-r.kr:4003/ 으로 접속
+프로젝트 다운로드 후 `npm start` or https://loopmusic.o-r.kr 으로 접속
 
 ### 직접 다운로드 후 실행시 아래 플러그인 설치
 
