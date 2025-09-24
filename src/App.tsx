@@ -21,7 +21,8 @@ import { RelationsProvider } from "./components/RelationsContext";
 import Settings from "./screens/Settingbutton/settings";
 import ProfileSettings from "./screens/Settingbutton/ProfileSettings";
 import ThemeSettings from "./screens/Settingbutton/ThemeSetting";
-import BlockSettings from "./screens/Settingbutton/BlockSettings"; // ✅ 추가
+import BlockSettings from "./screens/Settingbutton/BlockSettings"; 
+import MusicStation from "./screens/Station";
 
 // 라우터 설정
 const router = createBrowserRouter([
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
       { path: "", element: <Home /> },
       { path: "profile", element: <Profile /> },
       { path: "music", element: <Playlist /> },
+      { path: "station", element: <MusicStation /> }, 
       { path: "KategorieFunction", element: <KategorieFunction /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
