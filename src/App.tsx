@@ -18,7 +18,6 @@ import UserProfileScreen from "./screens/user-profile";
 import { MusicPlayerProvider } from "./components/MusicFunction";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import { RelationsProvider } from "./components/RelationsContext";
-import MusicStation from "./screens/station";
 import Settings from "./screens/Settingbutton/settings";
 import ProfileSettings from "./screens/Settingbutton/ProfileSettings";
 import ThemeSettings from "./screens/Settingbutton/ThemeSetting";
@@ -40,8 +39,7 @@ const router = createBrowserRouter([
       { path: "KategorieFunction", element: <KategorieFunction /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
-      { path: "station", element: <MusicStation /> },
-
+      
       // 🔹 설정 관련 경로
       { path: "settings", element: <Settings /> },
       { path: "settings/profile", element: <ProfileSettings /> },

@@ -1,5 +1,7 @@
+import LiveComments from "../components/LiveComments"; // 9/3 추가 - 재생 중 버블로 실시간 댓글 표시
+import CommentInputBar from "../components/CommentInputBar"; // 9/3 추가 - 댓글 입력 바
 import ColorThief from "colorthief/dist/color-thief";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -16,7 +18,6 @@ import {
   playerRef,
   playerReadyRef,
 } from "../components/MusicFunction";
-import { useNavigate } from "react-router-dom"; // ✅ 추가
 
 const Container = styled.div<{ $isCollapsed: boolean }>`
   color: white;
@@ -145,10 +146,11 @@ const ProgressBar = styled.input`
 const PlayerControlsWrapper = styled.div`
   margin-top: 1.5rem;
   display: flex;
-  align-items: center;
+  flex-direction: column; /* 9/8 수정: 2줄 레이아웃 */
+  align-items: stretch;
   width: 100%;
   max-width: 320px;
-  justify-content: space-between;
+  gap: 12px; /* 상단행과 하단 댓글바 간격 */
 `;
 
 const VolumeWrapper = styled.div`
@@ -204,6 +206,20 @@ const PlaybackControlButton = styled.button<{ active?: boolean }>`
   }
 `;
 
+/* 9/8 추가: 상단 행(좌: 볼륨 / 우: 셔플·반복)을 좌우로 배치하는 컨테이너 */
+const ControlsRow = styled.div`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`;
+
+/* 9/3 추가: 댓글 입력 바를 한 칸 아래로 배치 */
+const CommentBarWrapper = styled.div`
+  width: 100%;
+  margin-top: 4px; /* 필요시 8~16px로 조절 */
+`;
+
 const BottomTabsWrapper = styled.div<{ $isCollapsed: boolean }>`
   width: 100%;
   background-color: transparent;
@@ -226,13 +242,11 @@ const TabButtons = styled.div<{ hasActiveTab: boolean }>`
   background-color: inherit;
   flex-shrink: 0;
 
-  /* 애니메이션 설정 */
   animation-name: ${(props) => (props.hasActiveTab ? "slideUp" : "slideDown")};
   animation-duration: 0.8s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   animation-fill-mode: forwards;
 
-  /* 키프레임 애니메이션 정의 */
   @keyframes slideUp {
     from {
       transform: translateY(0);
@@ -307,19 +321,16 @@ const ScrollableContent = styled.div`
   &::-webkit-scrollbar {
     width: 6px;
   }
-
   &::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 3px;
   }
-
   &::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 3px;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.5);
-    }
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
   }
 `;
 
@@ -330,9 +341,6 @@ const PlaylistItemList = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-
-  /* 기존 스타일에서 overflow 관련 속성들 제거 */
-  /* PlaylistItemList는 더 이상 스크롤 컨테이너가 아님 */
 `;
 
 const PlaylistItem = styled.li<{ hoverColor?: string }>`
@@ -376,36 +384,6 @@ const PlaylistItem = styled.li<{ hoverColor?: string }>`
   }
 `;
 
-/* ✅ 스테이션 시작 FAB */
-const StationFab = styled.button`
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 3000;
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  background: #1f2937;
-  color: #fff;
-  font-weight: 600;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-  }
-
-  @media (max-width: 768px) {
-    right: 16px;
-    bottom: 16px;
-    padding: 10px 14px;
-  }
-`;
-
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -440,7 +418,9 @@ export default function YouTubeMusicPlayer({
   onColorExtractHover?: (color: string) => void;
   isFullScreenMode?: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(null);
+  const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
+    null
+  );
   const {
     currentVideoId,
     currentVideoTitle,
@@ -476,29 +456,6 @@ export default function YouTubeMusicPlayer({
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
 
-  const navigate = useNavigate(); // ✅ 추가
-
-  // ✅ 현재 곡(없으면 마지막 곡)으로 스테이션 시작
-  const startStationFromCurrent = () => {
-  // 프로젝트에서 이미 쓰는 키 상수 사용(혼선 방지)
-  const vid =
-    currentVideoId || localStorage.getItem(STORAGE_KEYS.LAST_VIDEO_ID);
-  const title =
-    currentVideoTitle || localStorage.getItem(STORAGE_KEYS.LAST_VIDEO_TITLE);
-
-  if (!vid) {
-    alert("현재 재생 중인 영상이 없습니다.");
-    return;
-  }
-
-  navigate("/station", {
-    state: {
-      seedVideoId: vid,
-      seedKeyword: title || undefined,
-    },
-  });
-};
-
   useEffect(() => {
     const handlePostPlaylist = () => {
       const fromPost = sessionStorage.getItem("play_from_post");
@@ -513,11 +470,7 @@ export default function YouTubeMusicPlayer({
                 id: parsed.id,
                 snippet: {
                   title: parsed.title || "임시 재생목록",
-                  thumbnails: {
-                    medium: {
-                      url: parsed.thumbnail,
-                    },
-                  },
+                  thumbnails: { medium: { url: parsed.thumbnail } },
                 },
               },
             ];
@@ -527,11 +480,7 @@ export default function YouTubeMusicPlayer({
               snippet: {
                 title: track.title,
                 playlistId: parsed.id,
-                thumbnails: {
-                  default: {
-                    url: track.thumbnail,
-                  },
-                },
+                thumbnails: { default: { url: track.thumbnail } },
               },
             }));
 
@@ -549,7 +498,6 @@ export default function YouTubeMusicPlayer({
     };
 
     handlePostPlaylist();
-
     const handler = () => handlePostPlaylist();
     window.addEventListener("post_playlist_selected", handler);
     return () => window.removeEventListener("post_playlist_selected", handler);
@@ -560,12 +508,10 @@ export default function YouTubeMusicPlayer({
     const savedVideoIndex = localStorage.getItem(
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
     );
-
     if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
       const timer = setTimeout(() => {
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
-
       return () => clearTimeout(timer);
     }
   }, [playlists.length]);
@@ -603,6 +549,30 @@ export default function YouTubeMusicPlayer({
     localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
   }, [repeatMode]);
 
+  // ===== 2024-12-19 추가: 유튜브 댓글 시간 링크 기능 =====
+  // 댓글에서 시간 클릭 시 해당 시간으로 이동하는 이벤트 리스너
+  // 유튜브 댓글처럼 시간 링크를 클릭하면 해당 시간으로 영상 이동
+  // LiveComments.tsx에서 발생하는 'seekToTime' 커스텀 이벤트를 구독
+  // 예: 댓글에 "2:05 좋다"라고 쓰면 2:05가 파란색 링크가 되고 클릭 시 해당 시간으로 이동
+  useEffect(() => {
+    const handleSeekToTime = (event: CustomEvent) => {
+      const { seconds } = event.detail;
+      if (playerRef.current && playerRef.current.seekTo) {
+        playerRef.current.seekTo(seconds, true);
+        setCurrentTime(seconds);
+        setSliderValue(seconds);
+      }
+    };
+
+    window.addEventListener("seekToTime", handleSeekToTime as EventListener);
+    return () => {
+      window.removeEventListener(
+        "seekToTime",
+        handleSeekToTime as EventListener
+      );
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentVideoThumbnail) return;
 
@@ -620,17 +590,17 @@ export default function YouTubeMusicPlayer({
         if (mainColor) {
           const formattedMain = `rgb(${mainColor[0]}, ${mainColor[1]}, ${mainColor[2]})`;
           setDominantColor(formattedMain);
-          if (onColorExtract) onColorExtract(formattedMain);
+          onColorExtract?.(formattedMain);
 
-          const desaturated = mainColor.map((c) => Math.floor(c * 0.6));
+          const desaturated = mainColor.map((c: number) => Math.floor(c * 0.6));
           const formattedHover = `rgb(${desaturated[0]}, ${desaturated[1]}, ${desaturated[2]})`;
           setHoverColor(formattedHover);
-          if (onColorExtractHover) onColorExtractHover(formattedHover);
+          onColorExtractHover?.(formattedHover);
         }
 
-        if (secondColor && onColorExtractSecondary) {
+        if (secondColor) {
           const formattedSecond = `rgb(${secondColor[0]}, ${secondColor[1]}, ${secondColor[2]})`;
-          onColorExtractSecondary(formattedSecond);
+          onColorExtractSecondary?.(formattedSecond);
         }
       } catch (e) {
         console.error("Failed to extract color palette:", e);
@@ -639,9 +609,7 @@ export default function YouTubeMusicPlayer({
   }, [currentVideoThumbnail]);
 
   useEffect(() => {
-    if (dominantColor && onColorExtract) {
-      onColorExtract(dominantColor);
-    }
+    if (dominantColor) onColorExtract?.(dominantColor);
   }, [dominantColor]);
 
   useEffect(() => {
@@ -662,13 +630,10 @@ export default function YouTubeMusicPlayer({
     return () => clearInterval(interval);
   }, [playerRef, isSeeking]);
 
-  const handleSeekStart = () => {
-    setIsSeeking(true);
-  };
+  const handleSeekStart = () => setIsSeeking(true);
 
-  const handleSeekChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeekChange = (event: React.ChangeEvent<HTMLInputElement>) =>
     setSliderValue(parseFloat(event.target.value));
-  };
 
   const handleSeek = () => {
     if (playerRef.current) {
@@ -676,12 +641,8 @@ export default function YouTubeMusicPlayer({
       setCurrentTime(sliderValue);
 
       const playerState = playerRef.current.getPlayerState();
-
-      if (playerState === 1 || isPlaying) {
-        playerRef.current.playVideo();
-      }
+      if (playerState === 1 || isPlaying) playerRef.current.playVideo();
     }
-
     setIsSeeking(false);
   };
 
@@ -705,9 +666,7 @@ export default function YouTubeMusicPlayer({
     });
   };
 
-  const toggleShuffleMode = () => {
-    setShuffleMode((prevMode) => !prevMode);
-  };
+  const toggleShuffleMode = () => setShuffleMode((prevMode) => !prevMode);
 
   const handleNextTrack = () => {
     if (shuffleMode && videos.length > 1) {
@@ -715,9 +674,8 @@ export default function YouTubeMusicPlayer({
         (v) => v.id.videoId === currentVideoId
       );
       let nextIndex = currentIndex;
-      while (nextIndex === currentIndex) {
+      while (nextIndex === currentIndex)
         nextIndex = Math.floor(Math.random() * videos.length);
-      }
       playPlaylist(videos[nextIndex].snippet.playlistId || "", nextIndex);
     } else {
       nextTrack();
@@ -725,7 +683,7 @@ export default function YouTubeMusicPlayer({
   };
 
   const handleTrackEnd = () => {
-    if (RepeatMode.REPEAT_ONE === repeatMode && playerRef.current) {
+    if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
       playerRef.current.seekTo(0, true);
       playerRef.current.playVideo();
     } else {
@@ -733,10 +691,9 @@ export default function YouTubeMusicPlayer({
     }
   };
 
-  // 페이지 이동 시 YouTube 플레이어 상태 유지
+  // 페이지 이동 시 YouTube 플레이어 상태 저장
   useEffect(() => {
     return () => {
-      // 컴포넌트가 언마운트될 때 현재 재생 상태 저장
       if (playerRef.current) {
         const currentTime = playerRef.current.getCurrentTime();
         localStorage.setItem("youtube_player_time", String(currentTime));
@@ -745,19 +702,16 @@ export default function YouTubeMusicPlayer({
     };
   }, [isPlaying]);
 
-  // 컴포넌트 마운트 시 이전 재생 상태 복원
+  // 이전 재생 상태 복원
   useEffect(() => {
     if (playerRef.current && playerReadyRef.current) {
       const savedTime = localStorage.getItem("youtube_player_time");
       const wasPlaying =
         localStorage.getItem("youtube_player_playing") === "true";
-
       if (savedTime) {
         try {
           playerRef.current.seekTo(parseFloat(savedTime), true);
-          if (wasPlaying) {
-            playerRef.current.playVideo();
-          }
+          if (wasPlaying) playerRef.current.playVideo();
         } catch (err) {
           console.error("🎬 seekTo 실패:", err);
         }
@@ -775,10 +729,8 @@ export default function YouTubeMusicPlayer({
           onReady={(e: YouTubeEvent<YouTubePlayer>) => {
             playerRef.current = e.target;
             playerReadyRef.current = true;
-            const duration = e.target.getDuration();
-            if (typeof duration === "number" && !isNaN(duration)) {
-              setDuration(duration);
-            }
+            const d = e.target.getDuration();
+            if (typeof d === "number" && !isNaN(d)) setDuration(d);
             const savedVolume = localStorage.getItem("musicPlayerVolume");
             if (savedVolume !== null) {
               playerRef.current.setVolume(Number(savedVolume));
@@ -829,61 +781,71 @@ export default function YouTubeMusicPlayer({
               <ProgressTime>{formatTime(duration)}</ProgressTime>
             </ProgressBarWrapper>
 
+            {/* 9/8 수정: 상단 행(볼륨 ⬅︎ / 셔플·반복 ➡︎) + 하단 행(댓글바) */}
             <PlayerControlsWrapper>
-              <VolumeWrapper>
-                <Volume2 size={16} />
-                <VolumeSlider
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={changeVolume}
-                  style={{
-                    background: `linear-gradient(to right, #4d76fc ${volume}%, #444 ${volume}%)`,
-                  }}
-                />
-              </VolumeWrapper>
+              <ControlsRow>
+                <VolumeWrapper>
+                  <Volume2 size={16} />
+                  <VolumeSlider
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={volume}
+                    onChange={changeVolume}
+                    style={{
+                      background: `linear-gradient(to right, #4d76fc ${volume}%, #444 ${volume}%)`,
+                    }}
+                  />
+                </VolumeWrapper>
 
-              <PlaybackControlsWrapper>
-                <PlaybackControlButton
-                  active={shuffleMode}
-                  onClick={toggleShuffleMode}
-                  title="Shuffle Play"
-                >
-                  <Shuffle size={16} />
-                </PlaybackControlButton>
-                <PlaybackControlButton
-                  active={repeatMode !== RepeatMode.NO_REPEAT}
-                  onClick={toggleRepeatMode}
-                  title={
-                    repeatMode === RepeatMode.NO_REPEAT
-                      ? "No Repeat"
-                      : repeatMode === RepeatMode.REPEAT_ALL
-                      ? "Repeat All"
-                      : "Repeat One"
-                  }
-                >
-                  <Repeat size={16} />
-                  {repeatMode === RepeatMode.REPEAT_ONE && (
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        position: "absolute",
-                        marginTop: "-8px",
-                        marginLeft: "-6px",
-                      }}
-                    >
-                      1
-                    </span>
-                  )}
-                </PlaybackControlButton>
-              </PlaybackControlsWrapper>
+                <PlaybackControlsWrapper>
+                  <PlaybackControlButton
+                    active={shuffleMode}
+                    onClick={toggleShuffleMode}
+                    title="Shuffle Play"
+                  >
+                    <Shuffle size={16} />
+                  </PlaybackControlButton>
+                  <PlaybackControlButton
+                    active={repeatMode !== RepeatMode.NO_REPEAT}
+                    onClick={toggleRepeatMode}
+                    title={
+                      repeatMode === RepeatMode.NO_REPEAT
+                        ? "No Repeat"
+                        : repeatMode === RepeatMode.REPEAT_ALL
+                        ? "Repeat All"
+                        : "Repeat One"
+                    }
+                  >
+                    <Repeat size={16} />
+                    {repeatMode === RepeatMode.REPEAT_ONE && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          position: "absolute",
+                          marginTop: "-8px",
+                          marginLeft: "-6px",
+                        }}
+                      >
+                        1
+                      </span>
+                    )}
+                  </PlaybackControlButton>
+                </PlaybackControlsWrapper>
+              </ControlsRow>
+
+              <CommentBarWrapper>
+                <CommentInputBar trackId={currentVideoId} />
+              </CommentBarWrapper>
             </PlayerControlsWrapper>
+
+            {/* 실시간 댓글 버블 */}
+            <LiveComments trackId={currentVideoId} />
           </PlayerWrapper>
         </PlayerSection>
       )}
 
-      {/* 하단 탭 버튼들 - 항상 표시됨 */}
+      {/* 하단 탭들 */}
       <BottomTabsWrapper $isCollapsed={activeTab === null}>
         <TabButtons hasActiveTab={activeTab !== null}>
           <span
@@ -910,7 +872,6 @@ export default function YouTubeMusicPlayer({
           </span>
         </TabButtons>
 
-        {/* 탭 컨텐츠는 탭이 열려있을 때만 표시 */}
         <TabContentWrapper $isExpanded={activeTab !== null}>
           <TabContent $isActive={activeTab !== null}>
             {activeTab === "playlist" && (
@@ -919,7 +880,6 @@ export default function YouTubeMusicPlayer({
                   {videos.map((video, index) => (
                     <PlaylistItem
                       key={index}
-                      hoverColor={hoverColor || undefined}
                       onClick={() =>
                         playPlaylist(video.snippet.playlistId || "", index)
                       }
@@ -943,7 +903,6 @@ export default function YouTubeMusicPlayer({
                   {playlists.map((playlist, index) => (
                     <PlaylistItem
                       key={index}
-                      hoverColor={hoverColor || undefined}
                       onClick={() => playPlaylist(playlist.id, 0)}
                     >
                       <div className="thumbnail">
@@ -961,14 +920,6 @@ export default function YouTubeMusicPlayer({
           </TabContent>
         </TabContentWrapper>
       </BottomTabsWrapper>
-
-      {/* ✅ 스테이션 시작 FAB – 현재 곡/제목을 시드로 /station 이동 */}
-      <StationFab
-  onClick={startStationFromCurrent}   // ✅ 이 한 줄만 바꾸면 됩니다
-  title="현재 곡 기준 스테이션 시작"
->
-  ▶️ 스테이션 시작
-</StationFab>
     </Container>
   );
 }
