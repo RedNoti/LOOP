@@ -11,7 +11,6 @@ import {
   arrayRemove,
   increment,
 } from "firebase/firestore";
-import CommentSection from "./Comment";
 import { useMusicPlayer } from "../components/MusicFunction";
 import { useTheme } from "../components/ThemeContext";
 import MiniProfileHover from "./MiniProfileHover";
@@ -514,31 +513,6 @@ const Post = ({
           )}
         </InteractionBar>
       </BottomSection>
-
-      {/* 댓글 */}
-      <CommentSectionWrapper show={showComments}>
-        <CommentSection
-          postId={id}
-          initialComments={commentList}
-          initialCount={commentList.length}
-          onCommentAdded={async (newComment) => {
-            const updatedComments = [...commentList, newComment];
-            setCommentList(updatedComments);
-            await updateDoc(doc(db, "posts", id), {
-              comments: updatedComments,
-            });
-          }}
-          onCommentDeleted={async (deletedCommentId) => {
-            const updatedComments = commentList.filter(
-              (c) => c.id !== deletedCommentId
-            );
-            setCommentList(updatedComments);
-            await updateDoc(doc(db, "posts", id), {
-              comments: updatedComments,
-            });
-          }}
-        />
-      </CommentSectionWrapper>
     </Container>
   );
 };
