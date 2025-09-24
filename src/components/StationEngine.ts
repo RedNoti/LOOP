@@ -1,180 +1,197 @@
 // src/components/StationEngine.ts
-import axios from "axios";
+// YouTube Data API v3 기반 스테이션 빌더 (403/에러 가드 + 키 보안 + 폴백 강화)
+
+console.log("[ENV] REACT_APP_YT_API_KEY =", process.env.REACT_APP_YT_API_KEY);
 
 export type Seed =
   | { type: "videoId"; value: string }
   | { type: "keyword"; value: string }
-  | { type: "artist"; value: string }
-  | { type: "genre"; value: string };
+  | { type: "channelId"; value: string };
 
-export interface StationItem {
+export type StationItem = {
   videoId: string;
   title: string;
   channelTitle: string;
-  thumbnail: string; // 반드시 string
-}
-
-export interface BuildOptions {
-  maxSize?: number;           // 생성할 큐 길이
-  shuffle?: boolean;          // 셔플 여부
-  allowDuplicates?: boolean;  // 중복 허용 여부
-}
-
-const API_BASE = "https://www.googleapis.com/youtube/v3";
-
-// ---------- 유틸 ----------
-const pick = <T>(arr: T[], n: number) => arr.slice(0, Math.max(0, n));
-const shuffleArray = <T>(arr: T[]) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+  thumbnail: string; // 항상 string (빈 문자열 허용 안 함)
 };
-const uniqBy = <T, K extends string | number>(arr: T[], key: (x: T) => K) => {
-  const seen = new Set<K>();
+
+const API_KEY: string | undefined =
+  (process.env as any)?.REACT_APP_YT_API_KEY;
+
+const MUSIC_TOPIC_ID = "/m/04rlf"; // 음악 토픽 (필요 시 제거 재시도)
+
+type YTSearchItem = {
+  id?: { videoId?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    thumbnails?: {
+      medium?: { url?: string };
+      default?: { url?: string };
+    };
+  };
+};
+
+type YTError = {
+  error?: {
+    errors?: Array<{ reason?: string; message?: string }>;
+    code?: number;
+    message?: string;
+  };
+};
+
+function assertApiKey(): string {
+  if (!API_KEY) {
+    console.warn(
+      "[StationEngine] No API key found. Set VITE_YT_API_KEY or REACT_APP_YT_API_KEY."
+    );
+    return "";
+  }
+  return API_KEY;
+}
+
+async function ytFetch(url: URL): Promise<
+  | { ok: true; data: any }
+  | { ok: false; status: number; reason: string; raw: string }
+> {
+  url.searchParams.set("key", assertApiKey());
+  const res = await fetch(url.toString());
+  const raw = await res.text();
+
+  if (!res.ok) {
+    let reason = "unknown";
+    try {
+      const j: YTError = JSON.parse(raw);
+      reason = j?.error?.errors?.[0]?.reason || j?.error?.message || "unknown";
+    } catch {
+      // ignore
+    }
+    console.warn("[YT] request failed:", res.status, reason, raw.slice(0, 500));
+    return { ok: false, status: res.status, reason, raw };
+  }
+  try {
+    return { ok: true, data: JSON.parse(raw) };
+  } catch (e) {
+    console.warn("[YT] JSON parse error:", (e as Error).message);
+    return { ok: false, status: 500, reason: "jsonParseError", raw };
+  }
+}
+
+function normalize(items: YTSearchItem[]): StationItem[] {
+  return items
+    .map((it) => {
+      const videoId = it?.id?.videoId || "";
+      const title = it?.snippet?.title || "";
+      const channelTitle = it?.snippet?.channelTitle || "";
+      const thumb =
+        it?.snippet?.thumbnails?.medium?.url ||
+        it?.snippet?.thumbnails?.default?.url ||
+        "";
+
+      if (!videoId || !thumb) return null;
+      return {
+        videoId,
+        title,
+        channelTitle,
+        thumbnail: thumb,
+      } as StationItem;
+    })
+    .filter(Boolean) as StationItem[];
+}
+
+function uniqBy<T>(arr: T[], key: (x: T) => string): T[] {
+  const seen = new Set<string>();
   const out: T[] = [];
-  for (const it of arr) {
-    const k = key(it);
-    if (!seen.has(k)) { seen.add(k); out.push(it); }
-  }
-  return out;
-};
-
-// CRA / Vite 모두 지원 (CRA 프로젝트라도 문제 없음)
-function getApiKey(): string {
-  const k1 = (process.env as any)?.REACT_APP_YT_API_KEY as string | undefined;
-  let k2: string | undefined;
-  try {
-    // Vite 환경 대응 (CRA에선 import.meta가 없어도 catch로 안전)
-    // @ts-ignore
-    k2 = typeof import.meta !== "undefined" ? (import.meta as any)?.env?.VITE_YT_API_KEY : undefined;
-  } catch {}
-  return (k1 || k2 || "").trim();
-}
-
-function mapItem(it: any): StationItem | null {
-  const videoId = it?.id?.videoId;
-  if (!videoId) return null;
-  const title = it?.snippet?.title ?? "";
-  const channelTitle = it?.snippet?.channelTitle ?? "";
-  const thumb =
-    it?.snippet?.thumbnails?.medium?.url ??
-    it?.snippet?.thumbnails?.default?.url ??
-    "";
-  if (!thumb) return null; // 썸네일 없는 항목 제외
-  return { videoId, title, channelTitle, thumbnail: thumb };
-}
-
-// ---------- 검색 ----------
-async function searchByKeyword(
-  q: string,
-  apiKey: string,
-  limit = 25
-): Promise<StationItem[]> {
-  try {
-    const { data } = await axios.get(`${API_BASE}/search`, {
-      params: {
-        part: "snippet",
-        q,
-        maxResults: limit,
-        type: "video",
-        videoEmbeddable: "true",   // 외부 임베드 가능
-        videoSyndicated: "true",   // 제3자 재생 허용
-        topicId: "/m/04rlf",       // 음악 토픽
-        key: apiKey,
-      },
-    });
-    const items = (data.items || [])
-      .map(mapItem)
-      .filter((x: StationItem | null): x is StationItem => !!x);
-    return items;
-  } catch (err: any) {
-    console.error("[Station] searchByKeyword error:", err?.response?.status, err?.response?.data || err?.message);
-    return [];
-  }
-}
-
-async function relatedToVideo(
-  videoId: string,
-  apiKey: string,
-  limit = 25
-): Promise<StationItem[]> {
-  try {
-    const { data } = await axios.get(`${API_BASE}/search`, {
-      params: {
-        part: "snippet",
-        relatedToVideoId: videoId,
-        maxResults: limit,
-        type: "video",
-        videoEmbeddable: "true",
-        videoSyndicated: "true",
-        topicId: "/m/04rlf",
-        key: apiKey,
-      },
-    });
-    const items = (data.items || [])
-      .map(mapItem)
-      .filter((x: StationItem | null): x is StationItem => !!x);
-    return items;
-  } catch (err: any) {
-    console.error("[Station] relatedToVideo error:", err?.response?.status, err?.response?.data || err?.message);
-    return [];
-  }
-}
-
-// ---------- 스테이션 빌드 ----------
-export async function buildStation(
-  seeds: Seed[],
-  options: BuildOptions = {}
-): Promise<StationItem[]> {
-  const { maxSize = 50, shuffle = true, allowDuplicates = false } = options;
-
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.warn("[Station] API key is missing (REACT_APP_YT_API_KEY or VITE_YT_API_KEY)");
-    return [];
-  }
-
-  // 1) 각 시드에서 후보 가져오기
-  const buckets: StationItem[][] = [];
-  for (const s of seeds) {
-    if (s.type === "videoId") {
-      buckets.push(await relatedToVideo(s.value, apiKey, 25));
-    } else if (s.type === "keyword") {
-      buckets.push(await searchByKeyword(s.value, apiKey, 25));
-    } else if (s.type === "artist") {
-      buckets.push(await searchByKeyword(`${s.value} official audio`, apiKey, 25));
-    } else if (s.type === "genre") {
-      buckets.push(await searchByKeyword(`${s.value} music mix`, apiKey, 25));
+  for (const x of arr) {
+    const k = key(x);
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      out.push(x);
     }
   }
-
-  // 2) 버킷을 교차 합치기(라디오 다양성)
-  const merged: StationItem[] = [];
-  let i = 0;
-  while (merged.length < maxSize) {
-    let added = false;
-    for (const bucket of buckets) {
-      if (i < bucket.length) {
-        merged.push(bucket[i]);
-        if (merged.length >= maxSize) break;
-        added = true;
-      }
-    }
-    if (!added) break;
-    i++;
-  }
-
-  // 3) 중복 제거 / 셔플 / 길이 제한
-  let out = allowDuplicates ? merged : uniqBy(merged, (x) => x.videoId);
-  if (shuffle) out = shuffleArray(out);
-  out = pick(out, maxSize);
-
-  // 디버그 로그
-  if (out.length === 0) {
-    console.warn("[Station] buildStation produced empty queue. Seeds:", seeds);
-  }
   return out;
+}
+
+function pickKeyword(seeds: Seed[]): string {
+  const k = seeds.find((s) => s.type === "keyword")?.value;
+  return k || "music mix";
+}
+
+async function searchRelated(videoId: string, max = 25, withTopic = true) {
+  const url = new URL("https://www.googleapis.com/youtube/v3/search");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("type", "video");
+  url.searchParams.set("maxResults", String(max));
+  url.searchParams.set("relatedToVideoId", videoId);
+  url.searchParams.set("videoEmbeddable", "true");
+  url.searchParams.set("videoSyndicated", "true");
+  if (withTopic) url.searchParams.set("topicId", MUSIC_TOPIC_ID);
+
+  const r = await ytFetch(url);
+  if (!r.ok) return { ok: false as const, items: [], reason: r.reason };
+  const items = normalize(r.data?.items || []);
+  return { ok: true as const, items };
+}
+
+async function searchByKeyword(q: string, max = 25, withTopic = true) {
+  const url = new URL("https://www.googleapis.com/youtube/v3/search");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("type", "video");
+  url.searchParams.set("maxResults", String(max));
+  url.searchParams.set("q", q);
+  url.searchParams.set("videoEmbeddable", "true");
+  url.searchParams.set("videoSyndicated", "true");
+  if (withTopic) url.searchParams.set("topicId", MUSIC_TOPIC_ID);
+
+  const r = await ytFetch(url);
+  if (!r.ok) return { ok: false as const, items: [], reason: r.reason };
+  const items = normalize(r.data?.items || []);
+  return { ok: true as const, items };
+}
+
+async function tryWithTopicThenWithout<T extends any[]>(
+  fn: (withTopic: boolean) => Promise<{ ok: boolean; items: T; reason?: string }>
+) {
+  const a = await fn(true);
+  if (a.ok && a.items.length > 0) return a.items;
+  const b = await fn(false);
+  return b.items;
+}
+
+/**
+ * seeds를 바탕으로 스테이션 큐를 생성
+ * - relatedToVideoId 우선 → 부족하면 keyword
+ * - topicId 필터로 먼저 시도 → 결과 부족하면 topicId 제거 후 재시도
+ * - 최종 중복 제거 후 최대 50개
+ */
+export async function buildStation(seeds: Seed[]): Promise<StationItem[]> {
+  if (!assertApiKey()) return [];
+
+  const seedVid = seeds.find((s) => s.type === "videoId")?.value;
+  const keyword = pickKeyword(seeds);
+
+  let list: StationItem[] = [];
+
+  if (seedVid) {
+    const rel = await tryWithTopicThenWithout<StationItem[]>(async (topic) => {
+      const r = await searchRelated(seedVid, 30, topic);
+      return {
+        ok: true,
+        items: r.items as StationItem[],
+      };
+    });
+    list = list.concat(rel);
+  }
+
+  if (list.length < 10 && keyword) {
+    const kw = await tryWithTopicThenWithout<StationItem[]>(async (topic) => {
+      const r = await searchByKeyword(keyword, 30, topic);
+      return { ok: true, items: r.items as StationItem[] };
+    });
+    list = list.concat(kw);
+  }
+
+  // 최종 필터링/슬라이싱
+  const uniq = uniqBy(list, (x) => x.videoId).slice(0, 50);
+  return uniq;
 }
