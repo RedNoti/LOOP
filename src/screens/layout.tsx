@@ -117,7 +117,6 @@ const MenuItem = styled.div<{ isActive?: boolean }>`
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
-  // 활성 상태 표시 점
   ${(props) =>
     props.isActive &&
     `
@@ -167,25 +166,21 @@ const MainContent = styled.div<{
   background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-  height: calc(100vh - 70px); /* 명시적 높이 설정 */
+  height: calc(100vh - 70px);
   min-height: 0;
 
-  /* 스크롤바 스타일링 */
   &::-webkit-scrollbar {
     width: 8px;
   }
-
   &::-webkit-scrollbar-track {
     background: ${(props) => (props.$isDark ? "#202020" : "#f1f1f1")};
     border-radius: 4px;
   }
-
   &::-webkit-scrollbar-thumb {
     background: ${(props) => (props.$isDark ? "#404040" : "#c1c1c1")};
     border-radius: 4px;
     transition: background 0.3s ease;
   }
-
   &::-webkit-scrollbar-thumb:hover {
     background: ${(props) => (props.$isDark ? "#606060" : "#a1a1a1")};
   }
@@ -198,7 +193,7 @@ const ContentContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   justify-content: ${(props) =>
     props.$isFullscreenMusic ? "flex-end" : "flex-start"};
-  overflow: hidden; /* 부모에서 overflow 제어 */
+  overflow: hidden;
 `;
 
 const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
@@ -363,21 +358,19 @@ const Layout = () => {
   const navi = useNavigate();
   const location = useLocation();
 
-  // music 페이지 여부 및 숨김 여부 확인
   const hidePlayer =
     location.pathname === "/signin" || location.pathname === "/signup";
   const isFullscreenMusic = location.pathname === "/music";
 
-  // 음악 플레이어를 한 번만 생성하고 재사용 (의존성 배열에서 isFullscreenMusic 제거)
   const MemoizedMusicPlayer = useMemo(
     () => (
       <YouTubeMusicPlayer
         onColorExtract={setDominantColor}
         onColorExtractSecondary={setSecondaryColor}
-        isFullScreenMode={isFullscreenMusic} // props로 전달하되 의존성에서 제외
+        isFullScreenMode={isFullscreenMusic}
       />
     ),
-    [] // 빈 의존성 배열로 한 번만 생성
+    []
   );
 
   const signOut = async () => {
@@ -389,7 +382,7 @@ const Layout = () => {
   };
 
   const exitFullscreen = () => {
-    navi("/"); // 홈으로 이동
+    navi("/");
   };
 
   const closeImageModal = () => {
@@ -397,11 +390,9 @@ const Layout = () => {
     document.body.style.overflow = "auto";
   };
 
-  // 컨텍스트 값
   const imageModalContextValue = useMemo(
     () => ({
       openModal: (src: string) => {
-        // 딜레이 없이 즉시 설정
         setImageModalSrc(src);
         document.body.style.overflow = "hidden";
       },
@@ -410,14 +401,12 @@ const Layout = () => {
     []
   );
 
-  // ESC 키로 모달 닫기
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && imageModalSrc) {
         closeImageModal();
       }
     };
-
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
   }, [imageModalSrc]);
@@ -506,32 +495,7 @@ const Layout = () => {
               </Link>
             </MenuSection>
 
-            {/* 상단 구분선은 삭제 */}
-            {/* <MenuDivider /> */}
-
             <MenuSection>
-              {/* 프로필 버튼 */}
-              <Link to="/profile" style={{ textDecoration: "none" }}>
-                <TooltipContainer>
-                  <MenuItem isActive={location.pathname === "/profile"}>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-                      />
-                    </svg>
-                  </MenuItem>
-                </TooltipContainer>
-              </Link>
-
-              {/* ✅ 스테이션 버튼 (알림 위에 추가) */}
               <Link to="/station" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/station"}>
@@ -542,7 +506,6 @@ const Layout = () => {
                       stroke="currentColor"
                       strokeWidth={2}
                     >
-                      {/* 라디오/방송 아이콘 */}
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -553,7 +516,6 @@ const Layout = () => {
                 </TooltipContainer>
               </Link>
 
-              {/*  팔로우 피드 버튼 */}
               <Link to="/following" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/following"}>
@@ -564,7 +526,6 @@ const Layout = () => {
                       stroke="currentColor"
                       strokeWidth={2}
                     >
-                      {/* 사람 + 리스트 모양 아이콘 */}
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -574,7 +535,7 @@ const Layout = () => {
                   </MenuItem>
                 </TooltipContainer>
               </Link>
-              {/* 알림 버튼 */}
+
               <TooltipContainer>
                 <MenuItem>
                   <svg
@@ -593,35 +554,32 @@ const Layout = () => {
                 </MenuItem>
               </TooltipContainer>
 
-              {/* 설정 버튼 */}
-              <TooltipContainer>
-                <MenuItem>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+              <Link to="/settings" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  {/* ✅ 수정: /settings 하위 경로에서도 활성화 */}
+                  <MenuItem
+                    isActive={location.pathname.startsWith("/settings")}
                   >
-                    <path
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-                    />
-                  </svg>
-                </MenuItem>
-              </TooltipContainer>
+                    >
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06c.51.51 1.21.66 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0 1 1 4 0v.09c0 .7.4 1.31 1 1.65.61.33 1.31.18 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.51.51-.66 1.21-.33 1.82.34.6.95 1 1.65 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z"></path>
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
 
               <MenuDivider />
             </MenuSection>
 
             <BottomMenu>
-              {/* 로그아웃 버튼 */}
               <TooltipContainer>
                 <MenuItem onClick={signOut}>
                   <svg
@@ -687,7 +645,6 @@ const Layout = () => {
           </ContentContainer>
         </Body>
 
-        {/* 이미지 전체화면 모달 - 항상 렌더링 */}
         <ImageModal
           $isOpen={!!imageModalSrc}
           $isDark={isDarkMode}

@@ -19,8 +19,10 @@ import { MusicPlayerProvider } from "./components/MusicFunction";
 import { ThemeProvider, useTheme } from "./components/ThemeContext";
 import { RelationsProvider } from "./components/RelationsContext";
 import MusicStation from "./screens/station";
-import FollowingFeed from "./screens/following";
-
+import Settings from "./screens/Settingbutton/settings";
+import ProfileSettings from "./screens/Settingbutton/ProfileSettings";
+import ThemeSettings from "./screens/Settingbutton/ThemeSetting";
+import BlockSettings from "./screens/Settingbutton/BlockSettings"; // ✅ 추가
 
 // 라우터 설정
 const router = createBrowserRouter([
@@ -31,7 +33,6 @@ const router = createBrowserRouter([
         <Layout />
       </ProtectedRouter>
     ),
-    errorElement: <div style={{ padding: 24 }}>페이지를 찾을 수 없습니다. <a href="/">홈으로</a></div>,
     children: [
       { path: "", element: <Home /> },
       { path: "profile", element: <Profile /> },
@@ -39,8 +40,13 @@ const router = createBrowserRouter([
       { path: "KategorieFunction", element: <KategorieFunction /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
-      { path: "station", element: <MusicStation /> }, 
-      { path: "following", element: <FollowingFeed /> },
+      { path: "station", element: <MusicStation /> },
+
+      // 🔹 설정 관련 경로
+      { path: "settings", element: <Settings /> },
+      { path: "settings/profile", element: <ProfileSettings /> },
+      { path: "settings/theme", element: <ThemeSettings /> },
+      { path: "settings/block", element: <BlockSettings /> }, // ✅ 차단 관리 경로
     ],
   },
   { path: "/signin", element: <Signin /> },
@@ -97,7 +103,6 @@ const AppContent = () => {
     <>
       <ThemedGlobalStyle $isDark={isDarkMode} />
       <Container className="App">
-        {/* ✅ 로그인 준비가 끝난 뒤 RelationsProvider 마운트 */}
         <RelationsProvider>
           <RouterProvider router={router} />
         </RelationsProvider>
