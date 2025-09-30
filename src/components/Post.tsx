@@ -16,6 +16,7 @@ import { useTheme } from "../components/ThemeContext";
 import MiniProfileHover from "./MiniProfileHover";
 import { Link } from "react-router-dom";
 import { useRelations } from "../components/RelationsContext";
+import CommentSection from "./Comment";
 
 interface PostProps {
   id: string;
@@ -96,6 +97,17 @@ const Post = ({
   } | null>(null);
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const [isZooming, setIsZooming] = useState(false);
+  const handleCommentAdded = (newComment: any) => {
+    // FireStore에서 불러온 기존 목록(commentList)에 새 댓글을 추가합니다.
+    // Comment.tsx에서는 addDoc을 통해 DB에 이미 추가했으므로, 여기서는 UI 상태만 갱신합니다.
+    setCommentList((prev) => [...prev, newComment]);
+  };
+  const handleCommentDeleted = (deletedCommentId: string) => {
+    // 삭제된 댓글 ID를 기반으로 목록에서 해당 댓글을 제거합니다.
+    setCommentList((prev) =>
+      prev.filter((c: any) => c.id !== deletedCommentId)
+    );
+  };
 
   // === 데이터 로딩 ===
   useEffect(() => {
@@ -332,9 +344,17 @@ const Post = ({
 
       {/* 이미지 갤러리 */}
       {photoUrls.length > 0 && (
-        <ImageGallery>
+        <ImageGallery $count={photoUrls.length}>
+          {" "}
+          {/* ✅ photoUrls.length 전달 */}
           {photoUrls.map((url, index) => (
-            <ImageContainer $isDark={isDarkMode} key={index}>
+            <ImageContainer
+              $isDark={isDarkMode}
+              key={index}
+              $count={photoUrls.length}
+            >
+              {" "}
+              {/* ✅ photoUrls.length 전달 */}
               <StyledImage
                 src={url}
                 alt={`Post image ${index + 1}`}
@@ -512,6 +532,15 @@ const Post = ({
           )}
         </InteractionBar>
       </BottomSection>
+      <CommentSectionWrapper show={showComments} $isDark={isDarkMode}>
+        <CommentSection
+          postId={id}
+          initialComments={comments || []}
+          initialCount={commentList.length}
+          onCommentAdded={handleCommentAdded}
+          onCommentDeleted={handleCommentDeleted}
+        />
+      </CommentSectionWrapper>
     </Container>
   );
 };
@@ -734,18 +763,56 @@ const SaveBtn = styled.button`
   }
 `;
 
-const ImageGallery = styled.div`
+const ImageGallery = styled.div<{ $count: number }>`
   padding: 0 24px 16px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 12px;
+
+  // 1장 또는 2장일 때: 그리드 사용
+  ${(p) =>
+    p.$count < 3
+      ? `
+    display: grid;
+    /* 1장일 때: 최대 너비 320px인 컬럼 1개 */
+    /* 2장일 때: 최대 너비 320px인 컬럼 2개 */
+    grid-template-columns: repeat(${p.$count}, minmax(0, 320px)); 
+    gap: 12px;
+  `
+      : // 3장 이상일 때: 플렉스(스크롤) 사용
+        `
+    display: flex;
+    gap: 12px;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    padding-bottom: 20px;
+    
+    /* 스크롤바 숨기기 (선택 사항) */
+    &::-webkit-scrollbar {
+      height: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(150, 150, 150, 0.5);
+      border-radius: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  `}
 `;
 
-const ImageContainer = styled.div<{ $isDark: boolean }>`
+const ImageContainer = styled.div<{ $isDark: boolean; $count: number }>`
   border-radius: 16px;
   overflow: hidden;
   background: ${(p) => (p.$isDark ? "#333333" : "#f8f9fa")};
   aspect-ratio: 4/3;
+  flex-shrink: 0; /* 3장 이상 스크롤 모드 대비 */
+
+  /* 1장 또는 2장일 때는 grid-template-columns의 minmax(0, 320px)를 따름. */
+
+  // 3장 이상일 경우: 고정 너비 (스크롤 아이템)
+  ${(p) =>
+    p.$count >= 3 &&
+    `
+    width: 320px; /* 스크롤 가능한 고정 너비 */
+  `}/* 1장이나 2장일 때 100%나 50% 너비 지정 로직은 제거 */
 `;
 
 const StyledImage = styled.img`
@@ -855,8 +922,9 @@ const PlaylistTitle = styled.span`
   font-size: 13px;
 `;
 
-const CommentSectionWrapper = styled.div<{ show: boolean }>`
-  border-top: 1px solid #f0f0f0;
+const CommentSectionWrapper = styled.div<{ show: boolean; $isDark: boolean }>`
+  border-top: 1px solid ${(p) => (p.$isDark ? "#333333" : "#f0f0f0")};
+  padding: 16px 24px;
   overflow: hidden;
   max-height: ${({ show }) => (show ? "1000px" : "0")};
   opacity: ${({ show }) => (show ? 1 : 0)};
