@@ -1,5 +1,3 @@
-import LiveComments from "../components/LiveComments"; // 9/3 추가 - 재생 중 버블로 실시간 댓글 표시
-import CommentInputBar from "../components/CommentInputBar"; // 9/3 추가 - 댓글 입력 바
 import ColorThief from "colorthief/dist/color-thief";
 import React, { useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
@@ -833,14 +831,7 @@ export default function YouTubeMusicPlayer({
                   </PlaybackControlButton>
                 </PlaybackControlsWrapper>
               </ControlsRow>
-
-              <CommentBarWrapper>
-                <CommentInputBar trackId={currentVideoId} />
-              </CommentBarWrapper>
             </PlayerControlsWrapper>
-
-            {/* 실시간 댓글 버블 */}
-            <LiveComments trackId={currentVideoId} />
           </PlayerWrapper>
         </PlayerSection>
       )}

@@ -55,9 +55,10 @@ export default function MusicStation() {
   const {
     currentVideoId,
     currentVideoTitle,
-    setVideos,
-    setPlaylists,
-    playPlaylist,
+    // setVideos,     <-- 이제 필요 없음
+    // setPlaylists,  <-- 이제 필요 없음
+    // playPlaylist,  <-- 이제 필요 없음
+    playStation, // <--- 새로 사용
   } = useMusicPlayer();
 
   const [artist, setArtist] = useState("");
@@ -70,21 +71,17 @@ export default function MusicStation() {
   const startFromSeed = async (seed: StationSeed) => {
     setLoading(true);
     try {
-      const { playlist, videos } = await buildStation(seed, {
-        targetCount: 35,
-        dedupe: true,
-        safeSearch: "moderate",
-      });
+      // 🚨 buildStation을 직접 호출하는 대신, useMusicPlayer의 playStation 훅을 사용
+      const title = await playStation(seed); // <-- playStation이 모든 상태 업데이트 및 재생 처리
 
-      // YouTubeMusicPlayer 형식으로 주입
-      setPlaylists([playlist as any]);
-      setVideos(videos as any);
-
-      playPlaylist(playlist.id, 0);
-      setLastTitle(playlist.snippet.title);
+      if (title) {
+        setLastTitle(title);
+      }
     } catch (e) {
       console.error("[Station] build error", e);
-      alert("스테이션 생성 중 오류가 발생했습니다. 로그인/토큰 상태를 확인해주세요.");
+      alert(
+        "스테이션 생성 중 오류가 발생했습니다. 로그인/토큰 상태를 확인해주세요."
+      );
     } finally {
       setLoading(false);
     }
@@ -102,7 +99,9 @@ export default function MusicStation() {
             startFromSeed({ type: "video", videoId: currentVideoId as string })
           }
           title={
-            canUseCurrent ? currentVideoTitle || "현재 곡에서 시작" : "재생 중인 곡이 없습니다"
+            canUseCurrent
+              ? currentVideoTitle || "현재 곡에서 시작"
+              : "재생 중인 곡이 없습니다"
           }
         >
           현재 곡에서 시작

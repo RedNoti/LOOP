@@ -137,7 +137,9 @@ const Post = ({
     const fetchPlaylistFile = async () => {
       if (!playlistFileUrl) return;
       try {
-        const playlistRes = await fetch(playlistFileUrl.replace("4000", "4001"));
+        const playlistRes = await fetch(
+          playlistFileUrl.replace("4000", "4001")
+        );
         const data = await playlistRes.json();
         setFetchedPlaylist(data);
       } catch (err) {
@@ -459,10 +461,7 @@ const Post = ({
                     JSON.stringify(existingPlaylists)
                   );
                 }
-                sessionStorage.setItem(
-                  "currentPlaylistId",
-                  fetchedPlaylist.id
-                );
+                sessionStorage.setItem("currentPlaylistId", fetchedPlaylist.id);
                 sessionStorage.setItem("currentVideoIndex", "0");
 
                 window.dispatchEvent(
@@ -788,7 +787,13 @@ const InteractionBtn = styled.button<{ $isDark: boolean; active?: boolean }>`
 
   &:hover {
     background: ${(p) =>
-      p.active ? (p.$isDark ? "#3d1a1a" : "#ffe6e6") : p.$isDark ? "#333333" : "#f8f9fa"};
+      p.active
+        ? p.$isDark
+          ? "#3d1a1a"
+          : "#ffe6e6"
+        : p.$isDark
+        ? "#333333"
+        : "#f8f9fa"};
     color: ${(p) => (p.active ? "#ff5252" : p.$isDark ? "#ffffff" : "#495057")};
   }
 
