@@ -29,13 +29,23 @@ type UserInfo = {
   email?: string;
 };
 
-// ===== styled =====
+// ===== styled (List flex-direction 유지) =====
 const Wrap = styled.div`
   width: 100%;
-  height: 120px; /* 2개 댓글에 맞는 높이 */
-  margin-top: 10px;
-  margin-bottom: 8px; /* 하단 탭과 시각적 간격 */
-  overflow: hidden; /* 넘치는 댓글 숨김 */
+  height: 120px; /* 댓글 리스트 높이 */
+  overflow-y: auto; /* 스크롤 가능하게 유지 */
+  overflow-x: hidden;
+  /* 스크롤바 스타일 유지 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+  }
 `;
 
 const List = styled.ul`
@@ -44,7 +54,8 @@ const List = styled.ul`
   margin: 0;
 
   display: flex;
-  flex-direction: column; /* 위→아래 */
+  /* 최신 댓글이 위에 오도록 (Firestore도 desc, CSS도 column) */
+  flex-direction: column;
   gap: 8px;
 `;
 
@@ -196,7 +207,7 @@ export default function LiveComments({ trackId }: Props) {
     return () => unsub();
   }, []);
 
-  // 최신이 위에 보이도록 desc 정렬
+  // 최신 순 → 오래된 순 (desc)
   useEffect(() => {
     if (!trackId) {
       setItems([]);
@@ -204,7 +215,7 @@ export default function LiveComments({ trackId }: Props) {
     }
     const q = query(
       collection(db, "posts", trackId, "comments"),
-      orderBy("createdAt", "desc"), // ✅ 최신 → 오래된 (위→아래)
+      orderBy("createdAt", "desc"), // 최신 → 오래된 (위→아래)
       limit(50)
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -221,6 +232,7 @@ export default function LiveComments({ trackId }: Props) {
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
+    // 최신 댓글이 위에 보이도록 스크롤을 맨 위로 이동
     el.scrollTop = 0;
   }, [items.length]);
 
@@ -252,6 +264,7 @@ export default function LiveComments({ trackId }: Props) {
 
   return (
     <Wrap>
+      {/* List의 flex-direction: column; 덕분에 최신 댓글이 위에 보임 */}
       <List ref={listRef} aria-label="live-comments">
         {formatted.map((c) => (
           <Bubble key={c.id} title={c.text}>

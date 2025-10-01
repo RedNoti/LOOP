@@ -1,3 +1,5 @@
+import LiveComments from "../components/LiveComments";
+import CommentInputBar from "../components/CommentInputBar";
 import ColorThief from "colorthief/dist/color-thief";
 import React, { useEffect, useState } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
@@ -10,6 +12,8 @@ import {
   Volume2,
   Repeat,
   Shuffle,
+  MessageCircle,
+  X,
 } from "lucide-react";
 import {
   useMusicPlayer,
@@ -29,23 +33,32 @@ const Container = styled.div<{ $isCollapsed: boolean }>`
   padding-bottom: ${(props) => (props.$isCollapsed ? "60px" : "0")};
 `;
 
-const PlayerSection = styled.div`
+const PlayerSection = styled.div<{ $isCommentView: boolean }>`
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* 앨범 커버가 움직이지 않도록 중앙 정렬 유지 */
   justify-content: center;
   align-items: center;
-  padding: 2rem 1rem;
+  /* 상하단 패딩 제거 */
+  padding: 0 1rem;
   min-height: 0;
+  overflow-y: auto;
 `;
 
-const PlayerWrapper = styled.div`
+// 🚨 PlayerWrapper 수정: isCommentView 상태에 따라 translateY 애니메이션 적용
+const PlayerWrapper = styled.div<{ $isCommentView: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   max-width: 320px;
   position: relative;
+  margin-top: 1rem;
+  /* 🚨 애니메이션을 위한 transition 추가 */
+  transition: transform 0.3s ease-out;
+  /* 🚨 이동 값을 -30px로 줄여 앨범 커버 짤림 문제 해결 및 자연스러운 움직임 유도 */
+  transform: translateY(${(props) => (props.$isCommentView ? "-30px" : "0")});
 `;
 
 const AlbumArtWrapper = styled.div`
@@ -54,7 +67,7 @@ const AlbumArtWrapper = styled.div`
   aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: 12px;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 `;
 
@@ -81,7 +94,7 @@ const Title = styled.h2`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   padding: 4px 0;
 `;
 
@@ -104,8 +117,9 @@ const Controls = styled.div`
   }
 `;
 
-const ProgressBarWrapper = styled.div`
-  display: flex;
+// 재생바는 댓글 뷰일 때 숨김
+const ProgressBarWrapper = styled.div<{ $isHidden: boolean }>`
+  display: ${(props) => (props.$isHidden ? "none" : "flex")};
   align-items: center;
   gap: 0.5rem;
   width: 100%;
@@ -139,16 +153,6 @@ const ProgressBar = styled.input`
     position: relative;
     z-index: 2;
   }
-`;
-
-const PlayerControlsWrapper = styled.div`
-  margin-top: 1.5rem;
-  display: flex;
-  flex-direction: column; /* 9/8 수정: 2줄 레이아웃 */
-  align-items: stretch;
-  width: 100%;
-  max-width: 320px;
-  gap: 12px; /* 상단행과 하단 댓글바 간격 */
 `;
 
 const VolumeWrapper = styled.div`
@@ -204,7 +208,6 @@ const PlaybackControlButton = styled.button<{ active?: boolean }>`
   }
 `;
 
-/* 9/8 추가: 상단 행(좌: 볼륨 / 우: 셔플·반복)을 좌우로 배치하는 컨테이너 */
 const ControlsRow = styled.div`
   width: 100%;
   display: flex;
@@ -212,10 +215,9 @@ const ControlsRow = styled.div`
   justify-content: space-between;
 `;
 
-/* 9/3 추가: 댓글 입력 바를 한 칸 아래로 배치 */
 const CommentBarWrapper = styled.div`
   width: 100%;
-  margin-top: 4px; /* 필요시 8~16px로 조절 */
+  margin-top: 4px;
 `;
 
 const BottomTabsWrapper = styled.div<{ $isCollapsed: boolean }>`
@@ -382,6 +384,52 @@ const PlaylistItem = styled.li<{ hoverColor?: string }>`
   }
 `;
 
+const PlayerControlsGroup = styled.div<{ $isHidden: boolean }>`
+  width: 100%;
+  display: ${(props) => (props.$isHidden ? "none" : "flex")};
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin-top: 1.5rem;
+`;
+
+const CommentViewHeader = styled.div`
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  /* 노래 제목과 X 버튼 사이 여백 최소화 */
+  padding: 0;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+`;
+
+const CommentSectionWrapper = styled.div<{ $isVisible: boolean }>`
+  width: 100%;
+  max-width: 320px;
+  display: ${(props) => (props.$isVisible ? "flex" : "none")};
+  flex-direction: column;
+  gap: 10px;
+  /* height: auto로 변경하고 flex: 1을 제거하여 내용물 크기만큼만 차지하도록 함 */
+  height: auto;
+  min-height: 0;
+  /* 하단 탭 버튼과 겹침 방지를 위한 패딩 제거 */
+  padding-bottom: 0;
+`;
+
+const ControlButton = styled.button`
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+`;
+
 function formatTime(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -419,6 +467,9 @@ export default function YouTubeMusicPlayer({
   const [activeTab, setActiveTab] = useState<"playlist" | "lyrics" | null>(
     null
   );
+  // 댓글 뷰 상태
+  const [isCommentView, setIsCommentView] = useState(false);
+
   const {
     currentVideoId,
     currentVideoTitle,
@@ -453,6 +504,9 @@ export default function YouTubeMusicPlayer({
     const savedShuffleMode = localStorage.getItem(STORAGE_KEYS.SHUFFLE_MODE);
     return savedShuffleMode ? savedShuffleMode === "true" : false;
   });
+
+  // 댓글 뷰 토글 함수
+  const toggleCommentView = () => setIsCommentView((prev) => !prev);
 
   useEffect(() => {
     const handlePostPlaylist = () => {
@@ -547,11 +601,6 @@ export default function YouTubeMusicPlayer({
     localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
   }, [repeatMode]);
 
-  // ===== 2024-12-19 추가: 유튜브 댓글 시간 링크 기능 =====
-  // 댓글에서 시간 클릭 시 해당 시간으로 이동하는 이벤트 리스너
-  // 유튜브 댓글처럼 시간 링크를 클릭하면 해당 시간으로 영상 이동
-  // LiveComments.tsx에서 발생하는 'seekToTime' 커스텀 이벤트를 구독
-  // 예: 댓글에 "2:05 좋다"라고 쓰면 2:05가 파란색 링크가 되고 클릭 시 해당 시간으로 이동
   useEffect(() => {
     const handleSeekToTime = (event: CustomEvent) => {
       const { seconds } = event.detail;
@@ -689,7 +738,6 @@ export default function YouTubeMusicPlayer({
     }
   };
 
-  // 페이지 이동 시 YouTube 플레이어 상태 저장
   useEffect(() => {
     return () => {
       if (playerRef.current) {
@@ -700,7 +748,6 @@ export default function YouTubeMusicPlayer({
     };
   }, [isPlaying]);
 
-  // 이전 재생 상태 복원
   useEffect(() => {
     if (playerRef.current && playerReadyRef.current) {
       const savedTime = localStorage.getItem("youtube_player_time");
@@ -744,26 +791,31 @@ export default function YouTubeMusicPlayer({
 
       {/* 플레이어 섹션은 탭이 닫혀있을 때만 표시 */}
       {activeTab === null && (
-        <PlayerSection>
-          <PlayerWrapper>
+        <PlayerSection $isCommentView={isCommentView}>
+          <PlayerWrapper $isCommentView={isCommentView}>
+            {/* 앨범 아트, 제목은 항상 표시 */}
             <AlbumArtWrapper>
               <AlbumArt src={currentVideoThumbnail} alt="album" />
             </AlbumArtWrapper>
             <Title>{currentVideoTitle}</Title>
 
-            <Controls>
-              <button onClick={prevTrack}>
-                <SkipBack size={28} />
-              </button>
-              <button onClick={playPause}>
-                {isPlaying ? <Pause size={28} /> : <Play size={28} />}
-              </button>
-              <button onClick={handleNextTrack}>
-                <SkipForward size={28} />
-              </button>
-            </Controls>
+            {/* 재생 버튼은 댓글 뷰일 때 숨김 */}
+            {!isCommentView && (
+              <Controls>
+                <button onClick={prevTrack}>
+                  <SkipBack size={28} />
+                </button>
+                <button onClick={playPause}>
+                  {isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                </button>
+                <button onClick={handleNextTrack}>
+                  <SkipForward size={28} />
+                </button>
+              </Controls>
+            )}
 
-            <ProgressBarWrapper>
+            {/* 재생바는 댓글 뷰일 때 숨김 */}
+            <ProgressBarWrapper $isHidden={isCommentView}>
               <ProgressTime>{formatTime(currentTime)}</ProgressTime>
               <ProgressBar
                 type="range"
@@ -779,8 +831,25 @@ export default function YouTubeMusicPlayer({
               <ProgressTime>{formatTime(duration)}</ProgressTime>
             </ProgressBarWrapper>
 
-            {/* 9/8 수정: 상단 행(볼륨 ⬅︎ / 셔플·반복 ➡︎) + 하단 행(댓글바) */}
-            <PlayerControlsWrapper>
+            {/* ======================= 컨트롤 영역 재구성 시작 ======================= */}
+
+            {/* 1. 댓글 뷰 상단 헤더: 나가기 버튼 전용 (제목 아래) */}
+            {isCommentView && (
+              <CommentViewHeader>
+                {/* 제목 중앙 정렬 유지를 위해 좌측에 빈 공간 추가 */}
+                <div style={{ flex: 1 }} />
+                {/* 나가기 버튼을 오른쪽으로 배치 */}
+                <ControlButton
+                  onClick={toggleCommentView}
+                  title="Exit Comments"
+                >
+                  <X size={20} />
+                </ControlButton>
+              </CommentViewHeader>
+            )}
+
+            {/* 2. 기존 플레이어 컨트롤 그룹: 댓글 뷰가 아닐 때만 표시 (볼륨/셔플/반복/댓글 버튼) */}
+            <PlayerControlsGroup $isHidden={isCommentView}>
               <ControlsRow>
                 <VolumeWrapper>
                   <Volume2 size={16} />
@@ -797,6 +866,14 @@ export default function YouTubeMusicPlayer({
                 </VolumeWrapper>
 
                 <PlaybackControlsWrapper>
+                  {/* 댓글 버튼 (셔플, 반복과 같은 라인) */}
+                  <PlaybackControlButton
+                    onClick={toggleCommentView}
+                    title="Show Comments"
+                  >
+                    <MessageCircle size={16} />
+                  </PlaybackControlButton>
+
                   <PlaybackControlButton
                     active={shuffleMode}
                     onClick={toggleShuffleMode}
@@ -831,7 +908,19 @@ export default function YouTubeMusicPlayer({
                   </PlaybackControlButton>
                 </PlaybackControlsWrapper>
               </ControlsRow>
-            </PlayerControlsWrapper>
+            </PlayerControlsGroup>
+
+            {/* 3. 댓글 입력 및 리스트: 댓글 뷰일 때만 표시 */}
+            <CommentSectionWrapper $isVisible={isCommentView}>
+              {/* 댓글 입력 바가 목록 위에 오도록 순서 유지 */}
+              <CommentBarWrapper>
+                <CommentInputBar trackId={currentVideoId} />
+              </CommentBarWrapper>
+              {/* LiveComments가 CommentBarWrapper 바로 아래에 배치됨 */}
+              <LiveComments trackId={currentVideoId} />
+            </CommentSectionWrapper>
+
+            {/* ======================= 컨트롤 영역 재구성 종료 ======================= */}
           </PlayerWrapper>
         </PlayerSection>
       )}

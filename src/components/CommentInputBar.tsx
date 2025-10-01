@@ -1,4 +1,3 @@
-// src/components/CommentInputBar.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -10,7 +9,6 @@ type Props = {
   trackId?: string | null; // 현재 트랙(동영상) ID
 };
 
-// --- styled ---
 const Bar = styled.form`
   display: flex;
   align-items: center;
