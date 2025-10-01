@@ -1,15 +1,10 @@
-// src/screens/settings.tsx
+// src/screens/Settingbutton/settings.tsx
 import React, { useEffect, useState } from "react";
 import { useTheme } from "../../components/ThemeContext";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import styled, { keyframes } from "styled-components";
 import { auth } from "../../firebaseConfig";
-import {
-  signOut,
-  deleteUser,
-  reauthenticateWithCredential,
-  EmailAuthProvider,
-} from "firebase/auth";
+import { signOut, deleteUser } from "firebase/auth";
 
 /* ================= Tokens ================= */
 const R = { lg: "16px", md: "12px" };
@@ -63,22 +58,22 @@ const Wrapper = styled.main`
   gap: 18px;
 `;
 
-/* ================= Center Toast ================= */
-const popIn = keyframes`
-  from { opacity: 0; transform: translate(-50%, -50%) scale(.96); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+/* ================= Top Toast ================= */
+const dropIn = keyframes`
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.98); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1); }
 `;
-const popOut = keyframes`
-  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  to   { opacity: 0; transform: translate(-50%, -50%) scale(.96); }
+const dropOut = keyframes`
+  from { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(-8px)  scale(.98); }
 `;
 
-const ToastCenter = styled.div<{ $isDark: boolean; $leaving: boolean }>`
+const ToastTop = styled.div<{ $isDark: boolean; $leaving: boolean }>`
   position: fixed;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 60;
+  top: 8px; /* 화면 맨 위 */
+  transform: translateX(-50%);
+  z-index: 80; /* 헤더(z-index:10)보다 위 */
   min-width: 240px;
   max-width: 420px;
   display: inline-flex;
@@ -96,7 +91,7 @@ const ToastCenter = styled.div<{ $isDark: boolean; $leaving: boolean }>`
     p.$isDark ? "rgba(16,185,129,.14)" : "rgba(16,185,129,.10)"};
   color: ${(p) => (p.$isDark ? "#bbf7d0" : "#065f46")};
   box-shadow: ${(p) => (p.$isDark ? shadow.cardDark : shadow.cardLight)};
-  animation: ${(p) => (p.$leaving ? popOut : popIn)} 160ms ease forwards;
+  animation: ${(p) => (p.$leaving ? dropOut : dropIn)} 160ms ease forwards;
 `;
 const ToastText = styled.span`
   flex: 1 1 auto;
@@ -199,127 +194,151 @@ const RightMeta = styled.div<{ $isDark: boolean }>`
   color: ${(p) => (p.$isDark ? "#9aa4b2" : "#64748b")};
 `;
 
-/* ================= Icons ================= */
+/* ================= Theme-aware ICONS ================= */
+type Hue = "indigo" | "purple" | "amber" | "teal" | "rose" | "red";
+type Tone = { fg: string; glow: string; badge: string };
+
+const tone = (dark: boolean, hue: Hue): Tone => {
+  const map: Record<Hue, Tone> = {
+    indigo: {
+      fg: dark ? "#a5b4fc" : "#3b82f6",
+      glow: "rgba(99,102,241,.55)",
+      badge: "transparent",
+    },
+    purple: {
+      fg: dark ? "#e9d5ff" : "#a855f7",
+      glow: "rgba(168,85,247,.55)",
+      badge: "transparent",
+    },
+    amber: {
+      fg: dark ? "#fde68a" : "#f59e0b",
+      glow: "rgba(245,158,11,.55)",
+      badge: "transparent",
+    },
+    teal: {
+      fg: dark ? "#99f6e4" : "#14b8a6",
+      glow: "rgba(13,148,136,.55)",
+      badge: "transparent",
+    },
+    rose: {
+      fg: dark ? "#fecaca" : "#ef4444",
+      glow: "rgba(244,63,94,.58)",
+      badge: "transparent",
+    },
+    red: {
+      fg: dark ? "#fca5a5" : "#dc2626",
+      glow: "rgba(239,68,68,.6)",
+      badge: "transparent",
+    },
+  };
+  return map[hue];
+};
+
+type BadgeProps = React.PropsWithChildren<{
+  dark?: boolean;
+  hue: Hue;
+  r?: number;
+}>;
+const Badge: React.FC<BadgeProps> = ({ dark, hue, r = 6, children }) => {
+  const t = tone(!!dark, hue);
+  const fid = `glow-${hue}`;
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      aria-hidden
+      shapeRendering="geometricPrecision"
+    >
+      {dark && (
+        <filter id={fid} x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow
+            dx="0"
+            dy="2"
+            stdDeviation="2"
+            floodColor={t.glow}
+            floodOpacity="1"
+          />
+        </filter>
+      )}
+      <g
+        filter={dark ? `url(#${fid})` : undefined}
+        stroke={t.fg}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        vectorEffect="non-scaling-stroke"
+      >
+        {children}
+      </g>
+    </svg>
+  );
+};
+
 const Chevron = (props: { dark?: boolean }) => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden
+    shapeRendering="geometricPrecision"
+  >
     <path
       d="M9 6l6 6-6 6"
       stroke={props.dark ? "#94a3b8" : "#475569"}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
     />
   </svg>
 );
-const Gear = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <path
-      d="M19 12a7 7 0 01-.12 1.28l1.8 1.4-1.6 2.77-2.14-.65c-.52.4-1.09.72-1.72.94L14.7 20h-3.4l-.52-2.26a7.1 7.1 0 01-1.72-.94l-2.14.65-1.6-2.77 1.8-1.4A7.08 7.08 0 015 12c0-.44.04-.87.12-1.28l-1.8-1.4 1.6-2.77 2.14.65c.52-.4 1.1-.72 1.72-.94L10.3 4h3.4l.52 2.26c.62.22 1.2.54 1.72.94l2.14-.65 1.6 2.77-1.8 1.4c.08.41.12.84.12 1.28z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.2"
-    />
-  </svg>
+
+const IconProfile = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="indigo">
+    <path d="M12 12c2.8 0 5-2.2 5-5s-2.2-5-5-5-5 2.2-5 5 2.2 5 5 5z" />
+    <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+  </Badge>
 );
-const UserIcon = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <path
-      d="M4 20c0-4.42 3.58-8 8-8s8 3.58 8 8"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-      strokeLinecap="round"
-    />
-  </svg>
+
+const IconAppearance = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="purple">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.21 17l.06-.06c.38-.38.5-.94.33-1.82a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1 .17-.88.05-1.44-.33-1.82l-.06-.06A2 2 0 1 1 7.24 4.21l.06.06c.38.38.94.5 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0 1 1 4 0v.09c0 .7.4 1.31 1 1.65.88.17 1.44.05 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.38.38-.5.94-.33 1.82.2.6.81 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z" />
+  </Badge>
 );
-const ShieldOff = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6l7-3z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <path
-      d="M8 12l8-4"
-      stroke={props.dark ? "#ef4444" : "#dc2626"}
-      strokeWidth="1.6"
-    />
-  </svg>
+
+const IconBell = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="amber">
+    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z" />
+    <path d="M18 16v-5a6 6 0 10-12 0v5l-1.5 2h15L18 16z" />
+  </Badge>
 );
-const Bell = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <path
-      d="M18 16v-5a6 6 0 10-12 0v5l-1.5 2h15L18 16z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-  </svg>
+
+const IconEye = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="teal">
+    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Badge>
 );
-const Eye = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <circle
-      cx="12"
-      cy="12"
-      r="3"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-  </svg>
+
+const IconShield = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="indigo">
+    <path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6l7-3z" />
+    <path d="M8 12l8-4" />
+  </Badge>
 );
-const Keyboard = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <rect
-      x="3"
-      y="7"
-      width="18"
-      height="10"
-      rx="2"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-    />
-    <path
-      d="M6 10h1M9 10h1M12 10h1M15 10h1M18 10h1M6 13h2M10 13h4M16 13h2"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-      strokeLinecap="round"
-    />
-  </svg>
+
+const IconPower = ({ dark }: { dark?: boolean }) => (
+  <Badge dark={dark} hue="red">
+    <path d="M12 2v10" />
+    <path d="M5.5 5.5a8 8 0 1013 0" />
+  </Badge>
 );
-const Power = (props: { dark?: boolean }) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M12 2v10"
-      stroke={props.dark ? "#ef4444" : "#dc2626"}
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-    <path
-      d="M5.5 5.5a8 8 0 1013 0"
-      stroke={props.dark ? "#e2e8f0" : "#0f172a"}
-      strokeWidth="1.6"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-// 기존 ThemeToggle 대체
+
+/* 기존 ThemeToggle 대체 */
 const ThemeToggle = styled.button<{ $active: boolean }>`
   position: relative;
   width: 56px;
@@ -336,12 +355,10 @@ const ThemeToggle = styled.button<{ $active: boolean }>`
   box-shadow: ${(p) => (p.$active ? "0 0 0 3px rgba(99,102,241,.18)" : "none")};
   outline: none;
 
-  /* 살짝 누르는 느낌 */
   &:active {
     transform: scale(0.98);
   }
 
-  /* 손잡이 */
   &::after {
     content: "";
     position: absolute;
@@ -354,40 +371,6 @@ const ThemeToggle = styled.button<{ $active: boolean }>`
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
     transition: left 240ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 320ms ease;
     transform: ${(p) => (p.$active ? "scale(1.02)" : "scale(1)")};
-  }
-
-  /* 아이콘 컨테이너 (왼쪽: 해, 오른쪽: 달) */
-  .icon {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 18px;
-    height: 18px;
-    transition: opacity 240ms ease, transform 300ms ease;
-    color: #0f172a;
-    pointer-events: none;
-  }
-  .sun {
-    left: 8px;
-    opacity: ${(p) => (p.$active ? 0 : 1)};
-    transform: translateY(-50%)
-      rotate(${(p) => (p.$active ? "-90deg" : "0deg")});
-  }
-  .moon {
-    right: 8px;
-    opacity: ${(p) => (p.$active ? 1 : 0)};
-    transform: translateY(-50%) rotate(${(p) => (p.$active ? "0deg" : "90deg")});
-  }
-
-  /* 모션 최소화 설정 존중 */
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &::after {
-      transition: none;
-    }
-    .icon {
-      transition: none;
-    }
   }
 `;
 
@@ -472,7 +455,7 @@ const Settings: React.FC = () => {
   const [openDelete, setOpenDelete] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  // notice 처리(프로필 저장 등)
+  // notice 처리(프로필/알림/개인정보 저장 등)
   useEffect(() => {
     const state = (location.state || {}) as { notice?: string };
     if (state.notice) {
@@ -518,7 +501,6 @@ const Settings: React.FC = () => {
   const handleCloseDelete = () => setOpenDelete(false);
 
   const handleDeleteAccount = async () => {
-    // 1) 확인 문구 검사
     if (confirmText.trim() !== "탈퇴") {
       alert("확인 문구로 ‘탈퇴’를 입력해주세요.");
       return;
@@ -530,28 +512,19 @@ const Settings: React.FC = () => {
     }
 
     try {
-      // 2) 계정 삭제
       await deleteUser(user);
-      // 3) 성공 후 이동
       navigate("/login", {
         replace: true,
         state: { notice: "계정이 삭제되었습니다." },
       });
     } catch (err: any) {
-      // 4) 최근 로그인 필요
       if (err?.code === "auth/requires-recent-login") {
-        // 이메일/비밀번호 계정이라면 여기서 재인증 시도 가능 (선택)
-        // 예: const cred = EmailAuthProvider.credential(user.email!, password);
-        // await reauthenticateWithCredential(user, cred);
-        // await deleteUser(user);
-
-        // 지금은 비밀번호를 모르는 상황을 고려하여 로그인 화면으로 보냄
         navigate("/login", {
           replace: true,
           state: {
             notice:
               "보안을 위해 다시 로그인해주세요. 로그인 후 ‘탈퇴’를 다시 진행할 수 있습니다.",
-            after: "/settings", // 로그인 후 돌아올 위치(선택사항)
+            after: "/settings",
           },
         });
         return;
@@ -566,7 +539,7 @@ const Settings: React.FC = () => {
   return (
     <Page $isDark={isDarkMode}>
       {notice && (
-        <ToastCenter
+        <ToastTop
           $isDark={isDarkMode}
           $leaving={leaving}
           role="status"
@@ -580,7 +553,7 @@ const Settings: React.FC = () => {
           >
             ×
           </CloseToast>
-        </ToastCenter>
+        </ToastTop>
       )}
 
       <Header $isDark={isDarkMode}>
@@ -593,7 +566,7 @@ const Settings: React.FC = () => {
         {/* 프로필 */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <UserIcon dark={isDarkMode} />
+            <IconProfile dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>프로필</SectionTitle>
           </SectionHeader>
           <List>
@@ -602,9 +575,7 @@ const Settings: React.FC = () => {
               $isDark={isDarkMode}
               aria-label="프로필 변경"
             >
-              <div>
-                <Gear dark={isDarkMode} />
-              </div>
+              <div />
               <div>
                 <ItemRow>
                   <ItemTitle $isDark={isDarkMode}>프로필 변경</ItemTitle>
@@ -623,7 +594,7 @@ const Settings: React.FC = () => {
         {/* 모양 */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <Gear dark={isDarkMode} />
+            <IconAppearance dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>모양</SectionTitle>
           </SectionHeader>
           <List>
@@ -659,7 +630,7 @@ const Settings: React.FC = () => {
         {/* 알림 */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <Bell dark={isDarkMode} />
+            <IconBell dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>알림</SectionTitle>
           </SectionHeader>
           <List>
@@ -687,7 +658,7 @@ const Settings: React.FC = () => {
         {/* 개인정보 */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <Eye dark={isDarkMode} />
+            <IconEye dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>개인정보</SectionTitle>
           </SectionHeader>
           <List>
@@ -712,38 +683,10 @@ const Settings: React.FC = () => {
           </List>
         </Section>
 
-        {/* 입력/단축키 */}
-        <Section $isDark={isDarkMode}>
-          <SectionHeader $isDark={isDarkMode}>
-            <Keyboard dark={isDarkMode} />
-            <SectionTitle $isDark={isDarkMode}>입력 & 단축키</SectionTitle>
-          </SectionHeader>
-          <List>
-            <ItemLink
-              to="/settings/input"
-              $isDark={isDarkMode}
-              aria-label="입력 설정"
-            >
-              <div />
-              <div>
-                <ItemRow>
-                  <ItemTitle $isDark={isDarkMode}>입력 설정</ItemTitle>
-                </ItemRow>
-                <ItemDesc $isDark={isDarkMode}>
-                  Enter 전송/줄바꿈, 타이핑 표시
-                </ItemDesc>
-              </div>
-              <RightMeta $isDark={isDarkMode}>
-                <Chevron dark={isDarkMode} />
-              </RightMeta>
-            </ItemLink>
-          </List>
-        </Section>
-
         {/* 안전 및 블록 */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <ShieldOff dark={isDarkMode} />
+            <IconShield dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>안전 및 블록</SectionTitle>
           </SectionHeader>
           <List>
@@ -771,7 +714,7 @@ const Settings: React.FC = () => {
         {/* 계정(로그아웃/탈퇴) */}
         <Section $isDark={isDarkMode}>
           <SectionHeader $isDark={isDarkMode}>
-            <Power dark={isDarkMode} />
+            <IconPower dark={isDarkMode} />
             <SectionTitle $isDark={isDarkMode}>계정</SectionTitle>
           </SectionHeader>
           <List>
@@ -781,9 +724,7 @@ const Settings: React.FC = () => {
               aria-label="로그아웃"
               title="로그아웃"
             >
-              <div>
-                <Power dark={isDarkMode} />
-              </div>
+              <div />
               <div>
                 <ItemRow>
                   <ItemTitle $isDark={isDarkMode}>로그아웃</ItemTitle>
@@ -802,9 +743,7 @@ const Settings: React.FC = () => {
               aria-label="계정 탈퇴"
               title="계정 탈퇴"
             >
-              <div>
-                <Power dark={isDarkMode} />
-              </div>
+              <div />
               <div>
                 <ItemRow>
                   <ItemTitle $isDark={isDarkMode}>탈퇴</ItemTitle>

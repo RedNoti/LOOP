@@ -114,10 +114,13 @@ const ProfileSettings: React.FC = () => {
     setHoverPhoto,
   } = useProfileFunctions();
 
-  // 저장 시: 저장 → notice 전달하며 /settings로 이동
+  // 저장 시: 저장 → notice 전달하며 /settings로 이동 (상단 토스트)
   const onSubmit = async (e: FormEvent) => {
     await handleSubmit(e);
-    navigate("/settings", { state: { notice: "프로필이 저장되었습니다." } });
+    navigate("/settings", {
+      replace: true, // 뒤로가기 시 중복 상태 방지
+      state: { notice: "저장되었습니다." }, // 공통 문구
+    });
   };
 
   // 취소 시: 메시지 없이 /settings로 이동

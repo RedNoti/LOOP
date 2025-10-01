@@ -16,11 +16,15 @@ interface ProfileData {
 const shadows = {
   cardLight: "0 6px 18px rgba(15,23,42,.08)",
   cardDark: "0 10px 28px rgba(0,0,0,.48)",
-  focus: "0 0 0 3px rgba(59,130,246,.16)",
 };
 
 /* ========== styled ========== */
 const Page = styled.div<{ $isDark: boolean }>`
+  /* 파랑 포인트 컬러 (한 곳에서 관리) */
+  --accent-1: #2563eb; /* primary */
+  --accent-2: #60a5fa; /* light */
+  --focus-ring: rgba(37, 99, 235, 0.35);
+
   min-height: 100vh;
   padding: 28px clamp(16px, 4vw, 32px);
   background: ${(p) => (p.$isDark ? "#0b0c0e" : "#f6f7fb")};
@@ -90,7 +94,7 @@ const SearchWrap = styled.label<{ $isDark: boolean }>`
 const SearchInput = styled.input<{ $isDark: boolean }>`
   width: 100%;
   height: 42px; /* 버튼과 동일 높이 */
-  padding: 0 36px 0 38px; /* 수직 패딩 대신 height로 정렬 */
+  padding: 0 36px 0 38px;
   border-radius: 12px;
   border: 1px solid ${(p) => (p.$isDark ? "#24272b" : "#e5e7eb")};
   background: ${(p) => (p.$isDark ? "#111315" : "#ffffff")};
@@ -98,15 +102,15 @@ const SearchInput = styled.input<{ $isDark: boolean }>`
   font-size: 14px;
   box-shadow: ${(p) =>
     p.$isDark ? "inset 0 0 0 9999px rgba(255,255,255,0.02)" : "none"};
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 
   &::placeholder {
     color: ${(p) => (p.$isDark ? "#6b7280" : "#94a3b8")};
   }
   &:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: ${shadows.focus};
+    border-color: var(--accent-1);
+    box-shadow: 0 0 0 3px var(--focus-ring);
   }
 `;
 
@@ -159,8 +163,8 @@ const AvatarWrap = styled.div<{ $isDark: boolean }>`
   padding: 2px;
   background: ${(p) =>
     p.$isDark
-      ? "linear-gradient(135deg,#2b2f35,#0ea5e9)"
-      : "linear-gradient(135deg,#e2e8f0,#60a5fa)"};
+      ? "linear-gradient(135deg,#2b2f35,var(--accent-1))"
+      : "linear-gradient(135deg,#e2e8f0,var(--accent-2))"};
 `;
 
 const Avatar = styled.img<{ $isDark: boolean }>`
@@ -193,12 +197,13 @@ const Sub = styled.div<{ $isDark: boolean }>`
   color: ${(p) => (p.$isDark ? "#9aa4b2" : "#6b7280")};
 `;
 
+/* 기존 DangerBtn을 파랑 포인트의 'Primary' 스타일로 변경 */
 const DangerBtn = styled.button<{ $isDark: boolean }>`
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid ${(p) => (p.$isDark ? "#3a3f46" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$isDark ? "#2b3137" : "#e5e7eb")};
   background: transparent;
-  color: ${(p) => (p.$isDark ? "#fecaca" : "#b91c1c")};
+  color: var(--accent-1);
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.2px;
@@ -206,8 +211,8 @@ const DangerBtn = styled.button<{ $isDark: boolean }>`
   transition: transform 0.08s ease, background 0.15s ease,
     border-color 0.15s ease;
   &:hover {
-    background: ${(p) => (p.$isDark ? "rgba(239,68,68,.08)" : "#fff1f2")};
-    border-color: ${(p) => (p.$isDark ? "#ef4444" : "#fecdd3")};
+    background: ${(p) => (p.$isDark ? "rgba(59,130,246,.10)" : "#eff6ff")};
+    border-color: ${(p) => (p.$isDark ? "#3451a0" : "#bfdbfe")};
   }
   &:active {
     transform: translateY(1px);

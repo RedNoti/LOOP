@@ -11,6 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 /* ====== UI 토큰 ====== */
 const R = { lg: "16px", md: "12px" };
@@ -71,7 +72,7 @@ const Right = styled.div`
   align-content: center;
 `;
 
-/* ====== 컨트롤 ====== */
+/* ====== 스위치 ====== */
 const Toggle = styled.button<{ $on: boolean }>`
   width: 52px;
   height: 30px;
@@ -95,42 +96,103 @@ const Toggle = styled.button<{ $on: boolean }>`
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   }
 `;
-const RadioGroup = styled.div<{ $dark: boolean }>`
+
+/* ====== 토글 그룹(세그먼티드) ====== */
+const SegGroup = styled.div<{ $dark: boolean }>`
+  --w: 96px;
+  --g: 8px;
   display: inline-flex;
-  gap: 8px;
-  background: ${(p) => (p.$dark ? "#0f1112" : "#f8fafc")};
-  border: 1px solid ${(p) => (p.$dark ? "#23262b" : "#e5e7eb")};
+  align-items: center;
+  gap: var(--g);
   padding: 6px;
   border-radius: 12px;
+  position: relative;
+  background: ${(p) => (p.$dark ? "#0f1112" : "#f8fafc")};
+  border: 1px solid ${(p) => (p.$dark ? "#23262b" : "#e5e7eb")};
 `;
-const Radio = styled.button<{ $active: boolean }>`
-  padding: 8px 12px;
+const SegHighlight = styled.div`
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: var(--w);
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transform: translateX(calc(var(--i, 0) * (var(--w) + var(--g))));
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+  z-index: 0;
+`;
+const SegRadio = styled.input.attrs({ type: "radio" })`
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  &:focus-visible + label {
+    outline: 3px solid rgba(99, 102, 241, 0.35);
+    outline-offset: 2px;
+  }
+`;
+const SegBtn = styled.label<{ $dark: boolean }>`
+  width: var(--w);
+  height: 36px;
+  padding: 0 14px;
   border-radius: 10px;
   border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
   cursor: pointer;
-  font-weight: 700;
-  background: ${(p) => (p.$active ? "#3b82f6" : "transparent")};
-  color: ${(p) => (p.$active ? "#fff" : "inherit")};
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
+  transition: background 0.18s ease, color 0.18s ease, transform 0.08s ease;
+  &:hover {
+    background: ${(p) =>
+      p.$dark ? "rgba(148,163,184,.10)" : "rgba(15,23,42,.05)"};
+  }
+  &:active {
+    transform: scale(0.98);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `;
+
+/* 하단 액션 */
 const BtnRow = styled.div`
   display: flex;
   gap: 10px;
   justify-content: flex-end;
   padding: 6px 18px 18px;
 `;
-const Btn = styled.button<{ $kind?: "primary" | "ghost" }>`
+const GhostBtn = styled.button<{ $dark: boolean }>`
   padding: 10px 14px;
   border-radius: 10px;
   cursor: pointer;
   font-weight: 800;
-  border: ${(p) =>
-    p.$kind === "ghost" ? "1px solid rgba(148,163,184,.35)" : "0"};
-  background: ${(p) =>
-    p.$kind === "primary"
-      ? "linear-gradient(135deg,#3b82f6,#6366f1)"
-      : "transparent"};
-  color: ${(p) => (p.$kind === "primary" ? "#fff" : "inherit")};
+  border: 1px solid ${(p) => (p.$dark ? "#2b3137" : "#e5e7eb")};
+  background: transparent;
+  color: inherit;
+  &:hover {
+    background: ${(p) => (p.$dark ? "#15181c" : "#f9fafb")};
+  }
+  &:focus-visible {
+    outline: 3px solid rgba(59, 130, 246, 0.35);
+    outline-offset: 2px;
+  }
 `;
+const SaveBtn = styled(SegBtn).attrs({ as: "button" })``;
 
 /* ====== 타입/기본값 ====== */
 type Privacy = {
@@ -152,23 +214,19 @@ const DEFAULT_PRIVACY: Privacy = {
 const PrivacySettings: React.FC = () => {
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
-  const user = auth.currentUser;
 
-  const [loading, setLoading] = useState(true);
+  // ★ UI는 즉시 렌더링
+  const [user, setUser] = useState<User | null>(auth.currentUser);
   const [saving, setSaving] = useState(false);
   const [p, setP] = useState<Privacy>(DEFAULT_PRIVACY);
 
-  // 유저 없으면 로그인으로
+  // 인증 상태 구독
   useEffect(() => {
-    if (!user)
-      navigate("/login", {
-        replace: true,
-        state: { notice: "로그인이 필요합니다." },
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
 
-  // 불러오기
+  // 개인정보 불러오기
   useEffect(() => {
     (async () => {
       if (!user) return;
@@ -178,15 +236,11 @@ const PrivacySettings: React.FC = () => {
         const data = snap.data() as any;
         if (data?.privacy) {
           setP({ ...DEFAULT_PRIVACY, ...data.privacy });
-        } else {
-          if (!snap.exists()) {
-            await setDoc(ref, { privacy: DEFAULT_PRIVACY }, { merge: true });
-          }
+        } else if (!snap.exists()) {
+          await setDoc(ref, { privacy: DEFAULT_PRIVACY }, { merge: true });
         }
       } catch (e) {
         console.warn("Load privacy failed:", e);
-      } finally {
-        setLoading(false);
       }
     })();
   }, [user]);
@@ -197,12 +251,22 @@ const PrivacySettings: React.FC = () => {
   );
 
   const save = async () => {
-    if (!user) return;
+    if (!user) {
+      navigate("/login", {
+        replace: true,
+        state: { notice: "로그인이 필요합니다." },
+      });
+      return;
+    }
     setSaving(true);
     try {
       const ref = doc(db, "profiles", user.uid);
       await updateDoc(ref, { privacy: { ...p, updatedAt: serverTimestamp() } });
-      alert("개인정보 설정이 저장되었습니다.");
+      // ✅ settings.tsx가 상단 토스트로 표시
+      navigate("/settings", {
+        replace: true,
+        state: { notice: "저장되었습니다." },
+      });
     } catch (e) {
       console.error(e);
       try {
@@ -212,8 +276,11 @@ const PrivacySettings: React.FC = () => {
           { privacy: { ...p, updatedAt: serverTimestamp() } },
           { merge: true }
         );
-        alert("개인정보 설정이 저장되었습니다.");
-      } catch (e2) {
+        navigate("/settings", {
+          replace: true,
+          state: { notice: "저장되었습니다." },
+        });
+      } catch {
         alert("저장 중 오류가 발생했습니다.");
       }
     } finally {
@@ -223,13 +290,14 @@ const PrivacySettings: React.FC = () => {
 
   const resetDefault = () => setP(DEFAULT_PRIVACY);
 
-  if (loading) {
-    return (
-      <Page $dark={isDarkMode}>
-        <Wrap>로딩 중…</Wrap>
-      </Page>
-    );
-  }
+  const visOptions: Privacy["profileVisibility"][] = [
+    "public",
+    "followers",
+    "private",
+  ];
+  const visIndex = visOptions.indexOf(p.profileVisibility);
+  const dmOptions: Privacy["allowDMFrom"][] = ["everyone", "followers", "none"];
+  const dmIndex = dmOptions.indexOf(p.allowDMFrom);
 
   return (
     <Page $dark={isDarkMode}>
@@ -237,42 +305,43 @@ const PrivacySettings: React.FC = () => {
         <Card $dark={isDarkMode}>
           <CardHead $dark={isDarkMode}>개인정보 설정</CardHead>
 
-          {/* 공개 범위 */}
+          {/* 공개 범위 - Segmented */}
           <Row $dark={isDarkMode}>
             <Label $dark={isDarkMode}>
               <strong>프로필 공개 범위</strong>
               <span>전체공개 / 팔로워만 / 비공개</span>
             </Label>
             <Right>
-              <RadioGroup
+              <SegGroup
                 $dark={isDarkMode}
                 role="radiogroup"
                 aria-label="프로필 공개 범위"
+                style={{ ["--i" as any]: visIndex }}
               >
-                {(
-                  [
-                    "public",
-                    "followers",
-                    "private",
-                  ] as Privacy["profileVisibility"][]
-                ).map((opt) => (
-                  <Radio
-                    key={opt}
-                    type="button"
-                    aria-pressed={p.profileVisibility === opt}
-                    $active={p.profileVisibility === opt}
-                    onClick={() =>
-                      setP((prev) => ({ ...prev, profileVisibility: opt }))
-                    }
-                  >
-                    {opt === "public"
-                      ? "전체공개"
-                      : opt === "followers"
-                      ? "팔로워만"
-                      : "비공개"}
-                  </Radio>
-                ))}
-              </RadioGroup>
+                <SegHighlight />
+                {visOptions.map((opt) => {
+                  const id = `vis-${opt}`;
+                  return (
+                    <React.Fragment key={opt}>
+                      <SegRadio
+                        name="profile-vis"
+                        id={id}
+                        checked={p.profileVisibility === opt}
+                        onChange={() =>
+                          setP((prev) => ({ ...prev, profileVisibility: opt }))
+                        }
+                      />
+                      <SegBtn $dark={isDarkMode} htmlFor={id}>
+                        {opt === "public"
+                          ? "전체공개"
+                          : opt === "followers"
+                          ? "팔로워만"
+                          : "비공개"}
+                      </SegBtn>
+                    </React.Fragment>
+                  );
+                })}
+              </SegGroup>
             </Right>
           </Row>
 
@@ -293,38 +362,43 @@ const PrivacySettings: React.FC = () => {
             </Right>
           </Row>
 
-          {/* DM 허용 대상 */}
+          {/* DM 허용 - Segmented */}
           <Row $dark={isDarkMode}>
             <Label $dark={isDarkMode}>
               <strong>DM 허용</strong>
               <span>누가 나에게 DM을 보낼 수 있는지</span>
             </Label>
             <Right>
-              <RadioGroup
+              <SegGroup
                 $dark={isDarkMode}
                 role="radiogroup"
                 aria-label="DM 허용"
+                style={{ ["--i" as any]: dmIndex }}
               >
-                {(
-                  ["everyone", "followers", "none"] as Privacy["allowDMFrom"][]
-                ).map((opt) => (
-                  <Radio
-                    key={opt}
-                    type="button"
-                    $active={p.allowDMFrom === opt}
-                    aria-pressed={p.allowDMFrom === opt}
-                    onClick={() =>
-                      setP((prev) => ({ ...prev, allowDMFrom: opt }))
-                    }
-                  >
-                    {opt === "everyone"
-                      ? "전체"
-                      : opt === "followers"
-                      ? "팔로워만"
-                      : "차단"}
-                  </Radio>
-                ))}
-              </RadioGroup>
+                <SegHighlight />
+                {["everyone", "followers", "none"].map((opt) => {
+                  const id = `dm-${opt}`;
+                  return (
+                    <React.Fragment key={opt}>
+                      <SegRadio
+                        name="dm-allow"
+                        id={id}
+                        checked={p.allowDMFrom === opt}
+                        onChange={() =>
+                          setP((prev) => ({ ...prev, allowDMFrom: opt as any }))
+                        }
+                      />
+                      <SegBtn $dark={isDarkMode} htmlFor={id}>
+                        {opt === "everyone"
+                          ? "전체"
+                          : opt === "followers"
+                          ? "팔로워만"
+                          : "차단"}
+                      </SegBtn>
+                    </React.Fragment>
+                  );
+                })}
+              </SegGroup>
             </Right>
           </Row>
 
@@ -348,7 +422,7 @@ const PrivacySettings: React.FC = () => {
             </Right>
           </Row>
 
-          {/* 읽음 확인(읽음 표시) */}
+          {/* 읽음 표시 */}
           <Row $dark={isDarkMode}>
             <Label $dark={isDarkMode}>
               <strong>읽음 표시</strong>
@@ -368,13 +442,14 @@ const PrivacySettings: React.FC = () => {
             </Right>
           </Row>
 
+          {/* 액션 */}
           <BtnRow>
-            <Btn $kind="ghost" onClick={resetDefault}>
-              기본값
-            </Btn>
-            <Btn $kind="primary" onClick={save} disabled={saving}>
+            <GhostBtn $dark={isDarkMode} onClick={() => navigate(-1)}>
+              취소
+            </GhostBtn>
+            <SaveBtn $dark={isDarkMode} onClick={save} disabled={saving}>
               {saving ? "저장 중…" : "저장"}
-            </Btn>
+            </SaveBtn>
           </BtnRow>
         </Card>
       </Wrap>

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useTheme } from "../components/ThemeContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 /* ---------- Types ---------- */
 type DmUser = { id: string; name: string; avatar?: string; unread?: number };
@@ -29,7 +29,8 @@ const Page = styled.div<{ $dark: boolean }>`
   display: grid;
   grid-template-columns: ${LEFT_WIDTH}px 1fr;
   background: ${(p) => (p.$dark ? "#000" : "#fff")};
-  border-top: 1px solid ${(p) => (p.$dark ? "#16181c" : "#e5e7eb")};
+  padding-top: 6px; /* 헤더와 겹치는 느낌 방지 */
+  overflow: hidden; /* 문서로 스크롤 새는 것 차단 */
   @media (max-width: 920px) {
     grid-template-columns: 100%;
   }
@@ -83,9 +84,22 @@ const SearchWrap = styled.div<{ $dark: boolean }>`
 const ThreadList = styled.div`
   min-height: 0;
   overflow-y: auto;
+
+  /* DM 화면 전용 스크롤바 */
+  &::-webkit-scrollbar {
+    width: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--thumb, #cbd5e1);
+    border-radius: 999px;
+  }
 `;
 
 const Thread = styled.button<{ $active: boolean; $dark: boolean }>`
+  position: relative;
   width: 100%;
   border: 0;
   text-align: left;
@@ -217,6 +231,18 @@ const Messages = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  /* DM 메시지 영역 전용 스크롤바 */
+  &::-webkit-scrollbar {
+    width: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--thumb, #cbd5e1);
+    border-radius: 999px;
+  }
 `;
 
 const DayDivider = styled.div<{ $dark: boolean }>`
@@ -257,7 +283,6 @@ const Bubble = styled.div<{ mine?: boolean }>`
   user-select: text;
 `;
 
-/* 이미지 말풍선 */
 const ImageBubble = styled.img<{ $mine?: boolean }>`
   display: block;
   max-width: min(72vw, 420px);
@@ -301,7 +326,7 @@ const ContextMenu = styled.div<{ $dark: boolean; $x: number; $y: number }>`
   position: fixed;
   left: ${(p) => p.$x}px;
   top: ${(p) => p.$y}px;
-  min-width: 120px;
+  min-width: 140px;
   background: ${(p) => (p.$dark ? "#0f1112" : "#fff")};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
@@ -324,6 +349,7 @@ const MenuButton = styled.button<{ $dark: boolean }>`
     background: ${(p) => (p.$dark ? "#111315" : "#f5f7fa")};
   }
 `;
+
 const DangerButton = styled(MenuButton)`
   color: #ef4444;
 `;
@@ -621,6 +647,7 @@ const EMOJIS = [
 const DmScreen: React.FC = () => {
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [users, setUsers] = useState<DmUser[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -628,10 +655,11 @@ const DmScreen: React.FC = () => {
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // 컨텍스트 메뉴
+  // 말풍선 컨텍스트 메뉴
   const [menu, setMenu] = useState<{
     open: boolean;
     x: number;
@@ -645,7 +673,7 @@ const DmScreen: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // init data
+  /* ---------- 초기 데이터 로드 ---------- */
   useEffect(() => {
     const u = localStorage.getItem(LS_USERS);
     const m = localStorage.getItem(LS_MESSAGES);
@@ -654,7 +682,7 @@ const DmScreen: React.FC = () => {
       const parsedU: DmUser[] = JSON.parse(u);
       setUsers(parsedU);
       setMessages(JSON.parse(m));
-      setActiveId(parsedU[0]?.id ?? null);
+      setInitialized(true);
     } else {
       const seedUsers: DmUser[] = [
         { id: "u1", name: "최우혁", avatar: AVATAR_FALLBACK, unread: 1 },
@@ -683,9 +711,52 @@ const DmScreen: React.FC = () => {
       localStorage.setItem(LS_MESSAGES, JSON.stringify(seedMessages));
       setUsers(seedUsers);
       setMessages(seedMessages);
-      setActiveId(seedUsers[0].id);
+      setInitialized(true);
     }
   }, []);
+
+  /* ---------- URL 쿼리 → 스레드 활성화 / 사용자 생성 ---------- */
+  useEffect(() => {
+    if (!initialized) return;
+
+    const uid = searchParams.get("uid");
+    const nameQ = searchParams.get("name");
+    const avatarQ = searchParams.get("avatar");
+    const name = nameQ ? decodeURIComponent(nameQ) : "";
+    const avatar = avatarQ ? decodeURIComponent(avatarQ) : "";
+
+    if (uid) {
+      // 사용자 목록에 없으면 추가
+      setUsers((prev) => {
+        const exists = prev.some((u) => u.id === uid);
+        const next = exists
+          ? prev
+          : [
+              {
+                id: uid,
+                name: name || "사용자",
+                avatar: avatar || AVATAR_FALLBACK,
+                unread: 0,
+              },
+              ...prev,
+            ];
+        localStorage.setItem(LS_USERS, JSON.stringify(next));
+        return next;
+      });
+      // 메시지 맵에 키 보장
+      setMessages((prev) => {
+        if (prev[uid]) return prev;
+        const next = { ...prev, [uid]: [] };
+        localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
+        return next;
+      });
+      // 이 유저를 활성화
+      setActiveId(uid);
+    } else {
+      // 쿼리가 없으면 기존 첫 유저 기본 활성화
+      setActiveId((curr) => curr ?? users[0]?.id ?? null);
+    }
+  }, [initialized, searchParams, users]);
 
   // auto scroll to bottom
   useEffect(() => {
@@ -840,6 +911,31 @@ const DmScreen: React.FC = () => {
     setMenu((m) => ({ ...m, open: false }));
   };
 
+  // 🔥 대화(스레드) 전체 삭제
+  const deleteActiveThread = () => {
+    if (!activeId) return;
+    const ok = window.confirm("이 대화 전체를 삭제할까요? (복구 불가)");
+    if (!ok) return;
+
+    setUsers((prev) => {
+      const idx = prev.findIndex((u) => u.id === activeId);
+      const nextUsers = prev.filter((u) => u.id !== activeId);
+      localStorage.setItem(LS_USERS, JSON.stringify(nextUsers));
+
+      // 다음 활성 대상 결정
+      const nextActive =
+        nextUsers[idx] ?? nextUsers[idx - 1] ?? nextUsers[0] ?? null;
+      setActiveId(nextActive?.id ?? null);
+      return nextUsers;
+    });
+
+    setMessages((prev) => {
+      const { [activeId]: _, ...rest } = prev;
+      localStorage.setItem(LS_MESSAGES, JSON.stringify(rest));
+      return rest;
+    });
+  };
+
   /* ---------- Emoji ---------- */
   const insertEmoji = (emo: string) => {
     if (editingId) {
@@ -866,7 +962,9 @@ const DmScreen: React.FC = () => {
             onChange={(e) => setQuery(e.target.value)}
           />
         </SearchWrap>
-        <ThreadList>
+        <ThreadList
+          style={{ ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1" }}
+        >
           {filteredUsers.map((u) => {
             const last = (messages[u.id] || []).at(-1);
             const lastTime = last ? formatTime(last.ts) : "";
@@ -918,7 +1016,7 @@ const DmScreen: React.FC = () => {
                 <div>{activeUser.name}</div>
               </ChatUser>
               <div />
-              {/* 전화 버튼 제거, 정보 버튼으로 프로필 이동 */}
+              {/* 정보 버튼 → 프로필 이동 */}
               <HeaderActions $dark={isDarkMode}>
                 <button
                   title="프로필 보기"
@@ -951,7 +1049,10 @@ const DmScreen: React.FC = () => {
 
         {activeUser ? (
           <>
-            <Messages ref={scrollRef}>
+            <Messages
+              style={{ ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1" }}
+              ref={scrollRef}
+            >
               {thread.length === 0 && (
                 <EmptyState $dark={isDarkMode}>대화를 시작해보세요.</EmptyState>
               )}
@@ -1161,14 +1262,21 @@ const DmScreen: React.FC = () => {
         )}
       </Right>
 
-      {/* 컨텍스트 메뉴 (수정/삭제) */}
+      {/* 컨텍스트 메뉴 (수정/삭제/대화 삭제) */}
       {menu.open && (
         <ContextMenu $dark={isDarkMode} $x={menu.x} $y={menu.y}>
           <MenuButton $dark={isDarkMode} type="button" onClick={startEdit}>
             수정
           </MenuButton>
           <DangerButton $dark={isDarkMode} type="button" onClick={removeMsg}>
-            삭제
+            메시지 삭제
+          </DangerButton>
+          <DangerButton
+            $dark={isDarkMode}
+            type="button"
+            onClick={deleteActiveThread}
+          >
+            대화 삭제
           </DangerButton>
         </ContextMenu>
       )}

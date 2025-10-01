@@ -149,10 +149,14 @@ const BottomMenu = styled.div`
   gap: 6px;
 `;
 
-const MainContent = styled.div<{ $isFullscreenMusic: boolean }>`
+/** ⬇️ 변경: DM 화면에서는 레이아웃 스크롤(긴 스크롤바)을 숨기기 위해 $lock prop 추가 */
+const MainContent = styled.div<{
+  $isFullscreenMusic: boolean;
+  $lock?: boolean;
+}>`
   flex: 1;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: ${(p) => (p.$lock ? "hidden" : "auto")};
   background: var(--bg);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
@@ -334,6 +338,9 @@ const Layout = () => {
     location.pathname === "/signin" || location.pathname === "/signup";
   const isFullscreenMusic = location.pathname === "/music";
 
+  /** ⬇️ DM 화면 여부 판단 */
+  const isDM = location.pathname.startsWith("/dm");
+
   const MemoizedMusicPlayer = useMemo(
     () => (
       <YouTubeMusicPlayer
@@ -493,7 +500,7 @@ const Layout = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M21 15a4 4 0 0 1-4 4H8l-4 4V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4v8z" />
+                      <path d="M21 15a4 4 0 0 1-4 4H8l-4 4V7a4 4 0 0 1 4-4h9a4 4 0  1 1 4 4v8z" />
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
@@ -537,7 +544,7 @@ const Layout = () => {
                       strokeLinejoin="round"
                     >
                       <circle cx="12" cy="12" r="3"></circle>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06c.51.51 1.21.66 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0 1 1 4 0v.09c0 .7.4 1.31 1 1.65.61.33 1.31.18 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.51.51-.66 1.21-.33 1.82.34.6.95 1 1.65 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z"></path>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0  0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06c.51.51 1.21.66 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0 1 1 4 0v.09c0 .7.4 1.31 1 1.65.61.33 1.31.18 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.51.51-.66 1.21-.33 1.82.34.6.95 1 1.65 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z"></path>
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
@@ -569,7 +576,8 @@ const Layout = () => {
 
           <ContentContainer $isFullscreenMusic={isFullscreenMusic}>
             {!isFullscreenMusic && (
-              <MainContent $isFullscreenMusic={isFullscreenMusic}>
+              /** ⬇️ DM 화면이면 $lock=true 로 레이아웃 스크롤 숨김 */
+              <MainContent $isFullscreenMusic={isFullscreenMusic} $lock={isDM}>
                 <div
                   style={{
                     minHeight: "100%",
