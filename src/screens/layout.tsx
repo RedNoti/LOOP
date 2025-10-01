@@ -1,4 +1,4 @@
-//개선된 버전 - IMPROVED_VERSION with Theme Support
+// screens/layout.tsx
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { auth } from "../firebaseConfig";
@@ -10,42 +10,39 @@ import React, {
   useMemo,
   createContext,
   useContext,
-  useRef,
 } from "react";
 
-// 이미지 모달 컨텍스트 생성
+/* ---------- Image Modal Context ---------- */
 interface ImageModalContextType {
   openModal: (src: string) => void;
   closeModal: () => void;
 }
-
 const ImageModalContext = createContext<ImageModalContextType | null>(null);
-
 export const useImageModal = () => {
-  const context = useContext(ImageModalContext);
-  if (!context) {
+  const ctx = useContext(ImageModalContext);
+  if (!ctx)
     throw new Error("useImageModal must be used within ImageModalProvider");
-  }
-  return context;
+  return ctx;
 };
 
-const LayoutWrapper = styled.div<{ $isDark: boolean }>`
+/* ---------- Styled ---------- */
+const LayoutWrapper = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  background: var(--bg);
   transition: background-color 0.3s ease;
 `;
 
-const Header = styled.div<{ $isDark: boolean }>`
+const Header = styled.div`
   height: 70px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 0 24px;
-  background: ${(props) => (props.$isDark ? "#202020" : "#ffffff")};
-  border-bottom: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.3s ease;
 `;
@@ -63,14 +60,14 @@ const Body = styled.div`
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 `;
 
-const Navigator = styled.div<{ $isDark: boolean }>`
+const Navigator = styled.div`
   width: 72px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: ${(props) => (props.$isDark ? "#202020" : "#ffffff")};
-  border-right: 1px solid ${(props) => (props.$isDark ? "#404040" : "#f0f0f0")};
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   padding: 20px 12px 16px;
   overflow-y: auto;
   min-height: 0;
@@ -88,46 +85,42 @@ const MenuItem = styled.div<{ isActive?: boolean }>`
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
-  background: ${(props) => (props.isActive ? "#007aff" : "transparent")};
   position: relative;
+  background: ${(p) => (p.isActive ? "var(--accent)" : "transparent")};
 
   svg,
   img {
     width: 22px;
     height: 22px;
     transition: all 0.15s ease;
-    color: ${(props) => (props.isActive ? "#ffffff" : "#6c757d")};
-    filter: ${(props) => (props.isActive ? "brightness(0) invert(1)" : "none")};
+    color: ${(p) => (p.isActive ? "#ffffff" : "var(--icon-muted)")};
+    filter: ${(p) => (p.isActive ? "brightness(0) invert(1)" : "none")};
   }
 
   &:hover {
-    background: ${(props) => (props.isActive ? "#0051d0" : "#f8f9fa")};
+    background: ${(p) =>
+      p.isActive
+        ? "color-mix(in srgb, var(--accent) 85%, black 15%)"
+        : "var(--hover)"};
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-
     svg,
     img {
-      color: ${(props) => (props.isActive ? "#ffffff" : "#495057")};
+      color: ${(p) => (p.isActive ? "#ffffff" : "var(--icon-strong)")};
       transform: scale(1.1);
     }
   }
-
   &:active {
     transform: translateY(0);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
-  ${(props) =>
-    props.isActive &&
+  ${(p) =>
+    p.isActive &&
     `
-    &::after {
-      content: '';
-      position: absolute;
-      right: -10px;
-      width: 3px;
-      height: 20px;
-      background: #007aff;
-      border-radius: 2px;
+    &::after{
+      content:''; position:absolute; right:-10px; width:3px; height:20px;
+      background: var(--accent); border-radius: 2px;
     }
   `}
 `;
@@ -143,7 +136,7 @@ const MenuSection = styled.div`
 const MenuDivider = styled.div`
   width: 28px;
   height: 1px;
-  background: #e9ecef;
+  background: var(--border);
   margin: 10px 0;
 `;
 
@@ -156,14 +149,11 @@ const BottomMenu = styled.div`
   gap: 6px;
 `;
 
-const MainContent = styled.div<{
-  $isDark: boolean;
-  $isFullscreenMusic: boolean;
-}>`
+const MainContent = styled.div<{ $isFullscreenMusic: boolean }>`
   flex: 1;
   overflow-x: hidden;
   overflow-y: auto;
-  background: ${(props) => (props.$isDark ? "#000000" : "#ffffff")};
+  background: var(--bg);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   height: calc(100vh - 70px);
@@ -173,16 +163,15 @@ const MainContent = styled.div<{
     width: 8px;
   }
   &::-webkit-scrollbar-track {
-    background: ${(props) => (props.$isDark ? "#202020" : "#f1f1f1")};
+    background: var(--surface-2);
     border-radius: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: ${(props) => (props.$isDark ? "#404040" : "#c1c1c1")};
+    background: color-mix(in srgb, var(--border) 70%, #888 30%);
     border-radius: 4px;
-    transition: background 0.3s ease;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: ${(props) => (props.$isDark ? "#606060" : "#a1a1a1")};
+    background: color-mix(in srgb, var(--border) 30%, #888 70%);
   }
 `;
 
@@ -191,13 +180,12 @@ const ContentContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   width: 100%;
   height: 100%;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  justify-content: ${(props) =>
-    props.$isFullscreenMusic ? "flex-end" : "flex-start"};
+  justify-content: ${(p) => (p.$isFullscreenMusic ? "flex-end" : "flex-start")};
   overflow: hidden;
 `;
 
 const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
-  width: ${(props) => (props.$isFullscreenMusic ? "100%" : "33.33%")};
+  width: ${(p) => (p.$isFullscreenMusic ? "100%" : "33.33%")};
   min-width: 320px;
   height: 100%;
   box-sizing: border-box;
@@ -206,8 +194,8 @@ const MusicPlayerContainer = styled.div<{ $isFullscreenMusic: boolean }>`
   border-radius: 15px;
   position: relative;
   border-left: none;
-  box-shadow: ${(props) =>
-    props.$isFullscreenMusic ? "none" : "-2px 0 8px rgba(0, 0, 0, 0.04)"};
+  box-shadow: ${(p) =>
+    p.$isFullscreenMusic ? "none" : "-2px 0 8px rgba(0,0,0,0.04)"};
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: right center;
 `;
@@ -218,17 +206,9 @@ const GradientOverlay = styled.div<{
   $isFullscreenMusic: boolean;
 }>`
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border-radius: ${(props) =>
-    props.$isFullscreenMusic ? "10px" : "20px 0 0 0"};
-  background: linear-gradient(
-    135deg,
-    ${(props) => props.color1},
-    ${(props) => props.color2}
-  );
+  inset: 0;
+  border-radius: ${(p) => (p.$isFullscreenMusic ? "10px" : "20px 0 0 0")};
+  background: linear-gradient(135deg, ${(p) => p.color1}, ${(p) => p.color2});
   opacity: 1;
   animation: fadeIn 0.8s ease;
   transition: border-radius 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -237,7 +217,6 @@ const GradientOverlay = styled.div<{
     opacity: 0;
     animation: fadeIn 0.8s ease forwards;
   }
-
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -257,20 +236,18 @@ const FullscreenExitButton = styled.button<{ $isVisible: boolean }>`
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.5);
-  color: white;
+  color: #fff;
   cursor: pointer;
   z-index: 1000;
-  display: ${(props) => (props.$isVisible ? "flex" : "none")};
+  display: ${(p) => (p.$isVisible ? "flex" : "none")};
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
-
   &:hover {
     background: rgba(0, 0, 0, 0.7);
     transform: scale(1.1);
   }
-
   svg {
     width: 20px;
     height: 20px;
@@ -283,23 +260,19 @@ const TooltipContainer = styled.div`
   justify-content: center;
 `;
 
-// 이미지 모달 스타일 추가
-const ImageModal = styled.div<{ $isOpen: boolean; $isDark: boolean }>`
+const ImageModal = styled.div<{ $isOpen: boolean }>`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 99999;
   backdrop-filter: blur(10px);
-  opacity: ${(props) => (props.$isOpen ? 1 : 0)};
-  visibility: ${(props) => (props.$isOpen ? "visible" : "hidden")};
+  opacity: ${(p) => (p.$isOpen ? 1 : 0)};
+  visibility: ${(p) => (p.$isOpen ? "visible" : "hidden")};
   transition: opacity 0.2s ease, visibility 0.2s ease;
-  pointer-events: ${(props) => (props.$isOpen ? "auto" : "none")};
+  pointer-events: ${(p) => (p.$isOpen ? "auto" : "none")};
 `;
 
 const ModalImage = styled.img<{ $isOpen: boolean }>`
@@ -310,7 +283,7 @@ const ModalImage = styled.img<{ $isOpen: boolean }>`
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   user-select: none;
   pointer-events: auto;
-  transform: ${(props) => (props.$isOpen ? "scale(1)" : "scale(0.8)")};
+  transform: ${(p) => (p.$isOpen ? "scale(1)" : "scale(0.8)")};
   transition: transform 0.2s ease;
 `;
 
@@ -323,7 +296,7 @@ const ModalCloseButton = styled.button<{ $isOpen: boolean }>`
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -333,20 +306,19 @@ const ModalCloseButton = styled.button<{ $isOpen: boolean }>`
   transition: all 0.2s ease;
   z-index: 100000;
   pointer-events: auto;
-  opacity: ${(props) => (props.$isOpen ? 1 : 0)};
-  transform: ${(props) => (props.$isOpen ? "scale(1)" : "scale(0.8)")};
-
+  opacity: ${(p) => (p.$isOpen ? 1 : 0)};
+  transform: ${(p) => (p.$isOpen ? "scale(1)" : "scale(0.8)")};
   &:hover {
     background: rgba(255, 255, 255, 0.3);
-    transform: ${(props) => (props.$isOpen ? "scale(1.1)" : "scale(0.8)")};
+    transform: ${(p) => (p.$isOpen ? "scale(1.1)" : "scale(0.8)")};
   }
-
   svg {
     width: 24px;
     height: 24px;
   }
 `;
 
+/* ---------- Component ---------- */
 const Layout = () => {
   const { isDarkMode } = useTheme();
   const [gradientLayers, setGradientLayers] = useState<
@@ -370,7 +342,7 @@ const Layout = () => {
         isFullScreenMode={isFullscreenMusic}
       />
     ),
-    []
+    [isFullscreenMusic]
   );
 
   const signOut = async () => {
@@ -390,22 +362,9 @@ const Layout = () => {
     document.body.style.overflow = "auto";
   };
 
-  const imageModalContextValue = useMemo(
-    () => ({
-      openModal: (src: string) => {
-        setImageModalSrc(src);
-        document.body.style.overflow = "hidden";
-      },
-      closeModal: closeImageModal,
-    }),
-    []
-  );
-
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && imageModalSrc) {
-        closeImageModal();
-      }
+      if (e.key === "Escape" && imageModalSrc) closeImageModal();
     };
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
@@ -418,21 +377,27 @@ const Layout = () => {
         color1: dominantColor,
         color2: secondaryColor,
       };
-      setGradientLayers((prev) => {
-        const updated = [...prev, newLayer];
-        return updated.slice(-1);
-      });
+      setGradientLayers((prev) => [...prev, newLayer].slice(-1));
     }
   }, [dominantColor, secondaryColor]);
 
   return (
-    <ImageModalContext.Provider value={imageModalContextValue}>
-      <LayoutWrapper $isDark={isDarkMode}>
-        <Header $isDark={isDarkMode}>
+    <ImageModalContext.Provider
+      value={{
+        openModal: (src: string) => {
+          setImageModalSrc(src);
+          document.body.style.overflow = "hidden";
+        },
+        closeModal: closeImageModal,
+      }}
+    >
+      <LayoutWrapper>
+        <Header>
           <Logo src="/uplogo.png" alt="uplogo" />
         </Header>
+
         <Body>
-          <Navigator $isDark={isDarkMode}>
+          <Navigator>
             <MenuSection>
               <Link to="/" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
@@ -467,7 +432,7 @@ const Layout = () => {
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
+                        d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
                       />
                     </svg>
                   </MenuItem>
@@ -516,9 +481,30 @@ const Layout = () => {
                 </TooltipContainer>
               </Link>
 
-              <Link to="/following" style={{ textDecoration: "none" }}>
+              <Link to="/dm" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
-                  <MenuItem isActive={location.pathname === "/following"}>
+                  <MenuItem isActive={location.pathname.startsWith("/dm")}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 15a4 4 0 0 1-4 4H8l-4 4V7a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4v8z" />
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
+              {/* ✅ 알림: 반드시 페이지 이동 */}
+              <Link to="/notification" style={{ textDecoration: "none" }}>
+                <TooltipContainer>
+                  <MenuItem
+                    isActive={location.pathname.startsWith("/notification")}
+                  >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
@@ -529,34 +515,15 @@ const Layout = () => {
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7zM18 14h4M18 18h4"
+                        d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.57 3.535.882 5.454 1.312m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.75 21h16.5"
                       />
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
               </Link>
 
-              <TooltipContainer>
-                <MenuItem>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.57 3.535.882 5.454 1.312m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.75 21h16.5"
-                    />
-                  </svg>
-                </MenuItem>
-              </TooltipContainer>
-
               <Link to="/settings" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
-                  {/* ✅ 수정: /settings 하위 경로에서도 활성화 */}
                   <MenuItem
                     isActive={location.pathname.startsWith("/settings")}
                   >
@@ -602,10 +569,7 @@ const Layout = () => {
 
           <ContentContainer $isFullscreenMusic={isFullscreenMusic}>
             {!isFullscreenMusic && (
-              <MainContent
-                $isDark={isDarkMode}
-                $isFullscreenMusic={isFullscreenMusic}
-              >
+              <MainContent $isFullscreenMusic={isFullscreenMusic}>
                 <div
                   style={{
                     minHeight: "100%",
@@ -618,40 +582,36 @@ const Layout = () => {
                 </div>
               </MainContent>
             )}
-            {!hidePlayer && (
-              <MusicPlayerContainer $isFullscreenMusic={isFullscreenMusic}>
-                <FullscreenExitButton
-                  $isVisible={isFullscreenMusic}
-                  onClick={exitFullscreen}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                  </svg>
-                </FullscreenExitButton>
-                {gradientLayers.map((layer, index) => (
-                  <GradientOverlay
-                    key={layer.id}
-                    className={
-                      index === gradientLayers.length - 1 ? "fading" : ""
-                    }
-                    color1={layer.color1}
-                    color2={layer.color2}
-                    $isFullscreenMusic={isFullscreenMusic}
-                  />
-                ))}
-                {MemoizedMusicPlayer}
-              </MusicPlayerContainer>
-            )}
+
+            {/* 음악 플레이어 영역 */}
+            <MusicPlayerContainer $isFullscreenMusic={isFullscreenMusic}>
+              <FullscreenExitButton
+                $isVisible={isFullscreenMusic}
+                onClick={exitFullscreen}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </svg>
+              </FullscreenExitButton>
+              {gradientLayers.map((layer, idx) => (
+                <GradientOverlay
+                  key={layer.id}
+                  className={idx === gradientLayers.length - 1 ? "fading" : ""}
+                  color1={layer.color1}
+                  color2={layer.color2}
+                  $isFullscreenMusic={isFullscreenMusic}
+                />
+              ))}
+              {MemoizedMusicPlayer}
+            </MusicPlayerContainer>
           </ContentContainer>
         </Body>
 
+        {/* 이미지 모달 */}
         <ImageModal
           $isOpen={!!imageModalSrc}
-          $isDark={isDarkMode}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              closeImageModal();
-            }
+            if (e.target === e.currentTarget) closeImageModal();
           }}
         >
           <ModalCloseButton $isOpen={!!imageModalSrc} onClick={closeImageModal}>
@@ -660,10 +620,15 @@ const Layout = () => {
             </svg>
           </ModalCloseButton>
           {imageModalSrc && (
-            <ModalImage
+            <img
               src={imageModalSrc}
               alt="확대된 이미지"
-              $isOpen={!!imageModalSrc}
+              style={{
+                maxWidth: "90vw",
+                maxHeight: "90vh",
+                objectFit: "contain",
+                borderRadius: 8,
+              }}
               onError={() => {
                 console.log("이미지 로드 실패");
                 closeImageModal();

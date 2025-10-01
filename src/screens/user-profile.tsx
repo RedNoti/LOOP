@@ -22,7 +22,7 @@ const Card = styled.div<{ $isDark: boolean }>`
   background: ${(p) => (p.$isDark ? "#202020" : "#ffffff")};
   border: 1px solid ${(p) => (p.$isDark ? "#404040" : "#f0f0f0")};
   border-radius: 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   padding: 28px;
 `;
 
@@ -38,7 +38,7 @@ const Avatar = styled.img`
   height: 96px;
   border-radius: 20px;
   object-fit: cover;
-  border: 4px solid rgba(0,0,0,0.06);
+  border: 4px solid rgba(0, 0, 0, 0.06);
   background: #e9ecef;
 `;
 
@@ -63,7 +63,7 @@ const Label = styled.div<{ $isDark: boolean }>`
   font-weight: 700;
   color: ${(p) => (p.$isDark ? "#cccccc" : "#8e8e93")};
   text-transform: uppercase;
-  letter-spacing: .5px;
+  letter-spacing: 0.5px;
   margin-bottom: 6px;
 `;
 
@@ -123,7 +123,8 @@ export default function UserProfileScreen() {
   const { uid } = useParams<{ uid: string }>();
   const navigate = useNavigate();
   const me = auth.currentUser?.uid || null;
-  const { isFollowing, isMuted, follow, unfollow, mute, unmute } = useRelations();
+  const { isFollowing, isMuted, follow, unfollow, mute, unmute } =
+    useRelations();
 
   const [data, setData] = useState<ProfileDoc | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,11 +148,21 @@ export default function UserProfileScreen() {
     (data?.photoUrl && !data.photoUrl.includes("undefined") && data.photoUrl) ||
     "/default_profile.png";
 
+  // ✅ DM 화면으로 이동 (상대 uid/이름/아바타를 쿼리로 전달)
+  const goDM = () => {
+    if (!uid) return;
+    const name = encodeURIComponent(data?.name || "사용자");
+    const avatar = encodeURIComponent(data?.photoUrl || "");
+    navigate(`/dm?uid=${uid}&name=${name}&avatar=${avatar}`);
+  };
+
   return (
     <Container $isDark={isDarkMode}>
       <Card $isDark={isDarkMode}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0" }}>불러오는 중...</div>
+          <div style={{ textAlign: "center", padding: "60px 0" }}>
+            불러오는 중...
+          </div>
         ) : (
           <>
             <Header>
@@ -173,17 +184,28 @@ export default function UserProfileScreen() {
                 {uid && me && uid !== me && (
                   <ActionRow>
                     {isFollowing(uid) ? (
-                      <ActionBtn $isDark={isDarkMode} $primary onClick={() => unfollow(uid)}>
+                      <ActionBtn
+                        $isDark={isDarkMode}
+                        $primary
+                        onClick={() => unfollow(uid)}
+                      >
                         팔로잉 취소
                       </ActionBtn>
                     ) : (
-                      <ActionBtn $isDark={isDarkMode} $primary onClick={() => follow(uid)}>
+                      <ActionBtn
+                        $isDark={isDarkMode}
+                        $primary
+                        onClick={() => follow(uid)}
+                      >
                         팔로우
                       </ActionBtn>
                     )}
 
                     {isMuted(uid) ? (
-                      <ActionBtn $isDark={isDarkMode} onClick={() => unmute(uid)}>
+                      <ActionBtn
+                        $isDark={isDarkMode}
+                        onClick={() => unmute(uid)}
+                      >
                         뮤트 해제
                       </ActionBtn>
                     ) : (
@@ -191,6 +213,11 @@ export default function UserProfileScreen() {
                         뮤트
                       </ActionBtn>
                     )}
+
+                    {/* ✅ DM 버튼 */}
+                    <ActionBtn $isDark={isDarkMode} onClick={goDM}>
+                      DM
+                    </ActionBtn>
                   </ActionRow>
                 )}
               </div>
@@ -199,7 +226,11 @@ export default function UserProfileScreen() {
             <Section>
               <Label $isDark={isDarkMode}>소개</Label>
               <Value $isDark={isDarkMode}>
-                {data?.bio ? data.bio : <Empty $isDark={isDarkMode}>소개 미입력</Empty>}
+                {data?.bio ? (
+                  data.bio
+                ) : (
+                  <Empty $isDark={isDarkMode}>소개 미입력</Empty>
+                )}
               </Value>
             </Section>
 

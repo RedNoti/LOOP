@@ -1,9 +1,10 @@
 // src/screens/ProfileSettings.tsx
-import React from "react";
+import React, { FormEvent } from "react";
 import { auth } from "../../firebaseConfig";
 import { useProfileFunctions } from "../../components/ProfileFunction";
 import { useTheme } from "../../components/ThemeContext";
 import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
 
 // -------------------- styled-components --------------------
 const Container = styled.div<{ $isDark: boolean }>`
@@ -98,19 +99,31 @@ const CancelButton = styled(Button)<{ $isDark: boolean }>`
 `;
 
 // -------------------- 컴포넌트 --------------------
-const ProfileSettings = () => {
+const ProfileSettings: React.FC = () => {
   const { isDarkMode } = useTheme();
+  const navigate = useNavigate();
+
   const {
     profile,
     handleChange,
-    handleSubmit,
-    handleBackToEdit,
+    handleSubmit, // 기존 훅의 저장 함수를 그대로 사용
     fileInputRef,
     handleFileChange,
     handleUploadButtonClick,
     hoverPhoto,
     setHoverPhoto,
   } = useProfileFunctions();
+
+  // 저장 시: 저장 → notice 전달하며 /settings로 이동
+  const onSubmit = async (e: FormEvent) => {
+    await handleSubmit(e);
+    navigate("/settings", { state: { notice: "프로필이 저장되었습니다." } });
+  };
+
+  // 취소 시: 메시지 없이 /settings로 이동
+  const onCancel = () => {
+    navigate("/settings");
+  };
 
   return (
     <Container $isDark={isDarkMode}>
@@ -173,7 +186,7 @@ const ProfileSettings = () => {
           />
 
           {/* 프로필 수정 입력 */}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={onSubmit}>
             <Label $isDark={isDarkMode}>이름</Label>
             <Input
               $isDark={isDarkMode}
@@ -210,7 +223,7 @@ const ProfileSettings = () => {
               <CancelButton
                 $isDark={isDarkMode}
                 type="button"
-                onClick={handleBackToEdit}
+                onClick={onCancel}
               >
                 취소
               </CancelButton>
