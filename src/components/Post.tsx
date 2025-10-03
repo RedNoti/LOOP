@@ -18,6 +18,99 @@ import { Link } from "react-router-dom";
 import { useRelations } from "../components/RelationsContext";
 import CommentSection from "./Comment";
 
+/* ========= 🔔 알림 인박스 유틸 (별도 파일 없이 이곳에 추가) ========= */
+type NotifKind = "mention" | "like" | "system" | "dm";
+type NotifItem = {
+  id: string;
+  kind: NotifKind;
+  title: string;
+  desc?: string;
+  ts: number;
+  read?: boolean;
+  avatar?: string;
+  link?: string;
+};
+const inboxKey = (uid?: string | null) =>
+  uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
+const loadInbox = (uid?: string | null): NotifItem[] => {
+  try {
+    const raw = localStorage.getItem(inboxKey(uid));
+    return raw ? (JSON.parse(raw) as NotifItem[]) : [];
+  } catch {
+    return [];
+  }
+};
+// ✅ 같은 탭에서도 뱃지 즉시 갱신을 위해 커스텀 이벤트 발행 추가
+const saveInbox = (uid: string | null | undefined, list: NotifItem[]) => {
+  localStorage.setItem(inboxKey(uid), JSON.stringify(list));
+  window.dispatchEvent(new Event("notif_inbox_updated")); // ★ 추가
+};
+const pushItem = (ownerUid: string | null | undefined, item: NotifItem) => {
+  const inbox = loadInbox(ownerUid);
+  // 10분 내 동일 kind+title 중복 방지
+  const tenMin = 10 * 60 * 1000;
+  const dup = inbox.find(
+    (x) =>
+      x.kind === item.kind && x.title === item.title && item.ts - x.ts < tenMin
+  );
+  if (!dup) {
+    const next = [item, ...inbox].slice(0, 200);
+    saveInbox(ownerUid, next);
+  }
+};
+const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
+
+const notifyLike = (params: {
+  postId: string;
+  postTitle?: string;
+  ownerUid: string; // 알림 받을 사람(글 작성자)
+  actorUid: string; // 누른 사람
+  actorName?: string;
+  actorAvatar?: string;
+  link?: string;
+}) => {
+  const now = Date.now();
+  if (!params.ownerUid || params.ownerUid === params.actorUid) return; // 자기글 본인행동 제외
+  pushItem(params.ownerUid, {
+    id: `like:${params.postId}:${params.actorUid}:${now}`,
+    kind: "like",
+    title: `${params.actorName ?? "익명"} 님이 내 글을 좋아합니다`,
+    desc: params.postTitle ? `「${cut(params.postTitle, 40)}」` : undefined,
+    ts: now,
+    read: false,
+    avatar: params.actorAvatar,
+    link: params.link ?? `/post/${params.postId}`,
+  });
+};
+
+const notifyComment = (params: {
+  postId: string;
+  postTitle?: string;
+  ownerUid: string; // 알림 받을 사람(글 작성자)
+  actorUid: string; // 댓글 단 사람
+  actorName?: string;
+  actorAvatar?: string;
+  commentText?: string;
+  link?: string;
+}) => {
+  const now = Date.now();
+  if (!params.ownerUid || params.ownerUid === params.actorUid) return; // 자기글 본인행동 제외
+  const pieces: string[] = [];
+  if (params.postTitle) pieces.push(`「${cut(params.postTitle, 40)}」`);
+  if (params.commentText) pieces.push(cut(params.commentText, 60));
+  pushItem(params.ownerUid, {
+    id: `cmt:${params.postId}:${params.actorUid}:${now}`,
+    kind: "mention",
+    title: `${params.actorName ?? "익명"} 님이 내 글에 댓글을 남겼습니다`,
+    desc: pieces.join(" · "),
+    ts: now,
+    read: false,
+    avatar: params.actorAvatar,
+    link: params.link ?? `/post/${params.postId}#comments`,
+  });
+};
+/* ========= /알림 인박스 유틸 ========= */
+
 interface PostProps {
   id: string;
   userId: string;
@@ -101,6 +194,18 @@ const Post = ({
     // FireStore에서 불러온 기존 목록(commentList)에 새 댓글을 추가합니다.
     // Comment.tsx에서는 addDoc을 통해 DB에 이미 추가했으므로, 여기서는 UI 상태만 갱신합니다.
     setCommentList((prev) => [...prev, newComment]);
+
+    /* ★ 알림: 댓글 성공 반영 시 글 작성자에게 노티 */
+    notifyComment({
+      postId: id,
+      postTitle: currentPost,
+      ownerUid: userId, // 글 작성자
+      actorUid: user?.uid ?? "",
+      actorName: newComment?.nickname ?? user?.displayName ?? "익명",
+      actorAvatar: user?.photoURL ?? undefined,
+      commentText: newComment?.content ?? "",
+      link: `/post/${id}#comment-${newComment?.id ?? ""}`,
+    });
   };
   const handleCommentDeleted = (deletedCommentId: string) => {
     // 삭제된 댓글 ID를 기반으로 목록에서 해당 댓글을 제거합니다.
@@ -176,6 +281,17 @@ const Post = ({
         likedBy: arrayUnion(user?.uid),
       });
       setLikes((v) => v + 1);
+
+      /* ★ 알림: 좋아요가 true로 바뀌는 순간, 글 작성자에게 노티 */
+      notifyLike({
+        postId: id,
+        postTitle: currentPost,
+        ownerUid: userId, // 글 작성자
+        actorUid: user?.uid ?? "",
+        actorName: user?.displayName ?? "익명",
+        actorAvatar: user?.photoURL ?? undefined,
+        link: `/post/${id}`,
+      });
     }
     setHasLiked(!hasLiked);
   };
@@ -345,16 +461,12 @@ const Post = ({
       {/* 이미지 갤러리 */}
       {photoUrls.length > 0 && (
         <ImageGallery $count={photoUrls.length}>
-          {" "}
-          {/* ✅ photoUrls.length 전달 */}
           {photoUrls.map((url, index) => (
             <ImageContainer
               $isDark={isDarkMode}
               key={index}
               $count={photoUrls.length}
             >
-              {" "}
-              {/* ✅ photoUrls.length 전달 */}
               <StyledImage
                 src={url}
                 alt={`Post image ${index + 1}`}
@@ -766,25 +878,20 @@ const SaveBtn = styled.button`
 const ImageGallery = styled.div<{ $count: number }>`
   padding: 0 24px 16px;
 
-  // 1장 또는 2장일 때: 그리드 사용
   ${(p) =>
     p.$count < 3
       ? `
     display: grid;
-    /* 1장일 때: 최대 너비 320px인 컬럼 1개 */
-    /* 2장일 때: 최대 너비 320px인 컬럼 2개 */
     grid-template-columns: repeat(${p.$count}, minmax(0, 320px)); 
     gap: 12px;
   `
-      : // 3장 이상일 때: 플렉스(스크롤) 사용
-        `
+      : `
     display: flex;
     gap: 12px;
     overflow-x: scroll;
     overflow-y: hidden;
     padding-bottom: 20px;
     
-    /* 스크롤바 숨기기 (선택 사항) */
     &::-webkit-scrollbar {
       height: 8px;
     }
@@ -803,16 +910,13 @@ const ImageContainer = styled.div<{ $isDark: boolean; $count: number }>`
   overflow: hidden;
   background: ${(p) => (p.$isDark ? "#333333" : "#f8f9fa")};
   aspect-ratio: 4/3;
-  flex-shrink: 0; /* 3장 이상 스크롤 모드 대비 */
+  flex-shrink: 0;
 
-  /* 1장 또는 2장일 때는 grid-template-columns의 minmax(0, 320px)를 따름. */
-
-  // 3장 이상일 경우: 고정 너비 (스크롤 아이템)
   ${(p) =>
     p.$count >= 3 &&
     `
-    width: 320px; /* 스크롤 가능한 고정 너비 */
-  `}/* 1장이나 2장일 때 100%나 50% 너비 지정 로직은 제거 */
+    width: 320px;
+  `}
 `;
 
 const StyledImage = styled.img`

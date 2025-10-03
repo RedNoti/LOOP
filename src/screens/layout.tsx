@@ -11,6 +11,7 @@ import React, {
   createContext,
   useContext,
 } from "react";
+import { onAuthStateChanged } from "firebase/auth"; // ✅ 추가
 
 /* ---------- Image Modal Context ---------- */
 interface ImageModalContextType {
@@ -149,7 +150,6 @@ const BottomMenu = styled.div`
   gap: 6px;
 `;
 
-/** ⬇️ 변경: DM 화면에서는 레이아웃 스크롤(긴 스크롤바)을 숨기기 위해 $lock prop 추가 */
 const MainContent = styled.div<{
   $isFullscreenMusic: boolean;
   $lock?: boolean;
@@ -322,6 +322,25 @@ const ModalCloseButton = styled.button<{ $isOpen: boolean }>`
   }
 `;
 
+/* ✅ 배지 스타일 */
+const Badge = styled.span`
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 2px var(--bg);
+`;
+
 /* ---------- Component ---------- */
 const Layout = () => {
   const { isDarkMode } = useTheme();
@@ -388,6 +407,69 @@ const Layout = () => {
     }
   }, [dominantColor, secondaryColor]);
 
+  /* ===================== 🔔 미읽음 카운트 훅 ===================== */
+  const inboxKey = (uid?: string | null) =>
+    uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
+
+  const getUnreadCount = (uid?: string | null) => {
+    try {
+      const raw = localStorage.getItem(inboxKey(uid));
+      if (!raw) return 0;
+      const list = JSON.parse(raw) as { read?: boolean }[];
+      return list.reduce((n, i) => n + (i?.read ? 0 : 1), 0);
+    } catch {
+      return 0;
+    }
+  };
+
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let currentUid: string | null = auth.currentUser?.uid ?? null;
+    const refresh = () => setUnread(getUnreadCount(currentUid));
+
+    // 초기값
+    refresh();
+
+    // 로그인 상태 변동
+    const unsub = onAuthStateChanged(auth, (u) => {
+      currentUid = u?.uid ?? null;
+      refresh();
+    });
+
+    // 다른 탭에서 변경될 때
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === inboxKey(currentUid)) refresh();
+    };
+    window.addEventListener("storage", onStorage);
+
+    // 같은 탭에서 변경(우리가 쏜 이벤트)
+    const onBump = () => refresh();
+    window.addEventListener("notif_inbox_updated", onBump);
+
+    // 포커스/탭 전환 시 갱신
+    const onFocus = () => refresh();
+    window.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      unsub();
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("notif_inbox_updated", onBump);
+      window.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
+
+  // 알림 페이지 들어왔을 때도 한 번 갱신(선택)
+  useEffect(() => {
+    if (location.pathname.startsWith("/notification")) {
+      setUnread(getUnreadCount(auth.currentUser?.uid ?? null));
+    }
+  }, [location.pathname]);
+
+  /* ===================== /미읽음 카운트 ===================== */
+
   return (
     <ImageModalContext.Provider
       value={{
@@ -431,16 +513,18 @@ const Layout = () => {
                   <MenuItem isActive={location.pathname === "/music"}>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
                       viewBox="0 0 24 24"
+                      fill="none"
                       stroke="currentColor"
                       strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ overflow: "visible" }}
+                      aria-label="음악"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
-                      />
+                      <path d="M12 4v11" />
+                      <path d="M12 4l7 2v4l-7-2" />
+                      <circle cx="8.5" cy="17.5" r="2.4" />
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
@@ -499,8 +583,9 @@ const Layout = () => {
                       strokeWidth={2}
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      aria-label="문자"
                     >
-                      <path d="M21 15a4 4 0 0 1-4 4H8l-4 4V7a4 4 0 0 1 4-4h9a4 4 0  1 1 4 4v8z" />
+                      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v6A2.5 2.5 0 0 1 17.5 15H10l-4 4v-4H6.5A2.5 2.5 0 0 1 4 12.5v-6Z" />
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
@@ -525,6 +610,11 @@ const Layout = () => {
                         d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.57 3.535.882 5.454 1.312m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.75 21h16.5"
                       />
                     </svg>
+                    {unread > 0 && (
+                      <Badge aria-label={`${unread}개의 새 알림`}>
+                        {unread > 99 ? "99+" : unread}
+                      </Badge>
+                    )}
                   </MenuItem>
                 </TooltipContainer>
               </Link>
@@ -544,7 +634,7 @@ const Layout = () => {
                       strokeLinejoin="round"
                     >
                       <circle cx="12" cy="12" r="3"></circle>
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0  0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06c.51.51 1.21.66 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0 1 1 4 0v.09c0 .7.4 1.31 1 1.65.61.33 1.31.18 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.51.51-.66 1.21-.33 1.82.34.6.95 1 1.65 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z"></path>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0  0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09c.7 0 1.31-.4 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0  1 1 2.83-2.83l.06.06c.51.51 1.21.66 1.82.33.6-.34 1-.95 1-1.65V3a2 2 0  1 1 4 0v.09c0 .7.4 1.31 1 1.65.61.33 1.31.18 1.82-.33l.06-.06a2 2 0  1 1 2.83 2.83l-.06.06c-.51.51-.66 1.21-.33 1.82.34.6.95 1 1.65 1H21a2 2 0 1 1 0 4h-.09c-.7 0-1.31.4-1.51 1z"></path>
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
@@ -566,7 +656,7 @@ const Layout = () => {
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
+                      d="M8.25 9V5.25A2.25 2.25 0  0 1 10.5 3h6a2.25 2.25 0  0 1 2.25 2.25v13.5A2.25 2.25 0  0 1 16.5 21h-6a2.25 2.25 0  0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25"
                     />
                   </svg>
                 </MenuItem>

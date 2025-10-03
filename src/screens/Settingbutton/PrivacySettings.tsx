@@ -192,12 +192,17 @@ const GhostBtn = styled.button<{ $dark: boolean }>`
     outline-offset: 2px;
   }
 `;
-const SaveBtn = styled(SegBtn).attrs({ as: "button" })``;
+
+/* ✅ 저장 버튼을 고스트 스타일로 변경 */
+const SaveBtn = styled(GhostBtn)<{ disabled?: boolean }>`
+  opacity: ${(p) => (p.disabled ? 0.6 : 1)};
+  pointer-events: ${(p) => (p.disabled ? "none" : "auto")};
+`;
 
 /* ====== 타입/기본값 ====== */
 type Privacy = {
   profileVisibility: "public" | "followers" | "private";
-  showOnline: boolean;
+  showOnline: boolean; // 상태 필드는 유지(백엔드와 호환)
   allowDMFrom: "everyone" | "followers" | "none";
   allowMentions: boolean;
   readReceipts: boolean;
@@ -215,7 +220,6 @@ const PrivacySettings: React.FC = () => {
   const { isDarkMode } = useTheme();
   const navigate = useNavigate();
 
-  // ★ UI는 즉시 렌더링
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [saving, setSaving] = useState(false);
   const [p, setP] = useState<Privacy>(DEFAULT_PRIVACY);
@@ -262,7 +266,6 @@ const PrivacySettings: React.FC = () => {
     try {
       const ref = doc(db, "profiles", user.uid);
       await updateDoc(ref, { privacy: { ...p, updatedAt: serverTimestamp() } });
-      // ✅ settings.tsx가 상단 토스트로 표시
       navigate("/settings", {
         replace: true,
         state: { notice: "저장되었습니다." },
@@ -342,23 +345,6 @@ const PrivacySettings: React.FC = () => {
                   );
                 })}
               </SegGroup>
-            </Right>
-          </Row>
-
-          {/* 온라인 표시 */}
-          <Row $dark={isDarkMode}>
-            <Label $dark={isDarkMode}>
-              <strong>온라인 상태 표시</strong>
-              <span>내가 접속 중인지 상대가 볼 수 있습니다</span>
-            </Label>
-            <Right>
-              <Toggle
-                aria-label="온라인 상태 표시"
-                $on={p.showOnline}
-                onClick={() =>
-                  setP((prev) => ({ ...prev, showOnline: !prev.showOnline }))
-                }
-              />
             </Right>
           </Row>
 

@@ -3,14 +3,17 @@ import {
   RouterProvider,
   createBrowserRouter,
   Navigate,
+  useParams, // ✅ 추가
 } from "react-router-dom";
+import NotificationSettings from "./screens/Settingbutton/NotificationSettings";
+
 import styled, { createGlobalStyle } from "styled-components";
 import Home from "./screens/home";
 import Profile from "./screens/profile";
 import Signin from "./screens/signin";
 import Signup from "./screens/signup";
 import reset from "styled-reset";
-import { auth } from "./firebaseConfig";
+import { auth, db } from "./firebaseConfig"; // ✅ db 함께 import
 import { useEffect, useState } from "react";
 import LoadingScreen from "./screens/loading-screen";
 import ProtectedRouter from "./components/protected-router";
@@ -34,6 +37,71 @@ import Notifications from "./screens/notification";
 
 // ✅ 개인정보 설정 화면 import
 import PrivacySettings from "./screens/Settingbutton/PrivacySettings"; // ← 추가
+
+// ✅ 게시글 상세에 필요한 것들
+import Post from "./components/Post"; // 게시글 컴포넌트
+import { doc, getDoc } from "firebase/firestore"; // Firestore 읽기
+
+/* =========================
+ * 게시글 상세 페이지 (간단 버전)
+ * ========================= */
+const PostPage = () => {
+  const { id } = useParams();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      try {
+        if (!id) return;
+        const snap = await getDoc(doc(db, "posts", id));
+        if (alive) {
+          setData(snap.exists() ? { id, ...snap.data() } : null);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error(e);
+        if (alive) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  // 해시(#comment-xxx)로 스크롤
+  useEffect(() => {
+    const hash = decodeURIComponent(window.location.hash || "");
+    if (!hash) return;
+    const t = setTimeout(() => {
+      const el = document.querySelector(hash);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (loading) return <LoadingScreen />;
+  if (!data)
+    return <div style={{ padding: 24 }}>게시글을 찾을 수 없습니다.</div>;
+
+  // Firestore 필드명이 Post props와 동일하다고 가정
+  return (
+    <Post
+      id={data.id}
+      userId={data.userId}
+      nickname={data.nickname}
+      post={data.post}
+      createdAt={data.createdAt}
+      photoUrl={data.photoUrl}
+      photoUrls={data.photoUrls}
+      comments={data.comments}
+      playlist={data.playlist}
+      playlistFileUrl={data.playlistFileUrl}
+    />
+  );
+};
 
 /* =========================
  * Router
@@ -65,11 +133,14 @@ const router = createBrowserRouter([
         element: <Navigate to="/notification" replace />,
       },
 
+      // ✅ 게시글 상세 라우트 추가
+      { path: "post/:id", element: <PostPage /> },
+
       // 설정
       { path: "settings", element: <Settings /> },
       { path: "settings/profile", element: <ProfileSettings /> },
       { path: "settings/block", element: <BlockSettings /> },
-
+      { path: "settings/notifications", element: <NotificationSettings /> },
       // ✅ 개인정보 설정 라우트
       { path: "settings/privacy", element: <PrivacySettings /> }, // ← 추가
     ],

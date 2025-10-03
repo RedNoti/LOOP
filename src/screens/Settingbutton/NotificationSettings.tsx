@@ -1,8 +1,9 @@
 // src/screens/Settingbutton/NotificationSettings.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../components/ThemeContext";
+import { saveSettings, playBeep, notify } from "../../notificationCenter";
 
 /* ============== tokens (Settings 스타일과 톤 맞춤) ============== */
 const R = { lg: "16px", md: "12px" };
@@ -70,12 +71,15 @@ const Wrapper = styled.main`
   gap: 18px;
 `;
 
-const Section = styled.section<{ $isDark: boolean }>`
+const Section = styled.section<{
+  $isDark: boolean;
+  $overflowVisible?: boolean;
+}>`
   background: ${(p) => (p.$isDark ? dark.panel : "#ffffff")};
   border: 1px solid ${(p) => (p.$isDark ? dark.border : "#e5e7eb")};
   border-radius: ${R.lg};
   box-shadow: ${(p) => (p.$isDark ? shadow.cardDark : shadow.cardLight)};
-  overflow: hidden;
+  overflow: ${(p) => (p.$overflowVisible ? "visible" : "hidden")};
 `;
 
 const SectionHeader = styled.div<{ $isDark: boolean }>`
@@ -151,6 +155,7 @@ const Switch = styled.button<{ $on: boolean }>`
   }
 `;
 
+/* 기본 select는 남겨두되, 우선알림엔 커스텀 사용 */
 const Select = styled.select<{ $isDark: boolean }>`
   height: 32px;
   border-radius: 10px;
@@ -200,10 +205,10 @@ const Primary = styled.button`
   cursor: pointer;
   font-weight: 800;
   background: linear-gradient(135deg, #0ea5e9, #6366f1);
-  color: white;
+  color: #fff;
 `;
 
-/* ===== 상단 토스트 (헤더보다 위) ===== */
+/* ===== 토스트 ===== */
 const dropIn = keyframes`
   from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(.98); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1); }
@@ -216,9 +221,9 @@ const dropOut = keyframes`
 const Toast = styled.div<{ $isDark: boolean; $leaving: boolean }>`
   position: fixed;
   left: 50%;
-  top: 8px; /* ✅ 화면 맨 위 */
+  top: 8px;
   transform: translateX(-50%);
-  z-index: 80; /* ✅ 헤더(z-index:10)보다 위 */
+  z-index: 80;
   min-width: 240px;
   max-width: 420px;
   display: inline-flex;
@@ -238,28 +243,127 @@ const Toast = styled.div<{ $isDark: boolean; $leaving: boolean }>`
   animation: ${(p) => (p.$leaving ? dropOut : dropIn)} 160ms ease forwards;
 `;
 
+/* ===== 커스텀 Pill Select(우선 알림 전용) ===== */
+const SelectWrap = styled.div<{ $isDark: boolean }>`
+  position: relative;
+  display: inline-block;
+`;
+const SelectButton = styled.button<{ $isDark: boolean }>`
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid ${(p) => (p.$isDark ? dark.border : "#e5e7eb")};
+  background: ${(p) => (p.$isDark ? "#0f1112" : "#ffffff")};
+  color: ${(p) => (p.$isDark ? dark.text : "#0f172a")};
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  &:hover {
+    background: ${(p) => (p.$isDark ? "#0c0e10" : "#fafafa")};
+  }
+  &:focus-visible {
+    outline: 3px solid rgba(99, 102, 241, 0.35);
+    outline-offset: 2px;
+  }
+`;
+const Menu = styled.div<{ $isDark: boolean }>`
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  border-radius: 10px;
+  border: 1px solid ${(p) => (p.$isDark ? dark.border : "#e5e7eb")};
+  background: ${(p) => (p.$isDark ? "#0f1112" : "#ffffff")};
+  color: ${(p) => (p.$isDark ? dark.text : "#0f172a")};
+  box-shadow: ${(p) => (p.$isDark ? shadow.cardDark : shadow.cardLight)};
+  padding: 6px;
+  z-index: 200;
+`;
+const MenuItem = styled.button<{ $isDark: boolean; $active?: boolean }>`
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: ${(p) =>
+    p.$active ? (p.$isDark ? "#15181c" : "#f1f5f9") : "transparent"};
+  color: inherit;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  &:hover {
+    background: ${(p) => (p.$isDark ? "#15181c" : "#f9fafb")};
+  }
+`;
+const Caret = ({ darkMode }: { darkMode: boolean }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+    <path
+      d="M6 9l6 6 6-6"
+      stroke={darkMode ? "#9aa4b2" : "#475569"}
+      strokeWidth="2"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+const Check = ({ show, darkMode }: { show: boolean; darkMode: boolean }) =>
+  show ? (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M20 6L9 17l-5-5"
+        stroke={darkMode ? "#a5b4fc" : "#6366f1"}
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ) : null;
+
+/* ===== 타입/스토리지 ===== */
+type Priority = "mentions" | "dm" | "all";
 type NotiSettings = {
   push: boolean;
-  email: boolean;
-  priority: "mentions" | "dm" | "all";
   sound: boolean;
+  post: boolean; // 포스트 알림 (좋아요/댓글 등)
+  dm: boolean; // DM 알림
+  priority: Priority;
 };
-
 const LS_KEY = "notif_settings";
+const DEFAULTS: NotiSettings = {
+  push: false,
+  sound: true,
+  post: true,
+  dm: true,
+  priority: "mentions",
+};
 
 const NotificationSettings: React.FC = () => {
   const { isDarkMode } = useTheme();
   const nav = useNavigate();
 
-  /* 상태 */
   const [cfg, setCfg] = useState<NotiSettings>(() => {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw)
-      return { push: false, email: true, priority: "mentions", sound: true };
     try {
-      return JSON.parse(raw) as NotiSettings;
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return DEFAULTS;
+      const p = JSON.parse(raw);
+      return {
+        push: !!p.push,
+        sound: typeof p.sound === "boolean" ? p.sound : true,
+        post: typeof p.post === "boolean" ? p.post : true,
+        dm: typeof p.dm === "boolean" ? p.dm : true,
+        priority: (["mentions", "dm", "all"] as Priority[]).includes(p.priority)
+          ? p.priority
+          : "mentions",
+      };
     } catch {
-      return { push: false, email: true, priority: "mentions", sound: true };
+      return DEFAULTS;
     }
   });
 
@@ -279,7 +383,7 @@ const NotificationSettings: React.FC = () => {
     };
   }, [toast]);
 
-  /* 브라우저 푸시 권한 요청 */
+  /* 푸시 권한 */
   const askPermission = async () => {
     if (!("Notification" in window)) {
       setToast("이 브라우저는 푸시 알림을 지원하지 않아요.");
@@ -302,32 +406,15 @@ const NotificationSettings: React.FC = () => {
     setCfg((c) => ({ ...c, push: !c.push }));
   };
 
-  // 저장 후 /settings로 이동 + 상단 토스트 노출(상위 settings.tsx가 표시)
   const onSave = () => {
-    localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+    // 설정 저장 (notif_settings)
+    saveSettings(cfg);
     nav("/settings", { replace: true, state: { notice: "저장되었습니다." } });
   };
 
-  /* 미리듣기: Web Audio 비프음 */
+  // 소리 미리듣기는 토글과 무관하게 항상 재생
   const previewBeep = () => {
-    if (!cfg.sound) {
-      setToast("‘알림 소리’가 꺼져 있어요.");
-      return;
-    }
-    const Ctx =
-      (window as any).AudioContext || (window as any).webkitAudioContext;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.value = 0.001;
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.25);
-    osc.stop(ctx.currentTime + 0.26);
+    playBeep(true);
   };
 
   const testBrowserNotification = () => {
@@ -345,6 +432,36 @@ const NotificationSettings: React.FC = () => {
     });
   };
 
+  /* 커스텀 드롭다운 */
+  const [open, setOpen] = useState(false);
+  const ddRef = useRef<HTMLDivElement | null>(null);
+  const options = useMemo(
+    () =>
+      [
+        { value: "mentions", label: "멘션 우선" },
+        { value: "dm", label: "DM 우선" },
+        { value: "all", label: "전체" },
+      ] as { value: Priority; label: string }[],
+    []
+  );
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (!ddRef.current) return;
+      if (!ddRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const currentLabel =
+    options.find((o) => o.value === cfg.priority)?.label ?? "멘션 우선";
+
   return (
     <Page $isDark={isDarkMode}>
       {toast && (
@@ -361,8 +478,8 @@ const NotificationSettings: React.FC = () => {
       </Header>
 
       <Wrapper>
-        {/* 기본 */}
-        <Section $isDark={isDarkMode}>
+        {/* 기본 - 드롭다운이 펼쳐질 수 있도록 overflow visible */}
+        <Section $isDark={isDarkMode} $overflowVisible>
           <SectionHeader $isDark={isDarkMode}>
             <SectionTitle $isDark={isDarkMode}>기본</SectionTitle>
           </SectionHeader>
@@ -379,38 +496,75 @@ const NotificationSettings: React.FC = () => {
             />
           </Row>
 
+          {/* 포스트 알림 */}
           <Row $isDark={isDarkMode}>
             <Label $isDark={isDarkMode}>
-              <b>이메일 알림</b>
-              <span>중요 활동을 이메일로 받기</span>
+              <b>포스트 알림</b>
+              <span>내 포스트에 좋아요/댓글이 달리면 알림</span>
             </Label>
             <Switch
-              $on={!!cfg.email}
-              onClick={() => setCfg((c) => ({ ...c, email: !c.email }))}
-              aria-label="이메일 알림 토글"
+              $on={!!cfg.post}
+              onClick={() => setCfg((c) => ({ ...c, post: !c.post }))}
+              aria-label="포스트 알림 토글"
             />
           </Row>
 
+          {/* DM 알림 */}
+          <Row $isDark={isDarkMode}>
+            <Label $isDark={isDarkMode}>
+              <b>DM 알림</b>
+              <span>새로운 DM 메시지를 받으면 알림</span>
+            </Label>
+            <Switch
+              $on={!!cfg.dm}
+              onClick={() => setCfg((c) => ({ ...c, dm: !c.dm }))}
+              aria-label="DM 알림 토글"
+            />
+          </Row>
+
+          {/* 우선 알림 - 커스텀 드롭다운 */}
           <Row $isDark={isDarkMode}>
             <Label $isDark={isDarkMode}>
               <b>우선 알림</b>
               <span>어떤 이벤트를 우선적으로 알릴지 선택</span>
             </Label>
-            <Select
-              $isDark={isDarkMode}
-              value={cfg.priority}
-              onChange={(e) =>
-                setCfg((c) => ({
-                  ...c,
-                  priority: e.target.value as NotiSettings["priority"],
-                }))
-              }
-              aria-label="우선 알림 선택"
-            >
-              <option value="mentions">멘션 우선</option>
-              <option value="dm">DM 우선</option>
-              <option value="all">전체</option>
-            </Select>
+
+            <SelectWrap $isDark={isDarkMode} ref={ddRef}>
+              <SelectButton
+                $isDark={isDarkMode}
+                onClick={() => setOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-label="우선 알림 선택"
+              >
+                {currentLabel}
+                <Caret darkMode={isDarkMode} />
+              </SelectButton>
+
+              {open && (
+                <Menu $isDark={isDarkMode} role="listbox">
+                  {options.map((o) => (
+                    <MenuItem
+                      key={o.value}
+                      $isDark={isDarkMode}
+                      $active={cfg.priority === o.value}
+                      role="option"
+                      aria-selected={cfg.priority === o.value}
+                      onClick={() => {
+                        setCfg((c) => ({ ...c, priority: o.value }));
+                        setOpen(false);
+                      }}
+                    >
+                      {o.label}
+                      <Check
+                        show={cfg.priority === o.value}
+                        darkMode={isDarkMode}
+                      />
+                    </MenuItem>
+                  ))}
+                </Menu>
+              )}
+            </SelectWrap>
           </Row>
         </Section>
 
@@ -435,6 +589,18 @@ const NotificationSettings: React.FC = () => {
           <Actions>
             <Ghost $isDark={isDarkMode} onClick={previewBeep}>
               소리 미리듣기
+            </Ghost>
+            <Ghost
+              $isDark={isDarkMode}
+              onClick={() =>
+                notify.mention({
+                  title: "테스트 알림",
+                  desc: "세팅 토글에 따라 생성/차단됩니다.",
+                  link: "/notifications",
+                })
+              }
+            >
+              테스트 알림 추가
             </Ghost>
             <Primary onClick={testBrowserNotification}>
               브라우저 알림 테스트

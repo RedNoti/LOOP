@@ -3,22 +3,28 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { useTheme } from "../components/ThemeContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 /* ---------- Types ---------- */
 type DmUser = { id: string; name: string; avatar?: string; unread?: number };
 type DmMessage = {
   id: string;
-  userId: string; // 상대 id 또는 "me"
-  text?: string; // 텍스트는 선택
-  imageUrl?: string; // 이미지(Base64 data URL)
+  userId: string; // 발신 계정 id
+  text?: string;
+  imageUrl?: string; // Base64
   ts: number;
-  mine?: boolean;
+  mine?: boolean; // (구데이터 호환용)
 };
 
 /* ---------- LocalStorage Keys ---------- */
 const LS_USERS = "dm_mock_users";
 const LS_MESSAGES = "dm_mock_messages";
+const LS_CURRENT = "dm_current_account"; // 현재 계정
 const AVATAR_FALLBACK = "/default-avatar.png";
+
+/* ---------- Light-mode contrast ---------- */
+const LIGHT_BORDER = "#d1d5db";
+const LIGHT_SOFT_BG = "#f3f4f6";
 
 /* ---------- Layout ---------- */
 const LEFT_WIDTH = 260;
@@ -29,8 +35,8 @@ const Page = styled.div<{ $dark: boolean }>`
   display: grid;
   grid-template-columns: ${LEFT_WIDTH}px 1fr;
   background: ${(p) => (p.$dark ? "#000" : "#fff")};
-  padding-top: 6px; /* 헤더와 겹치는 느낌 방지 */
-  overflow: hidden; /* 문서로 스크롤 새는 것 차단 */
+  padding-top: 6px;
+  overflow: hidden;
   @media (max-width: 920px) {
     grid-template-columns: 100%;
   }
@@ -42,7 +48,7 @@ const Left = styled.aside<{ $dark: boolean }>`
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
-  border-right: 1px solid ${(p) => (p.$dark ? "#16181c" : "#e5e7eb")};
+  border-right: 1px solid ${(p) => (p.$dark ? "#16181c" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0a0a0a" : "#fff")};
   overflow: hidden;
   @media (max-width: 920px) {
@@ -64,8 +70,8 @@ const SearchWrap = styled.div<{ $dark: boolean }>`
     width: 100%;
     padding: 10px 12px 10px 36px;
     border-radius: 10px;
-    border: 1px solid ${(p) => (p.$dark ? "#24272b" : "#e5e7eb")};
-    background: ${(p) => (p.$dark ? "#0f1112" : "#f9fafb")};
+    border: 1px solid ${(p) => (p.$dark ? "#24272b" : LIGHT_BORDER)};
+    background: ${(p) => (p.$dark ? "#0f1112" : LIGHT_SOFT_BG)};
     color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
     font-size: 14px;
     outline: none;
@@ -84,8 +90,6 @@ const SearchWrap = styled.div<{ $dark: boolean }>`
 const ThreadList = styled.div`
   min-height: 0;
   overflow-y: auto;
-
-  /* DM 화면 전용 스크롤바 */
   &::-webkit-scrollbar {
     width: 10px;
   }
@@ -112,7 +116,7 @@ const Thread = styled.button<{ $active: boolean; $dark: boolean }>`
   cursor: pointer;
   transition: background 0.15s ease;
   &:hover {
-    background: ${(p) => (p.$dark ? "#0f1112" : "#f9fafb")};
+    background: ${(p) => (p.$dark ? "#0f1112" : LIGHT_SOFT_BG)};
   }
 `;
 
@@ -179,6 +183,56 @@ const UnreadDot = styled.span`
   display: inline-block;
 `;
 
+/* 목록용 케밥 버튼 & 메뉴 */
+const RowKebab = styled.button<{ $dark: boolean }>`
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  ${Thread}:hover & {
+    opacity: 1;
+  }
+`;
+
+const RowMenu = styled.div<{ $dark: boolean; $x: number; $y: number }>`
+  position: fixed;
+  left: ${(p) => p.$x}px;
+  top: ${(p) => p.$y}px;
+  min-width: 160px;
+  background: ${(p) => (p.$dark ? "#0f1112" : "#fff")};
+  color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  z-index: 60;
+  overflow: hidden;
+`;
+
+const RowMenuBtn = styled.button<{ $danger?: boolean; $dark: boolean }>`
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: ${(p) => (p.$danger ? "#ef4444" : p.$dark ? "#e5e7eb" : "#0f172a")};
+  &:hover {
+    background: ${(p) => (p.$dark ? "#111315" : "#f5f7fa")};
+  }
+`;
+
 /* ---------- Right / Chat ---------- */
 const Right = styled.section<{ $dark: boolean }>`
   height: 100%;
@@ -196,7 +250,7 @@ const ChatHeader = styled.div<{ $dark: boolean }>`
   gap: 10px;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid ${(p) => (p.$dark ? "#16181c" : "#e5e7eb")};
+  border-bottom: 1px solid ${(p) => (p.$dark ? "#16181c" : LIGHT_BORDER)};
 `;
 
 const ChatUser = styled.div<{ $dark: boolean }>`
@@ -231,8 +285,6 @@ const Messages = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-
-  /* DM 메시지 영역 전용 스크롤바 */
   &::-webkit-scrollbar {
     width: 10px;
   }
@@ -257,11 +309,10 @@ const DayDivider = styled.div<{ $dark: boolean }>`
   &::after {
     content: "";
     height: 1px;
-    background: ${(p) => (p.$dark ? "#16181c" : "#e5e7eb")};
+    background: ${(p) => (p.$dark ? "#16181c" : LIGHT_BORDER)};
   }
 `;
 
-/* 말풍선 + 우측 클릭 메뉴 버튼 */
 const BubbleWrap = styled.div<{ $mine?: boolean }>`
   align-self: ${(p) => (p.$mine ? "flex-end" : "flex-start")};
   max-width: min(72%, 540px);
@@ -329,7 +380,7 @@ const ContextMenu = styled.div<{ $dark: boolean; $x: number; $y: number }>`
   min-width: 140px;
   background: ${(p) => (p.$dark ? "#0f1112" : "#fff")};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
   z-index: 50;
@@ -358,7 +409,7 @@ const DangerButton = styled(MenuButton)`
 const EditArea = styled.textarea<{ $dark: boolean }>`
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0f1112" : "#fff")};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   min-height: 32px;
@@ -390,7 +441,7 @@ const EditButton = styled.button<{
         ? "transparent"
         : p.$dark
         ? "#202327"
-        : "#e5e7eb"};
+        : LIGHT_BORDER};
   background: ${(p) =>
     p.$variant === "primary" ? "#3797f0" : p.$dark ? "#0f1112" : "#ffffff"};
   color: ${(p) =>
@@ -407,7 +458,7 @@ const InputBar = styled.form<{ $dark: boolean }>`
   grid-template-columns: auto 1fr auto auto;
   gap: 8px;
   padding: 10px 12px;
-  border-top: 1px solid ${(p) => (p.$dark ? "#16181c" : "#e5e7eb")};
+  border-top: 1px solid ${(p) => (p.$dark ? "#16181c" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0a0a0a" : "#fff")};
 `;
 
@@ -415,7 +466,7 @@ const IconBtn = styled.button<{ $dark: boolean }>`
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0f1112" : "#fff")};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   display: grid;
@@ -429,8 +480,8 @@ const Textbox = styled.textarea<{ $dark: boolean }>`
   max-height: 120px;
   padding: 8px 12px;
   border-radius: 18px;
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
-  background: ${(p) => (p.$dark ? "#0f1112" : "#f9fafb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
+  background: ${(p) => (p.$dark ? "#0f1112" : LIGHT_SOFT_BG)};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   outline: none;
   font-size: 14px;
@@ -463,7 +514,7 @@ const EmojiPopover = styled.div<{ $dark: boolean }>`
   width: 320px;
   max-height: 300px;
   border-radius: 14px;
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0f1112" : "#ffffff")};
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   z-index: 40;
@@ -477,7 +528,9 @@ const EmojiPopover = styled.div<{ $dark: boolean }>`
     border-style: solid;
     border-color: ${(p) => (p.$dark ? "#0f1112" : "#ffffff")} transparent
       transparent transparent;
-    filter: drop-shadow(0 -1px 0 ${(p) => (p.$dark ? "#202327" : "#e5e7eb")});
+    filter: drop-shadow(
+      0 -1px 0 ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)}
+    );
   }
 `;
 
@@ -487,7 +540,7 @@ const EmojiHeader = styled.div<{ $dark: boolean }>`
   justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid ${(p) => (p.$dark ? "#1a1d21" : "#edf0f3")};
-  background: ${(p) => (p.$dark ? "#0c0e10" : "#f9fafb")};
+  background: ${(p) => (p.$dark ? "#0c0e10" : LIGHT_SOFT_BG)};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   font-weight: 700;
   font-size: 13px;
@@ -499,7 +552,7 @@ const CloseBtn = styled.button<{ $dark: boolean }>`
   display: grid;
   place-items: center;
   border-radius: 8px;
-  border: 1px solid ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+  border: 1px solid ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   background: ${(p) => (p.$dark ? "#0f1112" : "#ffffff")};
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   cursor: pointer;
@@ -533,7 +586,6 @@ const EmojiGrid = styled.div`
   grid-template-columns: repeat(8, 1fr);
   gap: 6px;
 `;
-
 const EmojiItem = styled.button<{ $dark: boolean }>`
   font-size: 20px;
   line-height: 1;
@@ -547,7 +599,7 @@ const EmojiItem = styled.button<{ $dark: boolean }>`
   color: ${(p) => (p.$dark ? "#e5e7eb" : "#0f172a")};
   &:hover {
     background: ${(p) => (p.$dark ? "#111315" : "#f4f6f8")};
-    border-color: ${(p) => (p.$dark ? "#202327" : "#e5e7eb")};
+    border-color: ${(p) => (p.$dark ? "#202327" : LIGHT_BORDER)};
   }
   &:active {
     transform: scale(0.96);
@@ -649,6 +701,27 @@ const DmScreen: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  /* 현재 로그인 계정 UID 동기화 */
+  const [currentAccountId, setCurrentAccountId] = useState<string>(
+    () => localStorage.getItem(LS_CURRENT) || "guest"
+  );
+  const threadKeyOf = (peerId?: string | null) =>
+    !peerId ? "" : `${currentAccountId}:${peerId}`;
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user?.uid) {
+        setCurrentAccountId(user.uid);
+        localStorage.setItem(LS_CURRENT, user.uid);
+      } else {
+        setCurrentAccountId("guest");
+        localStorage.removeItem(LS_CURRENT);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const [users, setUsers] = useState<DmUser[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Record<string, DmMessage[]>>({});
@@ -666,6 +739,14 @@ const DmScreen: React.FC = () => {
     y: number;
     msgId: string | null;
   }>({ open: false, x: 0, y: 0, msgId: null });
+
+  // 좌측 목록 케밥 메뉴
+  const [listMenu, setListMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    uid: string | null;
+  }>({ open: false, x: 0, y: 0, uid: null });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -691,18 +772,19 @@ const DmScreen: React.FC = () => {
       ];
       const now = Date.now();
       const seedMessages: Record<string, DmMessage[]> = {
-        u1: [
+        [threadKeyOf("u1")]: [
           { id: "m1", userId: "u1", text: "안녕하세요!", ts: now - 360000 },
           {
             id: "m2",
-            userId: "me",
+            userId: currentAccountId,
             text: "반가워요 🙂",
             ts: now - 300000,
-            mine: true,
           },
         ],
-        u2: [{ id: "m3", userId: "u2", text: "테스트 DM", ts: now - 900000 }],
-        u3: [
+        [threadKeyOf("u2")]: [
+          { id: "m3", userId: "u2", text: "테스트 DM", ts: now - 900000 },
+        ],
+        [threadKeyOf("u3")]: [
           { id: "m4", userId: "u3", text: "사진 보냈어요!", ts: now - 120000 },
           { id: "m5", userId: "u3", text: "확인 부탁!", ts: now - 60000 },
         ],
@@ -713,7 +795,8 @@ const DmScreen: React.FC = () => {
       setMessages(seedMessages);
       setInitialized(true);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentAccountId]);
 
   /* ---------- URL 쿼리 → 스레드 활성화 / 사용자 생성 ---------- */
   useEffect(() => {
@@ -726,7 +809,6 @@ const DmScreen: React.FC = () => {
     const avatar = avatarQ ? decodeURIComponent(avatarQ) : "";
 
     if (uid) {
-      // 사용자 목록에 없으면 추가
       setUsers((prev) => {
         const exists = prev.some((u) => u.id === uid);
         const next = exists
@@ -743,20 +825,19 @@ const DmScreen: React.FC = () => {
         localStorage.setItem(LS_USERS, JSON.stringify(next));
         return next;
       });
-      // 메시지 맵에 키 보장
       setMessages((prev) => {
-        if (prev[uid]) return prev;
-        const next = { ...prev, [uid]: [] };
+        const key = threadKeyOf(uid);
+        if (prev[key]) return prev;
+        const next = { ...prev, [key]: [] };
         localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
         return next;
       });
-      // 이 유저를 활성화
       setActiveId(uid);
     } else {
-      // 쿼리가 없으면 기존 첫 유저 기본 활성화
       setActiveId((curr) => curr ?? users[0]?.id ?? null);
     }
-  }, [initialized, searchParams, users]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, searchParams, users, currentAccountId]);
 
   // auto scroll to bottom
   useEffect(() => {
@@ -777,16 +858,23 @@ const DmScreen: React.FC = () => {
   }, [activeId]);
 
   useEffect(() => {
-    const closeMenu = () => setMenu((m) => ({ ...m, open: false }));
+    const closeMsgMenu = () => setMenu((m) => ({ ...m, open: false }));
+    const closeListMenu = () => setListMenu((m) => ({ ...m, open: false }));
     const closeEmoji = () => setEmojiOpen(false);
-    window.addEventListener("click", closeMenu);
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("click", closeMsgMenu);
+    window.addEventListener("resize", closeMsgMenu);
+    window.addEventListener("scroll", closeMsgMenu, true);
+    window.addEventListener("click", closeListMenu);
+    window.addEventListener("resize", closeListMenu);
+    window.addEventListener("scroll", closeListMenu, true);
     window.addEventListener("click", closeEmoji);
     return () => {
-      window.removeEventListener("click", closeMenu);
-      window.removeEventListener("resize", closeMenu);
-      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("click", closeMsgMenu);
+      window.removeEventListener("resize", closeMsgMenu);
+      window.removeEventListener("scroll", closeMsgMenu, true);
+      window.removeEventListener("click", closeListMenu);
+      window.removeEventListener("resize", closeListMenu);
+      window.removeEventListener("scroll", closeListMenu, true);
       window.removeEventListener("click", closeEmoji);
     };
   }, []);
@@ -796,26 +884,40 @@ const DmScreen: React.FC = () => {
     [users, activeId]
   );
 
-  const filteredUsers = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => u.name.toLowerCase().includes(q));
-  }, [users, query]);
+  /* 계정별 스레드 (구키 fallback 제거) */
+  const getThread = (peerId?: string | null) => {
+    if (!peerId) return [];
+    const key = threadKeyOf(peerId);
+    return messages[key] || [];
+  };
 
-  const thread = messages[activeId ?? ""] || [];
+  const thread = useMemo(
+    () => getThread(activeId || undefined),
+    [messages, activeId, currentAccountId]
+  );
+
+  /* 좌측: 현재 계정의 스레드가 있는 유저만 노출 (단, 현재 선택 유저는 항상 표시) */
+  const visibleUsers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = users.filter(
+      (u) => u.id === activeId || (messages[threadKeyOf(u.id)]?.length ?? 0) > 0
+    );
+    return q ? base.filter((u) => u.name.toLowerCase().includes(q)) : base;
+  }, [users, messages, currentAccountId, activeId, query]);
 
   /* ---------- Send text ---------- */
   const send = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!activeId || !draft.trim()) return;
+
+    const key = threadKeyOf(activeId)!;
     const msg: DmMessage = {
       id: `${Date.now()}`,
-      userId: "me",
+      userId: currentAccountId,
       text: draft.trim(),
       ts: Date.now(),
-      mine: true,
     };
-    const next = { ...messages, [activeId]: [...thread, msg] };
+    const next = { ...messages, [key]: [...(messages[key] || []), msg] };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
     setDraft("");
@@ -840,18 +942,18 @@ const DmScreen: React.FC = () => {
       )
     );
 
-    let nextList = [...thread];
+    const key = threadKeyOf(activeId)!;
+    let nextList = [...(messages[key] || [])];
     reads.forEach((dataUrl) => {
       nextList.push({
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        userId: "me",
+        userId: currentAccountId,
         imageUrl: dataUrl,
         ts: Date.now(),
-        mine: true,
       });
     });
 
-    const next = { ...messages, [activeId]: nextList };
+    const next = { ...messages, [key]: nextList };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
     e.target.value = "";
@@ -866,15 +968,20 @@ const DmScreen: React.FC = () => {
   };
 
   /* ---------- Context menu: edit/delete (mine only) ---------- */
-  const openContextMenu = (e: React.MouseEvent, msg: DmMessage) => {
-    if (!msg.mine) return;
+  const openContextMenu = (
+    e: React.MouseEvent,
+    msg: DmMessage,
+    mine: boolean
+  ) => {
+    if (!mine) return;
     e.preventDefault();
     setMenu({ open: true, x: e.clientX, y: e.clientY, msgId: msg.id });
   };
 
   const startEdit = () => {
     if (!menu.msgId || !activeId) return;
-    const target = (messages[activeId] || []).find((m) => m.id === menu.msgId);
+    const key = threadKeyOf(activeId)!;
+    const target = (messages[key] || []).find((m) => m.id === menu.msgId);
     if (!target) return;
     setEditingId(target.id);
     setEditText(target.text || "");
@@ -883,11 +990,12 @@ const DmScreen: React.FC = () => {
 
   const saveEdit = () => {
     if (!activeId || !editingId) return;
-    const list = messages[activeId] || [];
+    const key = threadKeyOf(activeId)!;
+    const list = messages[key] || [];
     const nextList = list.map((m) =>
       m.id === editingId ? { ...m, text: editText } : m
     );
-    const next = { ...messages, [activeId]: nextList };
+    const next = { ...messages, [key]: nextList };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
     setEditingId(null);
@@ -903,37 +1011,47 @@ const DmScreen: React.FC = () => {
     if (!menu.msgId || !activeId) return;
     const ok = window.confirm("메시지를 삭제할까요?");
     if (!ok) return;
-    const list = messages[activeId] || [];
+    const key = threadKeyOf(activeId)!;
+    const list = messages[key] || [];
     const nextList = list.filter((m) => m.id !== menu.msgId);
-    const next = { ...messages, [activeId]: nextList };
+    const next = { ...messages, [key]: nextList };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
     setMenu((m) => ({ ...m, open: false }));
   };
 
-  // 🔥 대화(스레드) 전체 삭제
-  const deleteActiveThread = () => {
-    if (!activeId) return;
+  // 특정 스레드 삭제(좌측 목록)
+  const deleteThreadById = (uid: string) => {
     const ok = window.confirm("이 대화 전체를 삭제할까요? (복구 불가)");
     if (!ok) return;
 
     setUsers((prev) => {
-      const idx = prev.findIndex((u) => u.id === activeId);
-      const nextUsers = prev.filter((u) => u.id !== activeId);
+      const idx = prev.findIndex((u) => u.id === uid);
+      const nextUsers = prev.filter((u) => u.id !== uid);
       localStorage.setItem(LS_USERS, JSON.stringify(nextUsers));
 
-      // 다음 활성 대상 결정
-      const nextActive =
-        nextUsers[idx] ?? nextUsers[idx - 1] ?? nextUsers[0] ?? null;
-      setActiveId(nextActive?.id ?? null);
+      if (activeId === uid) {
+        const nextActive =
+          nextUsers[idx] ?? nextUsers[idx - 1] ?? nextUsers[0] ?? null;
+        setActiveId(nextActive?.id ?? null);
+      }
       return nextUsers;
     });
 
     setMessages((prev) => {
-      const { [activeId]: _, ...rest } = prev;
+      const key = threadKeyOf(uid);
+      const { [key]: _a, [uid]: _b, ...rest } = prev as any; // 구키도 함께 제거(정리용)
       localStorage.setItem(LS_MESSAGES, JSON.stringify(rest));
       return rest;
     });
+
+    setListMenu((m) => ({ ...m, open: false }));
+  };
+
+  // 현재 활성 스레드 삭제(우측 헤더)
+  const deleteActiveThread = () => {
+    if (!activeId) return;
+    deleteThreadById(activeId);
   };
 
   /* ---------- Emoji ---------- */
@@ -965,8 +1083,9 @@ const DmScreen: React.FC = () => {
         <ThreadList
           style={{ ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1" }}
         >
-          {filteredUsers.map((u) => {
-            const last = (messages[u.id] || []).at(-1);
+          {visibleUsers.map((u) => {
+            const list = getThread(u.id);
+            const last = list.at(-1);
             const lastTime = last ? formatTime(last.ts) : "";
             const previewText = last
               ? last.imageUrl
@@ -997,6 +1116,21 @@ const DmScreen: React.FC = () => {
                   <div>{lastTime}</div>
                   {u.unread ? <UnreadDot /> : null}
                 </RightMeta>
+                <RowKebab
+                  $dark={isDarkMode}
+                  title="메뉴"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setListMenu({
+                      open: true,
+                      x: (e as any).clientX ?? 0,
+                      y: (e as any).clientY ?? 0,
+                      uid: u.id,
+                    });
+                  }}
+                >
+                  ⋯
+                </RowKebab>
               </Thread>
             );
           })}
@@ -1016,7 +1150,6 @@ const DmScreen: React.FC = () => {
                 <div>{activeUser.name}</div>
               </ChatUser>
               <div />
-              {/* 정보 버튼 → 프로필 이동 */}
               <HeaderActions $dark={isDarkMode}>
                 <button
                   title="프로필 보기"
@@ -1034,6 +1167,44 @@ const DmScreen: React.FC = () => {
                     />
                     <path
                       d="M12 8h.01M11 12h2v6h-2z"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+                <button
+                  title="대화 삭제"
+                  onClick={deleteActiveThread}
+                  style={{ display: "grid", placeItems: "center" }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden
+                  >
+                    <path
+                      d="M3 6h18"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                    />
+                    <path
+                      d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M10 11v6M14 11v6"
                       stroke="currentColor"
                       strokeWidth="1.6"
                       strokeLinecap="round"
@@ -1059,6 +1230,7 @@ const DmScreen: React.FC = () => {
               {thread.map((m, idx) => {
                 const prev = thread[idx - 1];
                 const showDivider = !prev || !sameDay(prev.ts, m.ts);
+                const mine = m.userId === currentAccountId || !!m.mine;
                 const isEditing = editingId === m.id;
 
                 return (
@@ -1072,8 +1244,8 @@ const DmScreen: React.FC = () => {
                     )}
 
                     <BubbleWrap
-                      $mine={m.mine}
-                      onContextMenu={(e) => openContextMenu(e, m)}
+                      $mine={mine}
+                      onContextMenu={(e) => openContextMenu(e, m, mine)}
                     >
                       {isEditing ? (
                         <>
@@ -1115,17 +1287,17 @@ const DmScreen: React.FC = () => {
                         <>
                           {m.imageUrl ? (
                             <ImageBubble
-                              $mine={m.mine}
+                              $mine={mine}
                               src={m.imageUrl}
                               alt="첨부 이미지"
                             />
                           ) : (
-                            <Bubble mine={m.mine}>{m.text}</Bubble>
+                            <Bubble mine={mine}>{m.text}</Bubble>
                           )}
-                          <Time $dark={isDarkMode} $mine={m.mine}>
+                          <Time $dark={isDarkMode} $mine={mine}>
                             {formatTime(m.ts)}
                           </Time>
-                          {m.mine && !m.imageUrl && (
+                          {mine && !m.imageUrl && (
                             <Kebab
                               type="button"
                               title="메뉴"
@@ -1262,7 +1434,7 @@ const DmScreen: React.FC = () => {
         )}
       </Right>
 
-      {/* 컨텍스트 메뉴 (수정/삭제/대화 삭제) */}
+      {/* 말풍선 컨텍스트 메뉴 (수정/메시지 삭제) */}
       {menu.open && (
         <ContextMenu $dark={isDarkMode} $x={menu.x} $y={menu.y}>
           <MenuButton $dark={isDarkMode} type="button" onClick={startEdit}>
@@ -1271,14 +1443,20 @@ const DmScreen: React.FC = () => {
           <DangerButton $dark={isDarkMode} type="button" onClick={removeMsg}>
             메시지 삭제
           </DangerButton>
-          <DangerButton
-            $dark={isDarkMode}
-            type="button"
-            onClick={deleteActiveThread}
-          >
-            대화 삭제
-          </DangerButton>
         </ContextMenu>
+      )}
+
+      {/* 좌측 목록 케밥 메뉴 */}
+      {listMenu.open && listMenu.uid && (
+        <RowMenu $dark={isDarkMode} $x={listMenu.x} $y={listMenu.y}>
+          <RowMenuBtn
+            $dark={isDarkMode}
+            $danger
+            onClick={() => deleteThreadById(listMenu.uid!)}
+          >
+            대화 목록 삭제
+          </RowMenuBtn>
+        </RowMenu>
       )}
     </Page>
   );
