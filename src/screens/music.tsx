@@ -763,6 +763,36 @@ export default function YouTubeMusicPlayer({
       }
     }
   }, [playerReadyRef.current]);
+  const resolveVideoId = (v: any): string | null => {
+     if (!v) return null;
+     // 형태 1) 검색 결과: { id: { videoId } }
+     if (typeof v.id === "object" && v.id && "videoId" in v.id) return (v.id as any).videoId;
+     // 형태 2) 단일 문자열 id: "VIDEO_ID"
+     if (typeof v.id === "string") return v.id as string;
+     // 형태 3) 플레이리스트 항목: snippet.resourceId.videoId
+     return v?.snippet?.resourceId?.videoId ?? null;
+   };
+
+  let currentIndex = Array.isArray(videos)
+   ? videos.findIndex((v) => resolveVideoId(v) === currentVideoId)
+    : -1;
+  if (currentIndex < 0) currentIndex = 0; // 못 찾으면 0으로 폴백
+  const current = Array.isArray(videos) && videos.length > 0 ? videos[currentIndex] : null;
+  const ytId = resolveVideoId(current);
+  const baseThumb =
+  current?.snippet?.thumbnails?.high?.url ||
+  current?.snippet?.thumbnails?.medium?.url ||
+  current?.snippet?.thumbnails?.default?.url ||
+ (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : currentVideoThumbnail || "");
+
+  const srcSet =
+    ytId
+      ? [
+          `https://i.ytimg.com/vi/${ytId}/sddefault.jpg 640w`,
+          `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg 1280w`,
+          `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg 1920w`,
+        ].join(", ")
+      : undefined;
 
   return (
     <Container $isCollapsed={activeTab === null}>
@@ -795,7 +825,13 @@ export default function YouTubeMusicPlayer({
           <PlayerWrapper $isCommentView={isCommentView}>
             {/* 앨범 아트, 제목은 항상 표시 */}
             <AlbumArtWrapper>
-              <AlbumArt src={currentVideoThumbnail} alt="album" />
+              <AlbumArt
+                 src={baseThumb}
+                 srcSet={srcSet}
+                  sizes="(max-width: 480px) 280px, 480px"
+                  alt={currentVideoTitle || 'album'}
+                loading="lazy"
+            />
             </AlbumArtWrapper>
             <Title>{currentVideoTitle}</Title>
 
