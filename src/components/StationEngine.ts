@@ -343,3 +343,19 @@ export async function buildStation(
 
   return { playlist, videos };
 }
+export function stationResultToJson(result: StationResult) {
+  const { playlist, videos } = result;
+  return {
+    id: playlist.id,                         // 예: station:artist:NewJeans
+    title: playlist.snippet.title,           // 스테이션 제목
+    thumbnail:
+      playlist.snippet.thumbnails?.medium?.url ||
+      videos[0]?.snippet?.thumbnails?.default?.url ||
+      "",                                    // 썸네일 fallback
+    tracks: videos.map((v) => ({
+      videoId: v.id.videoId,
+      title: v.snippet.title,
+      thumbnail: v.snippet.thumbnails?.default?.url || "",
+    })),
+  };
+}
