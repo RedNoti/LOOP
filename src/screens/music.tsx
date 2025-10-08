@@ -764,35 +764,85 @@ export default function YouTubeMusicPlayer({
     }
   }, [playerReadyRef.current]);
   const resolveVideoId = (v: any): string | null => {
-     if (!v) return null;
-     // 형태 1) 검색 결과: { id: { videoId } }
-     if (typeof v.id === "object" && v.id && "videoId" in v.id) return (v.id as any).videoId;
-     // 형태 2) 단일 문자열 id: "VIDEO_ID"
-     if (typeof v.id === "string") return v.id as string;
-     // 형태 3) 플레이리스트 항목: snippet.resourceId.videoId
-     return v?.snippet?.resourceId?.videoId ?? null;
-   };
+    if (!v) return null;
+    // 형태 1) 검색 결과: { id: { videoId } }
+    if (typeof v.id === "object" && v.id && "videoId" in v.id)
+      return (v.id as any).videoId;
+    // 형태 2) 단일 문자열 id: "VIDEO_ID"
+    if (typeof v.id === "string") return v.id as string;
+    // 형태 3) 플레이리스트 항목: snippet.resourceId.videoId
+    return v?.snippet?.resourceId?.videoId ?? null;
+  };
 
-  let currentIndex = Array.isArray(videos)
-   ? videos.findIndex((v) => resolveVideoId(v) === currentVideoId)
-    : -1;
-  if (currentIndex < 0) currentIndex = 0; // 못 찾으면 0으로 폴백
-  const current = Array.isArray(videos) && videos.length > 0 ? videos[currentIndex] : null;
-  const ytId = resolveVideoId(current);
-  const baseThumb =
-  current?.snippet?.thumbnails?.high?.url ||
-  current?.snippet?.thumbnails?.medium?.url ||
-  current?.snippet?.thumbnails?.default?.url ||
- (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : currentVideoThumbnail || "");
+  // ✅ currentVideoId 변경 시 currentVideo 강제 갱신
+  const [currentVideo, setCurrentVideo] = useState<any>(null);
 
-  const srcSet =
-    ytId
-      ? [
-          `https://i.ytimg.com/vi/${ytId}/sddefault.jpg 640w`,
-          `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg 1280w`,
-          `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg 1920w`,
-        ].join(", ")
-      : undefined;
+  useEffect(() => {
+    if (Array.isArray(videos) && videos.length > 0) {
+      const found = videos.find((v) => resolveVideoId(v) === currentVideoId);
+      setCurrentVideo(found || null);
+    }
+  }, [videos, currentVideoId]);
+
+  const ytId = resolveVideoId(currentVideo);
+  // 썸네일 체인: API 우선, 폴백 순서로
+  const thumbChain = React.useMemo(() => {
+    const arr: string[] = [];
+    const apiThumbs = currentVideo?.snippet?.thumbnails;
+    // ✅ API 우선: high → medium → default
+    if (apiThumbs?.high?.url) arr.push(apiThumbs.high.url);
+    if (apiThumbs?.medium?.url) arr.push(apiThumbs.medium.url);
+    if (apiThumbs?.default?.url) arr.push(apiThumbs.default.url);
+
+    // ✅ 현재 저장된 썸네일 후보
+    if (currentVideoThumbnail) arr.push(currentVideoThumbnail);
+
+    // ✅ 마지막 폴백: ytimg 변형들 (차단될 수 있으므로 뒤로)
+    if (ytId) {
+      arr.push(
+        `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg`,
+        `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`,
+        `https://i.ytimg.com/vi/${ytId}/sddefault.jpg`,
+        `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg`
+      );
+    }
+    // 중복 제거
+    return Array.from(new Set(arr.filter(Boolean)));
+  }, [currentVideo, ytId, currentVideoId]);
+
+  const srcSet = ytId
+    ? [
+        `https://i.ytimg.com/vi/${ytId}/sddefault.jpg 640w`,
+        `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg 1280w`,
+        `https://i.ytimg.com/vi/${ytId}/maxresdefault.jpg 1920w`,
+      ].join(", ")
+    : undefined;
+
+  // 썸네일 인덱스 (자동 업그레이드)
+  const [thumbIndex, setThumbIndex] = React.useState(0);
+  useEffect(() => {
+    setThumbIndex(0);
+  }, [
+    ytId,
+    currentVideo?.snippet?.thumbnails,
+    currentVideoThumbnail,
+    currentVideoId,
+  ]);
+
+  // ✅ currentVideoId 바뀔 때마다 강제 썸네일 리셋
+  useEffect(() => {
+    setThumbIndex(0);
+  }, [currentVideoId]);
+
+  // ✅ 썸네일 체인 다시 로드 트리거 (앨범아트 새로고침 강제)
+  useEffect(() => {
+    const albumImg = document.querySelector(
+      "img[alt='album']"
+    ) as HTMLImageElement | null;
+    if (albumImg) {
+      albumImg.src = thumbChain[0] || "";
+    }
+  }, [thumbChain, currentVideoId]);
 
   return (
     <Container $isCollapsed={activeTab === null}>
@@ -826,12 +876,39 @@ export default function YouTubeMusicPlayer({
             {/* 앨범 아트, 제목은 항상 표시 */}
             <AlbumArtWrapper>
               <AlbumArt
-                 src={baseThumb}
-                 srcSet={srcSet}
-                  sizes="(max-width: 480px) 280px, 480px"
-                  alt={currentVideoTitle || 'album'}
+                key={currentVideoId}
+                src={thumbChain[thumbIndex] || ""}
+                sizes="(max-width: 480px) 280px, 480px"
+                alt={currentVideoTitle || "album"}
                 loading="lazy"
-            />
+                referrerPolicy="no-referrer"
+                onLoad={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  const url = img.currentSrc || img.src;
+                  // 회색 120x90 플레이스홀더면 다음 후보
+                  if (img.naturalWidth <= 130 && img.naturalHeight <= 100) {
+                    setThumbIndex((i) =>
+                      i < thumbChain.length - 1 ? i + 1 : i
+                    );
+                    return;
+                  }
+                  // 낮은 해상도면 상위 품질 후보로 업그레이드 시도
+                  const isLow =
+                    img.naturalWidth < 400 ||
+                    /(?:default|mqdefault|sddefault)(?:\.jpg)?$/i.test(url);
+                  if (isLow) {
+                    const preferList = ["maxresdefault.jpg", "hqdefault.jpg"]; // 선호
+                    const betterIdx = thumbChain.findIndex((u) =>
+                      preferList.some((p) => u.includes(p))
+                    );
+                    if (betterIdx !== -1 && betterIdx !== thumbIndex)
+                      setThumbIndex(betterIdx);
+                  }
+                }}
+                onError={() => {
+                  setThumbIndex((i) => (i < thumbChain.length - 1 ? i + 1 : i));
+                }}
+              />
             </AlbumArtWrapper>
             <Title>{currentVideoTitle}</Title>
 
