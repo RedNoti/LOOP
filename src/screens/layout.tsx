@@ -530,6 +530,28 @@ const Layout = () => {
                 </TooltipContainer>
               </Link>
 
+              {/* ✅ YouTube 검색 라우트 추가 2025.09.30 추가 */}
+              <Link to = "/KategorieScreen" style={{ textDecoration: "none" }}> 
+                <TooltipContainer>
+                  <MenuItem isActive={location.pathname === "/KategorieScreen"}>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-label="YouTube 검색"
+                    >
+                      <circle cx="11" cy="11" r="7.5" />
+                      <path d="m21 21-4.35-4.35" strokeWidth={3} />
+                      
+                    </svg>
+                  </MenuItem>
+                </TooltipContainer>
+              </Link>
+
               <Link to="/InputPostScreen" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/InputPostScreen"}>
