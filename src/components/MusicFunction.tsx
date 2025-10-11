@@ -2,13 +2,34 @@ import { useEffect, useState, useRef, createContext, useContext } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig"; // adjust path as needed
 import { buildStation, StationSeed } from "./StationEngine";
+import { fetchOptimizedVideos } from "./KategorieFunction"; // KategorieFunction 활용을 위한 import 추가
 
 export const playerRef: { current: any } = { current: null };
 export const playerReadyRef: { current: boolean } = { current: false };
 export const ensurePlayerReady = () =>
   Boolean(playerRef.current) && playerReadyRef.current;
-const queuedVideoIdRef: { current: string | null } = { current: null };
-function safeLoadVideoById(videoId?: string | null) {
+export const queuedVideoIdRef: { current: string | null } = { current: null };
+export const pendingSeekSecRef: { current: number | null } = { current: null };
+
+// 외부에서 안전하게 seek을 요청할 때 사용하는 함수
+export function requestSeek(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return;
+  if (!ensurePlayerReady()) {
+    // 준비 전이면 큐에 저장
+    pendingSeekSecRef.current = seconds;
+    return;
+  }
+  try {
+    playerRef.current?.seekTo?.(seconds, true);
+    // 시킹 후 재생 보장 (멈춤 방지)
+    playerRef.current?.playVideo?.();
+  } catch (e) {
+    console.warn("[requestSeek] seekTo/playVideo 실패, 큐에 저장:", e);
+    pendingSeekSecRef.current = seconds;
+  }
+}
+
+export function safeLoadVideoById(videoId?: string | null) {
   if (!videoId) return;
   if (!ensurePlayerReady()) {
     queuedVideoIdRef.current = videoId; // 준비 전이면 대기열에 저장
@@ -17,6 +38,24 @@ function safeLoadVideoById(videoId?: string | null) {
   try {
     playerRef.current!.loadVideoById(videoId);
     queuedVideoIdRef.current = null;
+    
+    // 로드 직후, 보류된 seek가 있으면 처리
+    if (pendingSeekSecRef.current != null) {
+      const s = pendingSeekSecRef.current;
+      pendingSeekSecRef.current = null;
+      setTimeout(() => {
+        try {
+          playerRef.current?.seekTo?.(s, true);
+          playerRef.current?.playVideo?.();
+        } catch (e) {
+          console.warn("[safeLoadVideoById] post-load seek 실패, 재대기:", e);
+          pendingSeekSecRef.current = s;
+        }
+      }, 0);
+    } else {
+      // 별도 보류가 없다면 재생 보장
+      playerRef.current?.playVideo?.();
+    }
   } catch (e) {
     console.error("safeLoadVideoById 실패:", e);
     queuedVideoIdRef.current = videoId; // 혹시 모를 타이밍 이슈 대비
@@ -60,6 +99,7 @@ export const fetchPlaylistVideosReturn = async (playlistId: string) => {
     return [];
   }
 };
+
 type PlaylistJsonTrack = {
   videoId: string;
   title: string;
@@ -101,18 +141,19 @@ export function normalizeJsonToVideos(json: PlaylistJson) {
   }));
   return videos;
 }
+
 //--------
 export const detectVideoLanguage = (title: string): string => {
   const text = title.toLowerCase();
 
   // 한국어 감지
-  if (/[-]/.test(title)) return "ko";
+  if (/[가-힣]/.test(title)) return "ko";
 
   // 일본어 감지 (히라가나, 가타카나 포함)
-  if (/[-]/.test(title)) return "ja";
+  if (/[ひらがなカタカナ]/.test(title)) return "ja";
 
   // 중국어 감지
-  if (/[-]/.test(title)) return "zh";
+  if (/[一-龯]/.test(title)) return "zh";
 
   // 특정 키워드로 언어 추정
   const koreanKeywords = ["korean", "한국", "kpop", "k-pop"];
@@ -125,6 +166,7 @@ export const detectVideoLanguage = (title: string): string => {
 
   return "en";
 };
+
 export const fetchVideoInLanguage = async (
   videoId: string,
   language: string
@@ -158,6 +200,7 @@ export const fetchVideoInLanguage = async (
     return null;
   }
 };
+
 export const fetchPlaylistVideosReturnWithLanguage = async (
   playlistId: string
 ) => {
@@ -245,6 +288,7 @@ export const fetchPlaylistVideosReturnWithLanguage = async (
     return [];
   }
 };
+
 //-------
 export const MusicContext = createContext<ReturnType<
   typeof useMusicPlayer
@@ -397,7 +441,11 @@ export function playPlaylistFromFile(json: {
       id: json.id,
       snippet: {
         title: json.title,
-        thumbnails: { high: { url: json.thumbnail } },
+        thumbnails: {
+          high: { url: json.thumbnail || "" },
+          medium: { url: json.thumbnail || "" },
+          default: { url: json.thumbnail || "" },
+        },
       },
     };
     existingPlaylists.push(newPlaylist);
@@ -423,7 +471,33 @@ export function playPlaylistFromFile(json: {
       },
     })
   );
+  
+  // 캐시 저장 (카카오톡 파일의 개선사항)
+  sessionStorage.setItem(`playlistVideos:${json.id}`, JSON.stringify(videos));
 }
+
+// KategorieFunction과 연동하는 함수
+export const playFromKategorieSearch = async (searchTerm: string, startIndex: number = 0) => {
+  try {
+    const videos = await fetchOptimizedVideos(searchTerm);
+    if (!videos.length) return;
+
+    const playlistData = {
+      id: `search:${searchTerm}:${Date.now()}`,
+      title: `${searchTerm} 검색 결과`,
+      thumbnail: videos[startIndex]?.thumbnails?.medium?.url ?? "",
+      tracks: [{
+        videoId: videos[startIndex].id,
+        title: videos[startIndex].title,
+        thumbnail: videos[startIndex]?.thumbnails?.medium?.url ?? "",
+      }],
+    };
+
+    playPlaylistFromFile(playlistData);
+  } catch (error) {
+    console.error("Kategorie 검색 재생 실패:", error);
+  }
+};
 
 export const useMusicPlayer = () => {
   const playStation = async (seed: StationSeed) => {
@@ -486,6 +560,7 @@ export const useMusicPlayer = () => {
       setIsLoading(false); // 로딩 상태 종료
     }
   };
+  
   const [playlists, setPlaylists] = useState<any[]>(() => {
     const savedPlaylists = sessionStorage.getItem("playlists");
     return savedPlaylists ? JSON.parse(savedPlaylists) : [];
@@ -590,16 +665,63 @@ export const useMusicPlayer = () => {
     startIndex: number = 0,
     forcePlay: boolean = false
   ) => {
-    if (
-      !forcePlay &&
-      playlistId === currentPlaylistId &&
-      startIndex === currentIndex
-    )
+    // 같은 곡을 다시 누른 경우 방지
+    if (!forcePlay && playlistId === currentPlaylistId && startIndex === currentIndex) {
       return;
-    // ✅ 합성 재생목록(station:/single_)은 fetch 없이 현재 videos로 바로 처리
+    }
+
+    // [ADD-2] 캐시 우선 재생: playlistVideos:<playlistId>가 있으면 API 안 타고 즉시 재생
+    const cached = sessionStorage.getItem(`playlistVideos:${playlistId}`);
+    if (cached) {
+      try {
+        const list = JSON.parse(cached);
+        if (Array.isArray(list) && list.length > 0) {
+          // 인덱스 보정(범위 밖이면 0으로)
+          const idx = Number.isInteger(startIndex) && startIndex >= 0 && startIndex < list.length ? startIndex : 0;
+
+          // 다음에 틀 영상 id 계산(객체/문자열 id 모두 허용)
+          const nextId =
+            (typeof list[idx]?.id === "object" && "videoId" in (list[idx]?.id ?? {}))
+              ? (list[idx]!.id as any).videoId
+              : (typeof list[idx]?.id === "string"
+                  ? (list[idx]!.id as string)
+                  : list[idx]?.snippet?.resourceId?.videoId) ?? null;
+
+          // 전역 상태 반영
+          setVideos(list);
+          setCurrentIndex(idx);
+          setCurrentVideoId(nextId);
+          setCurrentPlaylistId(playlistId);
+
+          // 세션 동기화
+          sessionStorage.setItem("musicPlayerVideos", JSON.stringify(list));
+          sessionStorage.setItem("currentVideoIndex", String(idx));
+          sessionStorage.setItem("currentVideoId", String(nextId || ""));
+          sessionStorage.setItem("currentPlaylistId", String(playlistId));
+
+          // 플레이
+          safeLoadVideoById(nextId);
+
+          // 최근 재생 메타 + Firestore(있을 때만)
+          try {
+            localStorage.setItem("last_playlist_id", playlistId);
+            localStorage.setItem("current_video_index", String(idx));
+            if (auth?.currentUser?.uid && typeof savePlaybackStateToFirestore === "function") {
+              savePlaybackStateToFirestore(auth.currentUser.uid, playlistId, idx);
+            }
+          } catch {}
+
+          return; // ✅ 캐시 히트 시 여기서 종료 (아래 fetch 경로로 내려가지 않음)
+        }
+      } catch {}
+    }
+
+    // ✅ 합성 재생목록(station:/single_/search:/custom:)은 fetch 없이 현재 videos로 바로 처리
     if (
       playlistId?.startsWith("station:") ||
-      playlistId?.startsWith("single_")
+      playlistId?.startsWith("single_") ||
+      playlistId?.startsWith("search:") ||
+      playlistId?.startsWith("custom:")
     ) {
       // 1) 현재 메모리(or 세션)에 있는 videos 확보
       let list =
@@ -615,6 +737,19 @@ export const useMusicPlayer = () => {
             })();
 
       if (!list.length) return;
+
+      // ✅ KategorieFunction 연동을 위해 추가
+      if (playlistId?.startsWith("search:")) {
+        list = list.filter((video: any) => 
+          video.snippet?.playlistId === playlistId
+        );
+      }
+
+      if (playlistId?.startsWith("custom:")) {
+        list = list.filter((video: any) => 
+          video.snippet?.playlistId === playlistId
+        );
+      }
 
       // 2) 목표 인덱스의 비디오 ID 계산(모든 형태 방어)
       const resolveId = (v: any) =>
@@ -1094,66 +1229,64 @@ export const useMusicPlayer = () => {
     initialize();
   }, []);
 
-  const fetchUserPlaylists = async () => {
+  // 기존 fetchUserPlaylists 전체를 아래로 교체
+  async function fetchUserPlaylists() {
     const token = localStorage.getItem("ytAccessToken");
-    if (!token) return;
+    if (!token) {
+      console.warn("[YT] 액세스 토큰 없음: 재생목록 동기화 건너뜀");
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    };
 
     try {
-      const channelRes = await fetch(
-        "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
+      // ✅ mine=true 경로만 사용 (가장 안전)
+      const res = await fetch(
+        "https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50",
+        { headers }
       );
-      const channelData = await channelRes.json();
-      const channelId = channelData?.items?.[0]?.id;
-      if (!channelId) {
-        console.warn("🔍 유저 채널 ID 없음");
+
+      if (res.status === 401) {
+        console.warn("[YT] 401 Unauthorized: 토큰 만료/무효, 재로그인 필요");
+        return;
+      }
+      if (res.status === 403) {
+        console.warn(
+          "[YT] 403 Forbidden: youtube.readonly 스코프 미동의이거나 계정에 유튜브 채널이 없습니다. 동기화를 건너뜁니다."
+        );
+        return;
+      }
+      if (!res.ok) {
+        console.warn(`[YT] playlists?mine=true 실패: HTTP ${res.status}`);
         return;
       }
 
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlists?part=snippet&channelId=${channelId}&maxResults=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
-      const data = await response.json();
-      if (data.items?.length > 0) {
-        // 기존 재생목록 가져오기
-        const existingPlaylists = JSON.parse(
-          sessionStorage.getItem("playlists") || "[]"
-        );
-
-        // YouTube API에서 가져온 재생목록과 기존 재생목록 합치기
-        const combinedPlaylists = [...existingPlaylists];
-
-        // YouTube API에서 가져온 재생목록 추가
-        data.items.forEach((newPlaylist: any) => {
-          const exists = combinedPlaylists.some(
-            (p: any) => p.id === newPlaylist.id
-          );
-          if (!exists) {
-            combinedPlaylists.push(newPlaylist);
-          }
-        });
-
-        // 상태 업데이트 및 저장
-        setPlaylists(combinedPlaylists);
-        sessionStorage.setItem("playlists", JSON.stringify(combinedPlaylists));
-      } else {
-        console.warn("📁 불러온 플레이리스트 없음");
+      const data = await res.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+      if (items.length === 0) {
+        console.warn("[YT] 불러온 재생목록이 없습니다.");
+        return;
       }
-    } catch (err) {
-      console.error("플레이리스트 가져오기 실패:", err);
+
+      // 세션에 있던 기존 목록과 합치기 (중복 제거)
+      const existing = JSON.parse(sessionStorage.getItem("playlists") || "[]");
+      const merged = [...existing];
+      for (const p of items) {
+        if (!merged.some((x: any) => x.id === p.id)) merged.push(p);
+      }
+      sessionStorage.setItem("playlists", JSON.stringify(merged));
+
+      // 컨텍스트/상태에 반영 (이미 setPlaylists 같은 setter가 있을 것)
+      try {
+        typeof setPlaylists === "function" && setPlaylists(merged);
+      } catch {}
+    } catch (e) {
+      console.error("[YT] 재생목록 가져오기 실패:", e);
     }
-  };
+  }
 
   const fetchLikedVideos = async () => {
     const token = localStorage.getItem("ytAccessToken");
@@ -1198,6 +1331,7 @@ export const useMusicPlayer = () => {
       console.error("유저 정보 가져오기 실패:", err);
     }
   };
+  
   const current = videos[currentIndex];
   const ytId =
     current?.id?.videoId ??
@@ -1235,5 +1369,6 @@ export const useMusicPlayer = () => {
     currentPlaylistId,
     setVideos,
     playStation,
+    playFromKategorieSearch, // KategorieFunction 활용을 위한 추가
   };
 };

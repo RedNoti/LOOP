@@ -1,7 +1,8 @@
 // src/screens/KategorieScreen.tsx
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import styled, { ThemeProvider, createGlobalStyle } from "styled-components";
-import { useKategorieFunction } from "../components/KategorieFunction";
+import { fetchOptimizedVideos, KItem } from "../components/KategorieFunction";
+import { playFromKategorieSearch } from "../components/MusicFunction";
 import { useTheme } from "../components/ThemeContext";
 
 // styled-components 타입 확장
@@ -78,27 +79,7 @@ const Wrapper = styled.div<{ theme: CustomTheme }>`
   background-color: ${({ theme }) => theme.background};
   color: ${({ theme }) => theme.textColor};
   min-height: 100vh;
-  max-height: 100vh;
-  overflow-y: auto;
   transition: all 0.3s ease;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: ${({ theme }) => theme.borderColor};
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: ${({ theme }) => theme.secondaryText};
-    border-radius: 4px;
-    opacity: 0.6;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    opacity: 1;
-  }
 `;
 
 const HeaderContainer = styled.div`
@@ -428,20 +409,44 @@ VideoCard.displayName = "VideoCard";
 const GENRES = ["J-POP", "BALLAD", "HIPHOP", "LOFI", "POP 2024"];
 
 function InnerKategorieScreen() {
-  const { state, actions } = useKategorieFunction();
-  const { query, genre, items, loading } = state;
+  const [query, setQuery] = useState("");
+  const [genre, setGenre] = useState<string | null>(null);
+  const [items, setItems] = useState<KItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const { isDarkMode } = useTheme();
 
+  // 검색 함수
+  const search = useCallback(async (term: string) => {
+    if (!term?.trim()) {
+      setItems([]);
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const results = await fetchOptimizedVideos(term);
+      setItems(results);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 재생 함수
+  const playFromIndex = useCallback((index: number) => {
+    playFromKategorieSearch(query, index);
+  }, [query]);
+
+  // 장르 선택 함수
   const onSelectGenre = (g: string) => {
-    actions.setGenre(g);
-    actions.search(g);
+    setGenre(g);
+    search(g);
   };
 
   const handlePlaylistTitleClick = useCallback(() => {
-    actions.setQuery("");
-    actions.setGenre(null);
+    setQuery("");
+    setGenre(null);
     console.log("🏠 장르 목록으로 돌아가기");
-  }, [actions]);
+  }, []);
 
   // 새로 추가할 함수들 (Station.tsx 스타일)
   const handleAddToNewPlaylist = useCallback((video: any) => {
@@ -468,8 +473,9 @@ function InnerKategorieScreen() {
   }, []);
 
   const handleAddToCurrentPlaylist = useCallback((video: any) => {
-    actions.addToCurrentPlaylist(video);
-  }, [actions]);
+    // 현재 재생목록에 추가하는 로직은 나중에 구현
+    console.log("현재 재생목록에 추가:", video.title);
+  }, []);
 
   const styledTheme = useMemo(
     () => isDarkMode ? darkTheme : lightTheme,
@@ -490,14 +496,14 @@ function InnerKategorieScreen() {
             type="text"
             placeholder="원하시는 음악을 검색해보세요!"
             value={query}
-            onChange={(e) => actions.setQuery(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             onKeyPress={(e) => {
               if (e.key === "Enter") {
-                actions.search(query);
+                search(query);
               }
             }}
           />
-          <SearchButton onClick={() => actions.search(query)}>
+          <SearchButton onClick={() => search(query)}>
             🔍
           </SearchButton>
         </SearchContainer>
@@ -528,11 +534,11 @@ function InnerKategorieScreen() {
 
         {items.length > 0 && (
           <CardGrid $expanded={true}>
-            {items.map((video, index) => (
+            {items.map((video: any, index: any) => (
               <VideoCard
                 key={video.id}
                 video={video}
-                onPlay={() => actions.playFromIndex(index)}
+                onPlay={() => playFromIndex(index)}
                 onAddToNewPlaylist={handleAddToNewPlaylist}
                 onAddToCurrentPlaylist={handleAddToCurrentPlaylist}
               />

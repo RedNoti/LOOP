@@ -96,7 +96,7 @@ async function ytFetch(
 }
 
 // ----- API helpers -----
-export async function ytSearch(
+async function ytSearch(
   qOrParams: { q: string; type?: string },
   opts?: { maxResults?: number; safeSearch?: StationBuildOptions["safeSearch"] }
 ) {
@@ -120,7 +120,7 @@ export async function ytSearch(
   }>;
 }
 
-export async function ytVideosDetails(videoIds: string[]) {
+async function ytVideosDetails(videoIds: string[]) {
   if (videoIds.length === 0) return [] as any[];
   const chunks: string[][] = [];
   for (let i = 0; i < videoIds.length; i += 50) {

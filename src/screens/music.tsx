@@ -560,8 +560,16 @@ export default function YouTubeMusicPlayer({
     const savedVideoIndex = localStorage.getItem(
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
     );
+    
+    // 🚨 새로 생성된 재생목록(custom:)은 복원하지 않음 // 2025 10 10 추가
+    if (savedPlaylistId && savedPlaylistId.startsWith("custom:")) {
+      console.log("🔄 custom: 재생목록은 복원 건너뜀:", savedPlaylistId);
+      return;
+    }
+    
     if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
       const timer = setTimeout(() => {
+        console.log("🔄 재생목록 복원:", savedPlaylistId, "인덱스:", savedVideoIndex); // 2025 10 10 추가
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
       return () => clearTimeout(timer);
