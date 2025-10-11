@@ -1,7 +1,7 @@
 import LiveComments from "../components/LiveComments";
 import CommentInputBar from "../components/CommentInputBar";
 import ColorThief from "colorthief/dist/color-thief";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import YouTube, { YouTubeEvent, YouTubePlayer } from "react-youtube";
 import styled from "styled-components";
 import {
@@ -491,6 +491,7 @@ export default function YouTubeMusicPlayer({
     setPlaylists,
     setVideos,
   } = useMusicPlayer();
+  const hasRestoredRef = useRef(false);
   const handleYTStateChange = (e: YouTubeEvent<number>) => {
     // 1) 컨텍스트에서 온 기존 핸들러 먼저 실행
     try {
@@ -578,11 +579,13 @@ export default function YouTubeMusicPlayer({
   }, []);
 
   useEffect(() => {
+    if (hasRestoredRef.current) return;
     const savedPlaylistId = localStorage.getItem(STORAGE_KEYS.LAST_PLAYLIST_ID);
     const savedVideoIndex = localStorage.getItem(
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
     );
     if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
+      hasRestoredRef.current = true;
       const timer = setTimeout(() => {
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
@@ -876,7 +879,6 @@ export default function YouTubeMusicPlayer({
       {currentVideoId && (
         <YouTube
   videoId={currentVideoId}
-  key={currentVideoId}
   opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
   onReady={(e: YouTubeEvent<YouTubePlayer>) => {
     // 1) 플레이어 레퍼런스/준비 플래그
