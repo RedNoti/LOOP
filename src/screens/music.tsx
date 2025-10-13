@@ -491,28 +491,8 @@ export default function YouTubeMusicPlayer({
     setPlaylists,
     setVideos,
   } = useMusicPlayer();
-  
   const hasRestoredRef = useRef(false);
   
-  const handleYTStateChange = (e: YouTubeEvent<number>) => {
-    // 1) 컨텍스트에서 온 기존 핸들러 먼저 실행
-    try {
-      onStateChange(e);
-    } catch {}
-
-    // 2) CUED / UNSTARTED 단계에서 보류된 seek 있으면 처리
-    const YT = (window as any).YT;
-    if (!YT) return;
-
-    if (e.data === YT.PlayerState.CUED || e.data === YT.PlayerState.UNSTARTED) {
-      if (pendingSeekSecRef.current != null) {
-        const s = Number(pendingSeekSecRef.current);
-        pendingSeekSecRef.current = null;
-        requestSeek(s); // 내부에서 seekTo 후 playVideo까지 보장
-      }
-    }
-  };
-
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -587,7 +567,7 @@ export default function YouTubeMusicPlayer({
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
     );
     
-    // 🚨 새로 생성된 재생목록(custom:)은 복원하지 않음
+    // 🚨 새로 생성된 재생목록(custom:)은 복원하지 않음 // 2025 10 10 추가
     if (savedPlaylistId && savedPlaylistId.startsWith("custom:")) {
       console.log("🔄 custom: 재생목록은 복원 건너뜀:", savedPlaylistId);
       return;
@@ -596,7 +576,7 @@ export default function YouTubeMusicPlayer({
     if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
       hasRestoredRef.current = true;
       const timer = setTimeout(() => {
-        console.log("🔄 재생목록 복원:", savedPlaylistId, "인덱스:", savedVideoIndex);
+        console.log("🔄 재생목록 복원:", savedPlaylistId, "인덱스:", savedVideoIndex); // 2025 10 10 추가
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
       return () => clearTimeout(timer);
@@ -635,15 +615,30 @@ export default function YouTubeMusicPlayer({
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.REPEAT_MODE, String(repeatMode));
   }, [repeatMode]);
+  useEffect(() => {
+  const handleSeekToTime = (event: CustomEvent) => {
+    const { seconds } = event.detail;
+    // 준비 전에도 안전하게 처리(대기큐 → onReady/StateChange에서 flush)
+    requestSeek(seconds);
+    // UI도 즉시 업데이트
+    setCurrentTime(seconds);
+    setSliderValue(seconds);
+  };
+
+  window.addEventListener("seekToTime", handleSeekToTime as EventListener);
+  return () => {
+    window.removeEventListener("seekToTime", handleSeekToTime as EventListener);
+  };
+}, []);
 
   useEffect(() => {
     const handleSeekToTime = (event: CustomEvent) => {
       const { seconds } = event.detail;
-      // 준비 전에도 안전하게 처리(대기큐 → onReady/StateChange에서 flush)
-      requestSeek(seconds);
-      // UI도 즉시 업데이트
-      setCurrentTime(seconds);
-      setSliderValue(seconds);
+      if (playerRef.current && playerRef.current.seekTo) {
+        playerRef.current.seekTo(seconds, true);
+        setCurrentTime(seconds);
+        setSliderValue(seconds);
+      }
     };
 
     window.addEventListener("seekToTime", handleSeekToTime as EventListener);
@@ -780,8 +775,12 @@ export default function YouTubeMusicPlayer({
       const savedTime = localStorage.getItem("youtube_player_time");
       const wasPlaying = localStorage.getItem("youtube_player_playing") === "true";
       if (savedTime) {
-        const s = parseFloat(savedTime);
-        requestSeek(s);
+        try {
+          playerRef.current.seekTo(parseFloat(savedTime), true);
+          if (wasPlaying) playerRef.current.playVideo();
+        } catch (err) {
+          console.error("🎬 seekTo 실패:", err);
+        }
       }
     }
   }, [playerReadyRef.current]);
@@ -874,11 +873,8 @@ export default function YouTubeMusicPlayer({
           key={currentVideoId}
           opts={{ height: "0", width: "0", playerVars: { autoplay: 1 } }}
           onReady={(e: YouTubeEvent<YouTubePlayer>) => {
-            // 1) 플레이어 레퍼런스/준비 플래그
             playerRef.current = e.target;
             playerReadyRef.current = true;
-
-            // 2) 길이/볼륨 초기화
             const d = e.target.getDuration();
             if (typeof d === "number" && !isNaN(d)) setDuration(d);
             const savedVolume = localStorage.getItem("musicPlayerVolume");
@@ -888,22 +884,8 @@ export default function YouTubeMusicPlayer({
                 target: { value: savedVolume },
               } as React.ChangeEvent<HTMLInputElement>);
             }
-
-            // 3) === [FLUSH] 준비 직후 대기중 요청 처리 ===
-            // (a) 준비 전에 큐에 있었던 load 요청
-            if (queuedVideoIdRef.current) {
-              const v = queuedVideoIdRef.current;
-              queuedVideoIdRef.current = null;
-              safeLoadVideoById(v); // 내부에서 play 보장
-            }
-            // (b) 준비 전에 큐에 있었던 seek 요청
-            if (pendingSeekSecRef.current != null) {
-              const s = Number(pendingSeekSecRef.current);
-              pendingSeekSecRef.current = null;
-              setTimeout(() => requestSeek(s), 0); // seek + play
-            }
           }}
-          onStateChange={handleYTStateChange}
+          onStateChange={onStateChange}
           onEnd={handleTrackEnd}
         />
       )}

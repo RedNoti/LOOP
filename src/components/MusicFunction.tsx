@@ -470,6 +470,7 @@ export function playPlaylistFromFile(json: {
   sessionStorage.setItem(`playlistVideos:${json.id}`, JSON.stringify(videos));
 }
 
+
 // 카테고리 검색에서 비디오를 재생하는 함수
 export const playFromKategorieSearch = (query: string, index: number) => {
   console.log(`🎵 카테고리 검색 재생: "${query}"의 ${index}번째 비디오`);
