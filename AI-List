@@ -1,0 +1,869 @@
+# 🤖 Gemini AI API 코드 정리 (LOOP 프로젝트용)
+
+## 📋 개요
+이 파일은 LOOP 프로젝트에 Gemini AI API를 연동하기 위한 코드를 정리한 것입니다.
+**백엔드 프록시 방식**으로 안전하고 프로덕션 준비된 구조로 구현합니다.
+
+---
+
+## 🔧 1. 백엔드 프록시 방식 (권장 아키텍처)
+
+### 📁 파일 위치: `server/index.ts` (새로 생성)
+
+#### 1.1 Express 서버 프록시 (프로덕션 레벨)
+```typescript
+// server/index.ts
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+
+// Node 18+ 는 fetch 내장 (node-fetch 불필요)
+// import fetch from "node-fetch"; // ❌ 제거 권장
+
+const app = express();
+const isProd = process.env.NODE_ENV === "production";
+const PORT = Number(process.env.PORT ?? 5000);
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+app.use(helmet());
+app.use(cors({
+  origin: isProd
+    ? (process.env.FRONTEND_URL || "https://your-frontend-domain.com")
+    : (process.env.FRONTEND_URL || "http://localhost:3000"),
+  credentials: true,
+  methods: ["POST"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+app.use(express.json({ limit: "1mb" }));
+app.use(rateLimit({ windowMs: 60_000, max: 60 })); // 분당 60회
+
+app.post("/api/ai-search", async (req, res) => {
+  try {
+    // 환경 점검
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("❌ GEMINI_API_KEY missing");
+      return res.status(500).json({ success: false, error: "server_config_error" });
+    }
+
+    const { query } = req.body ?? {};
+    // 입력 검증
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "empty_query",
+        message: "검색어를 입력해주세요."
+      });
+    }
+    if (query.length > 500) {
+      return res.status(400).json({
+        success: false,
+        error: "query_too_long",
+        message: "검색어가 너무 깁니다."
+      });
+    }
+
+    const sanitized = query.replace(
+      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+      ""
+    );
+
+    // 프롬프트
+    const prompt = buildPrompt(sanitized);
+    const payload = { contents: [{ parts: [{ text: prompt }]}] };
+
+    // 타임아웃 설정
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
+
+    // Gemini 호출
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ac.signal
+    }).finally(() => clearTimeout(timer));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Gemini API 오류:", response.status, errorText);
+      return res.status(502).json({
+        success: false,
+        error: "gemini_error",
+        detail: errorText
+      });
+    }
+
+    const data: any = await response.json();
+    const text: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    // 구조화(파싱) 결과 함께 제공 → 이후 자동재생 파이프라인 연결 쉬움
+    const tracks = parseTracks(text);
+
+    console.log("✅ Gemini API 응답 생성 완료");
+    return res.json({ success: true, recommendations: text, tracks });
+  } catch (error: any) {
+    const aborted = error?.name === "AbortError";
+    console.error("❌ 서버 오류:", aborted ? "timeout" : error?.message);
+    return res.status(aborted ? 504 : 500).json({
+      success: false,
+      error: aborted ? "timeout" : "server_error",
+      detail: error?.message
+    });
+  }
+});
+
+// 프롬프트 빌더
+function buildPrompt(query: string): string {
+  return `당신은 LOOP 음악 앱의 AI 추천 전문가입니다. 사용자의 요청에 따라 YouTube에서 검색 가능한 구체적인 노래 제목과 아티스트를 추천해주세요.
+
+사용자 요청: ${query}
+
+형식(중요):
+- 각 줄은 반드시 "노래 제목 - 아티스트명" 한 쌍만 포함
+- 번호/불릿 허용 (예: "1) " 또는 "- "), 단 한 줄에 노래 1개만
+- 노트(설명)는 곡명 뒤 괄호로 10자 이내 (선택)
+
+예시:
+- 밤편지 - 아이유 (포크 발라드)
+- Blueming - 아이유 (팝 록)
+
+주의: 실제로 존재하고 YouTube에서 검색 가능한 곡만.`;
+}
+
+// 간단 파서: "제목 - 아티스트 (선택 노트)"
+function parseTracks(text: string) {
+  return text
+    .split("\n")
+    .map(l => l.replace(/^\s*[\-\d\.\)]\s*/, "").trim())
+    .filter(Boolean)
+    .map(l => {
+      const m = l.match(/^(.*?)-(.*?)(?:\s*\(([^()]*)\))?\s*$/);
+      if (!m) return null;
+      const title = m[1]?.trim();
+      const artist = m[2]?.trim();
+      const note = m[3]?.trim();
+      if (!title || !artist) return null;
+      return { title, artist, note };
+    })
+    .filter(Boolean);
+}
+
+app.listen(PORT, () => {
+  const envMsg = isProd ? "production" : "development";
+  console.log(`🚀 LOOP Gemini API 서버가 포트 ${PORT}에서 실행 중입니다. (${envMsg})`);
+});
+```
+
+### 📁 파일 위치: `src/services/geminiApi.ts` (새로 생성)
+
+#### 1.2 클라이언트 프록시 호출 함수 (구조화된 응답 지원)
+```typescript
+// src/services/geminiApi.ts
+export type Track = { title: string; artist: string; note?: string };
+
+export interface GeminiResult {
+  success: boolean;
+  recommendations: string; // 원문 텍스트
+  tracks?: Track[];        // 파싱된 구조화 결과
+  error?: string;
+  detail?: string;
+}
+
+export async function callGeminiAPI(query: string): Promise<GeminiResult> {
+  const res = await fetch("/api/ai-search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query })
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.detail || data?.error || "Gemini API 호출 실패");
+  }
+  return data as GeminiResult;
+}
+```
+
+---
+
+## 🎨 2. 클라이언트 측 코드 (Frontend) - LOOP 프로젝트에 추가
+
+### 📁 파일 위치: `src/hooks/useAISearch.tsx` (새로 생성)
+```typescript
+import { useState } from "react";
+import { callGeminiAPI, GeminiResult, Track } from "../services/geminiApi";
+
+// LOOP 프로젝트용 AI 검색 상태를 관리하는 커스텀 훅 (프록시 패턴)
+export function useAISearch() {
+  const [recommendations, setRecommendations] = useState<string>('');
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const searchWithAI = async (query: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const result: GeminiResult = await callGeminiAPI(query);
+      setRecommendations(result.recommendations ?? '');
+      setTracks(result.tracks ?? []);
+    } catch (err: any) {
+      setError(err.message || "LOOP AI 검색 중 오류가 발생하였습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { recommendations, tracks, loading, error, searchWithAI };
+}
+```
+
+### 📁 파일 위치: `src/components/AISearchBar.tsx` (새로 생성)
+```typescript
+import { useState } from "react";
+
+// LOOP 프로젝트용 AI 검색 바 컴포넌트 Props 타입
+interface AISearchBarProps {
+    onAISearch: (query: string) => void;
+    loading: boolean;
+}
+
+// LOOP 프로젝트용 AI 검색 입력 폼 컴포넌트
+export default function AISearchBar({ onAISearch, loading}: AISearchBarProps) {
+    const [query, setQuery] = useState('');
+
+    // 폼 제출 핸들러
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (query.trim()) {
+            onAISearch(query);
+        }
+    };
+
+    return (
+        <div style={{ 
+            marginBottom: '20px', 
+            padding: '15px', 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+            borderRadius: '12px',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+        }}>
+            <h3 style={{ 
+                margin: '0 0 10px 0', 
+                color: 'white',
+                fontSize: '18px',
+                fontWeight: 'bold'
+            }}>🤖 LOOP AI로 노래 찾기</h3>
+            <form onSubmit={handleSubmit}>
+                <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="예: 최근 유행하는 아이유 노래를 5곡 알려줘"
+                style={{
+                    width: '100%',
+                    padding: '12px',
+                    marginBottom: '10px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+                }}
+                />
+                <button
+                type="submit"
+                disabled={loading}
+                style={{
+                    padding: '12px 20px',
+                    backgroundColor: loading ? '#ccc' : '#ff6b6b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: loading ? "not-allowed" : 'pointer',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                    transition: 'all 0.3s ease'
+                }}
+                >
+                    {loading ? "🤖 AI 검색중..." : "🚀 AI 검색"}
+                </button>
+            </form>
+        </div>
+    );
+}
+```
+
+### 📁 파일 위치: `src/screens/KategorieScreen.tsx` (기존 파일에 추가)
+```typescript
+// 기존 KategorieScreen.tsx에 추가할 코드
+import AISearchBar from "../components/AISearchBar";
+import { useAISearch } from "../hooks/useAISearch";
+
+// InnerKategorieScreen 컴포넌트 내부에 추가
+function InnerKategorieScreen() {
+  // 기존 코드들...
+  
+  // AI 검색 훅 추가
+  const { recommendations, loading: aiLoading, error: aiError, searchWithAI } = useAISearch();
+
+  return (
+    <Wrapper theme={theme}>
+      {/* 기존 검색 바 위에 AI 검색 바 추가 */}
+      <AISearchBar onAISearch={searchWithAI} loading={aiLoading} />
+      
+      {/* 기존 검색 바 */}
+      <SearchBar>
+        {/* 기존 검색 바 코드... */}
+      </SearchBar>
+
+      {/* AI 추천 결과 표시 */}
+      {recommendations && (
+        <div style={{
+          background: 'linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%)',
+          padding: '20px',
+          borderRadius: '12px',
+          marginBottom: '20px',
+          border: '2px solid #4caf50',
+          boxShadow: '0 4px 15px rgba(76, 175, 80, 0.2)'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 15px 0', 
+            color: '#2e7d32',
+            fontSize: '18px',
+            fontWeight: 'bold'
+          }}>🤖 LOOP AI 추천 결과</h3>
+          <div style={{ 
+            margin: 0,
+            lineHeight: '1.8',
+            whiteSpace: 'pre-line',
+            color: '#333',
+            fontSize: '14px'
+          }}>{recommendations}</div>
+          
+          {/* 향후 자동재생 파이프라인 연결 준비 */}
+          {tracks && tracks.length > 0 && (
+            <div style={{ marginTop: '15px', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#495057', fontSize: '14px' }}>
+                🎵 파싱된 트랙 ({tracks.length}곡)
+              </h4>
+              {tracks.map((track, index) => (
+                <div key={index} style={{ 
+                  padding: '5px 0', 
+                  borderBottom: index < tracks.length - 1 ? '1px solid #dee2e6' : 'none',
+                  fontSize: '13px'
+                }}>
+                  <strong>{track.title}</strong> - {track.artist}
+                  {track.note && <span style={{ color: '#6c757d' }}> ({track.note})</span>}
+                </div>
+              ))}
+              {/* 향후 자동재생 버튼 예시 */}
+              {/* <button onClick={() => playTracksViaYouTube(tracks, 0)}>🎵 추천 곡 바로 재생</button> */}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI 에러 표시 */}
+      {aiError && (
+        <div style={{
+          background: '#ffebee',
+          padding: '15px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          border: '1px solid #f44336',
+          color: '#c62828'
+        }}>
+          <strong>❌ AI 검색 오류:</strong> {aiError}
+        </div>
+      )}
+
+      {/* 기존 비디오 그리드 */}
+      <VideoGrid>
+        {/* 기존 비디오 카드들... */}
+      </VideoGrid>
+    </Wrapper>
+  );
+}
+```
+
+---
+
+## 📦 3. 환경 변수 설정 - LOOP 프로젝트용 (백엔드 프록시)
+
+### 📁 서버 환경 변수: `.env` (루트 폴더에 추가)
+```bash
+# 기존 YouTube API 키 (하이브리드 방식용 백업)
+REACT_APP_YOUTUBE_API_KEY=AIzaSyBNWPwKZ26XlK0O5JCqooZFoAk2FScx2fE
+
+# Gemini AI API 키 (서버에서 사용)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# 모델 변경이 쉬우도록
+GEMINI_MODEL=gemini-2.0-flash
+
+# 서버 포트
+PORT=5000
+
+# 환경 설정
+NODE_ENV=development
+
+# (운영시) 허용 프론트 도메인
+FRONTEND_URL=http://localhost:3000
+```
+
+### 📁 서버 의존성: `server/package.json` (새로 생성)
+```json
+{
+  "name": "loop-gemini-server",
+  "version": "1.0.0",
+  "description": "LOOP 프로젝트 Gemini AI 프록시 서버",
+  "main": "index.ts",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0"
+  }
+}
+```
+
+---
+
+## 🔐 4. LOOP 프로젝트 보안 고려사항 (백엔드 프록시)
+
+### 4.1 API 키 보안 (중요)
+```typescript
+// server/index.ts에서 입력 검증 강화
+app.post("/api/ai-search", async (req, res) => {
+  const { query } = req.body ?? {};
+  
+  // 입력 검증
+  if (!query || typeof query !== 'string' || query.trim().length === 0) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "empty_query",
+      message: "검색어를 입력해주세요." 
+    });
+  }
+  
+  if (query.length > 500) {
+    return res.status(400).json({ 
+      success: false, 
+      error: "query_too_long",
+      message: "검색어가 너무 깁니다." 
+    });
+  }
+  
+  // XSS 방지
+  const sanitizedQuery = query.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // API 키 확인 (서버에서만)
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('❌ GEMINI_API_KEY가 설정되지 않았습니다.');
+    return res.status(500).json({ 
+      success: false, 
+      error: "server_config_error" 
+    });
+  }
+  
+  // 나머지 로직...
+});
+```
+
+### 4.2 에러 핸들링 강화
+```typescript
+// src/hooks/useAISearch.tsx에서 에러 처리 개선
+const searchWithAI = async (query: string) => {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    // 입력 검증
+    if (!query.trim()) {
+      setError('검색어를 입력해주세요.');
+      return;
+    }
+    
+    const result = await callGeminiAPI(query);
+    setRecommendations(result);
+    
+  } catch (err: any) {
+    console.error('❌ LOOP AI 프록시 검색 오류:', err);
+    
+    // 구체적인 에러 메시지
+    if (err.message.includes('서버')) {
+      setError('서버 연결에 문제가 있습니다. 잠시 후 다시 시도해주세요.');
+    } else if (err.message.includes('네트워크')) {
+      setError('네트워크 연결을 확인해주세요.');
+    } else {
+      setError(err.message || 'AI 검색 중 오류가 발생하였습니다.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+---
+
+## 🚀 5. LOOP 프로젝트 설치 및 실행 가이드 (백엔드 프록시)
+
+### 5.1 환경 변수 설정
+```bash
+# 1. 루트 폴더의 .env 파일에 추가
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# 2. Gemini API 키 발급 (Google AI Studio에서)
+# https://aistudio.google.com/app/apikey
+```
+
+### 5.2 서버 설정
+```bash
+# 1. server 폴더 생성 및 의존성 설치
+mkdir server
+cd server
+npm init -y
+npm install express cors helmet express-rate-limit dotenv
+npm install -D @types/express @types/cors @types/node typescript ts-node
+
+# 2. server/index.ts 파일 생성 (위 코드 참조)
+# 3. server/package.json 설정 (위 코드 참조)
+```
+
+### 5.3 클라이언트 파일 생성
+```bash
+# 필요한 파일들 생성
+# - src/services/geminiApi.ts
+# - src/hooks/useAISearch.tsx  
+# - src/components/AISearchBar.tsx
+
+# 4. KategorieScreen.tsx에 AI 검색 기능 추가
+```
+
+### 5.4 실행 및 테스트
+```bash
+# 1. 서버 실행 (터미널 1)
+cd server
+npm run dev
+
+# 2. 클라이언트 실행 (터미널 2)
+npm start
+
+# 3. 브라우저에서 http://localhost:3000 접속
+# 4. KategorieScreen에서 AI 검색 기능 테스트
+```
+
+---
+
+## ✅ 6. LOOP 프로젝트 체크리스트 (백엔드 프록시)
+
+### 필수 작업:
+- [ ] 루트 `.env`에 `GEMINI_API_KEY` 추가
+- [ ] `server/` 폴더 생성 및 Express 서버 설정
+- [ ] `server/index.ts` 생성 (프록시 서버)
+- [ ] `server/package.json` 생성 (의존성 설정)
+- [ ] `src/services/geminiApi.ts` 생성 (프록시 호출)
+- [ ] `src/hooks/useAISearch.tsx` 생성 (프록시 패턴)
+- [ ] `src/components/AISearchBar.tsx` 생성
+- [ ] `KategorieScreen.tsx`에 AI 검색 기능 추가
+
+### 선택 작업:
+- [ ] 입력 검증 추가
+- [ ] 에러 핸들링 강화
+- [ ] 로딩 상태 개선
+- [ ] Rate Limiting 추가
+- [ ] 응답 캐싱 추가
+
+### 장점:
+- ✅ **프로덕션 준비**: 구글 권장 방식
+- ✅ **보안성**: helmet + rate limiting + API 키 서버 관리
+- ✅ **CORS 해결**: 환경별 자동 분리
+- ✅ **확장성**: 구조화된 응답으로 자동재생 파이프라인 준비
+- ✅ **안정성**: 타임아웃 + 완벽한 에러 처리
+- ✅ **현대적**: Node 18+ 내장 fetch 사용
+- ✅ **모니터링**: 서버에서 사용량 추적
+
+### 주의사항:
+- ⚠️ **서버 필요**: Express 서버 구축 필요
+- ⚠️ **API 키 관리**: 서버 환경 변수 설정 필요
+- ⚠️ **포트 설정**: 클라이언트-서버 포트 분리
+- ⚠️ **배포 복잡성**: 서버 배포 환경 고려
+
+---
+
+## 🔗 7. 참고 링크
+
+- [Google Generative AI Documentation](https://ai.google.dev/docs)
+- [Gemini API Reference](https://ai.google.dev/api/rest)
+- [Express.js Documentation](https://expressjs.com/)
+- [React Hooks Documentation](https://react.dev/reference/react)
+
+---
+
+## 🎯 8. 오늘 구현 완료된 기능들 (2025년 1월)
+
+### 8.1 실제 구현된 파일들
+
+#### ✅ 완료된 백엔드 파일들
+- **`server/index.ts`** - Express 프록시 서버 (완료)
+- **`server/package.json`** - 서버 의존성 설정 (완료)
+- **`server/tsconfig.json`** - TypeScript 설정 (완료)
+- **`server/.env`** - 환경 변수 설정 (완료)
+
+#### ✅ 완료된 프론트엔드 파일들
+- **`src/services/geminiApi.ts`** - Gemini API 클라이언트 (완료)
+- **`src/hook/useAISearch.tsx`** - AI 검색 훅 (완료)
+- **`src/components/AISearchBar.tsx`** - AI 검색 바 컴포넌트 (완료)
+- **`src/screens/KategorieScreen.tsx`** - AI 검색 기능 통합 (완료)
+
+#### ✅ 수정된 설정 파일들
+- **`package.json`** - 프록시 설정 추가 (완료)
+
+### 8.2 구현된 핵심 기능들
+
+#### 🤖 AI 검색 기능
+```typescript
+// Gemini AI를 통한 음악 추천
+const { recommendations, tracks, loading, error, searchWithAI, playTrack } = useAISearch();
+```
+
+#### 🎵 YouTube API 연동
+```typescript
+// AI 추천 트랙에 YouTube 데이터 추가
+const searchResults = await ytSearch({ q: searchQuery, type: "video"}); // 100 units
+const videoDetails = await ytVideosDetails([searchResults[0].id.videoId]); // 1 unit
+```
+
+#### 🎶 재생목록 생성
+```typescript
+// AI 추천 트랙을 재생목록으로 생성
+const playlistData = {
+  id: `ai:${originalQuery}:${Date.now()}`,
+  title: `AI 추천: ${originalQuery}`,
+  thumbnail: track.youtube.thumbnail,
+  tracks: [{
+    videoId: track.youtube.id,
+    title: track.youtube.title,
+    thumbnail: track.youtube.thumbnail,
+  }],
+  startIndex: 0
+};
+```
+
+### 8.3 API 사용량 분석 완료
+
+#### 📊 YouTube Data API v3 비용
+- **search.list**: 100 units per request
+- **videos.list**: 1 unit per request
+- **AI 검색 1회 (5개 트랙)**: 505 units
+- **일일 할당량**: 10,000 units (무료)
+
+#### ⚠️ 사용량 최적화 필요
+- **캐싱 시스템** 구현 권장
+- **사용자 제한** 설정 권장
+- **사용량 모니터링** 추가 권장
+
+### 8.4 해결된 문제들
+
+#### 🔧 기술적 문제 해결
+- **TypeScript 오류** 해결 (타입 가드, Non-null assertion)
+- **세션 스토리지 키 불일치** 문제 해결
+- **재생 버튼 무반응** 문제 해결
+- **서버 포트 설정** 문제 해결
+
+#### 🚨 오류 해결
+- **403 Forbidden** 오류 (YouTube API Key 설정)
+- **WebSocket 연결 실패** 오류 (포트 불일치)
+- **Rate Limit 설정** 오류 (trust proxy 설정)
+
+---
+
+
+
+## 🔄 10. 다음 단계 권장사항
+
+### 10.1 코드 정리
+- [ ] 불필요한 import 제거
+- [ ] 사용하지 않는 세션 스토리지 저장 로직 제거
+- [ ] 주석 처리된 코드 정리
+
+### 10.2 기능 개선
+- [ ] playTrack 함수 수정 (클릭한 트랙만 재생)
+- [ ] 에러 처리 개선
+- [ ] 로딩 상태 개선
+
+### 10.3 최적화
+- [ ] API 사용량 모니터링 추가
+- [ ] 캐싱 시스템 구현
+- [ ] 사용자 제한 설정
+
+---
+
+## 📦 11. 설치해야 하는 패키지들 (npm install)
+
+### 11.1 서버 패키지 설치 (server 폴더)
+
+#### 필수 의존성 (dependencies)
+```bash
+cd server
+npm install express@^4.21.2
+npm install cors@^2.8.5
+npm install helmet@^7.1.0
+npm install express-rate-limit@^7.1.5
+npm install dotenv@^16.3.1
+```
+
+#### 개발 의존성 (devDependencies)
+```bash
+npm install -D @types/express@^4.17.21
+npm install -D @types/cors@^2.8.17
+npm install -D @types/node@^20.10.0
+npm install -D typescript@^5.9.3
+npm install -D ts-node@^10.9.2
+```
+
+#### 한 번에 설치하기
+```bash
+cd server
+npm install express cors helmet express-rate-limit dotenv
+npm install -D @types/express @types/cors @types/node typescript ts-node
+```
+
+### 11.2 클라이언트 패키지 설치 (루트 폴더)
+
+#### 기존 패키지 (이미 설치됨)
+```bash
+# React 관련 (이미 설치됨)
+npm install react react-dom
+
+# TypeScript 관련 (이미 설치됨)
+npm install typescript @types/react @types/react-dom @types/node
+
+# 기타 유틸리티 (이미 설치됨)
+npm install styled-components axios firebase
+```
+
+#### 새로 추가된 패키지 (없음)
+```bash
+# 클라이언트에는 새로운 패키지 설치가 필요하지 않음
+# 모든 기능이 기존 패키지로 구현됨
+```
+
+### 11.3 환경 변수 설정
+
+#### 서버 환경 변수 (server/.env)
+```bash
+# Gemini AI API 키
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# 모델 설정
+GEMINI_MODEL=gemini-2.0-flash
+
+# 서버 포트
+PORT=5000
+PORT_ALT=5001
+
+# 환경 설정
+NODE_ENV=development
+
+# 프론트엔드 URL
+FRONTEND_URL=http://localhost:3000
+```
+
+#### 클라이언트 환경 변수 (루트 .env)
+```bash
+# 기존 YouTube API 키 (하이브리드 방식용 백업)
+REACT_APP_YOUTUBE_API_KEY=AIzaSyBNWPwKZ26XlK0O5JCqooZFoAk2FScx2fE
+```
+
+### 11.4 설치 순서
+
+#### 1단계: 서버 패키지 설치
+```bash
+# server 폴더로 이동
+cd server
+
+# package.json 생성 (이미 있음)
+# npm init -y
+
+# 의존성 설치
+npm install express cors helmet express-rate-limit dotenv
+npm install -D @types/express @types/cors @types/node typescript ts-node
+```
+
+#### 2단계: 환경 변수 설정
+```bash
+# server/.env 파일 생성 및 설정
+echo "GEMINI_API_KEY=your_gemini_api_key_here" > server/.env
+echo "GEMINI_MODEL=gemini-2.0-flash" >> server/.env
+echo "PORT=5000" >> server/.env
+echo "PORT_ALT=5001" >> server/.env
+echo "NODE_ENV=development" >> server/.env
+echo "FRONTEND_URL=http://localhost:3000" >> server/.env
+```
+
+#### 3단계: 클라이언트 설정
+```bash
+# 루트 폴더로 이동
+cd ..
+
+# package.json에 프록시 설정 추가 (이미 완료)
+# "proxy": "http://localhost:5000"
+```
+
+### 11.5 실행 명령어
+
+#### 서버 실행
+```bash
+cd server
+npm start
+# 또는
+npm run dev
+```
+
+#### 클라이언트 실행
+```bash
+# 루트 폴더에서
+npm start
+```
+
+### 11.6 패키지 버전 정보
+
+#### 서버 패키지 버전
+- **express**: ^4.21.2
+- **cors**: ^2.8.5
+- **helmet**: ^7.1.0
+- **express-rate-limit**: ^7.1.5
+- **dotenv**: ^16.3.1
+- **@types/express**: ^4.17.21
+- **@types/cors**: ^2.8.17
+- **@types/node**: ^20.10.0
+- **typescript**: ^5.9.3
+- **ts-node**: ^10.9.2
+
+#### 클라이언트 패키지 버전
+- **react**: ^18.3.1 (기존)
+- **typescript**: ^4.9.5 (기존)
+- **styled-components**: ^6.1.19 (기존)
+- **firebase**: ^12.2.1 (기존)
+
+---

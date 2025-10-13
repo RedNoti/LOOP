@@ -4,6 +4,8 @@ import styled, { ThemeProvider, createGlobalStyle } from "styled-components";
 import { fetchOptimizedVideos, KItem } from "../components/KategorieFunction";
 import { playFromKategorieSearch } from "../components/MusicFunction";
 import { useTheme } from "../components/ThemeContext";
+import AISearchBar from "../components/AISearchBar";
+import { useAISearch } from "../hook/useAISearch";
 
 // styled-components 타입 확장
 declare module 'styled-components' {
@@ -414,6 +416,7 @@ function InnerKategorieScreen() {
   const [items, setItems] = useState<KItem[]>([]);
   const [loading, setLoading] = useState(false);
   const { isDarkMode } = useTheme();
+  const { recommendations, tracks, loading: aiLoading, error: aiError, searchWithAI, playTrack } = useAISearch();
 
   // 검색 함수
   const search = useCallback(async (term: string) => {
@@ -426,6 +429,10 @@ function InnerKategorieScreen() {
     try {
       const results = await fetchOptimizedVideos(term);
       setItems(results);
+      
+      // 검색 결과를 세션 스토리지에 저장 (playFromKategorieSearch에서 사용)
+      sessionStorage.setItem(`kategorieSearch:${term}`, JSON.stringify(results));
+      console.log(`🔍 검색 결과 저장: "${term}" - ${results.length}개 비디오`);
     } finally {
       setLoading(false);
     }
@@ -491,11 +498,140 @@ function InnerKategorieScreen() {
           </SectionTitle>
         </HeaderContainer>
 
+        {/* AI 검색 바 추가 */}
+        <AISearchBar onAISearch={searchWithAI} loading={aiLoading} />
+
+        {/* AI 추천 결과 표시 */}
+        {recommendations && (
+          <div style={{
+            background: 'linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            border: '2px solid #4caf50',
+            boxShadow: '0 4px 15px rgba(76, 175, 80, 0.2)'
+          }}>
+            <h3 style={{ 
+              margin: '0 0 15px 0', 
+              color: '#2e7d32',
+              fontSize: '18px',
+              fontWeight: 'bold'
+            }}>🤖 LOOP AI 추천 결과</h3>
+            <div style={{ 
+              margin: 0,
+              lineHeight: '1.8',
+              whiteSpace: 'pre-line',
+              color: '#333',
+              fontSize: '14px'
+            }}>{recommendations}</div>
+            
+            {/* 파싱된 트랙 목록 표시 */}
+            {tracks && tracks.length > 0 && (
+              <div style={{ marginTop: '15px', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#495057', fontSize: '14px' }}>
+                  🎵 파싱된 트랙 ({tracks.length}곡)
+                </h4>
+                {tracks.map((track, index) => (
+                  <div key={index} style={{ 
+                    padding: '8px 0', 
+                    borderBottom: index < tracks.length - 1 ? '1px solid #dee2e6' : 'none',
+                    fontSize: '13px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{track.title}</strong> - {track.artist}
+                      {track.note && <span style={{ color: '#6c757d' }}> ({track.note})</span>}
+                      {track.youtube && (
+                        <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
+                          📺 {track.youtube.channelTitle} • ⏱️ {track.youtube.duration}
+                        </div>
+                      )}
+                    </div>
+                    {track.youtube && (
+                      <div style={{ display: 'flex', gap: '5px', marginLeft: '10px' }}>
+                        <button 
+                          onClick={() => playTrack(track)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            backgroundColor: '#007aff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0056b3'}
+                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#007aff'}
+                        >
+                          ▶ 재생
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const playlistName = prompt("새 재생목록 이름을 입력하세요:");
+                            if (playlistName) {
+                              const playlistData = {
+                                id: `custom:${playlistName}:${Date.now()}`,
+                                title: playlistName,
+                                thumbnail: track.youtube!.thumbnail,
+                                tracks: [{
+                                  videoId: track.youtube!.id,
+                                  title: track.youtube!.title,
+                                  thumbnail: track.youtube!.thumbnail,
+                                }],
+                                startIndex: 0,
+                              };
+                              
+                              import("../components/MusicFunction").then(({ playPlaylistFromFile }) => {
+                                playPlaylistFromFile(playlistData);
+                              });
+                            }
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            backgroundColor: '#34c759',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s ease'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#28a745'}
+                          onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#34c759'}
+                        >
+                          + 추가
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI 에러 표시 */}
+        {aiError && (
+          <div style={{
+            background: '#ffebee',
+            padding: '15px',
+            borderRadius: '8px',
+            marginBottom: '20px',
+            border: '1px solid #f44336',
+            color: '#c62828'
+          }}>
+            <strong>❌ AI 검색 오류:</strong> {aiError}
+          </div>
+        )}
+
         <SearchContainer>
           <SearchInput
             type="text"
             placeholder="원하시는 음악을 검색해보세요!"
-            value={query}
+          value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyPress={(e) => {
               if (e.key === "Enter") {
@@ -509,7 +645,7 @@ function InnerKategorieScreen() {
         </SearchContainer>
 
         <div style={{ marginBottom: '24px' }}>
-          {GENRES.map((g) => (
+        {GENRES.map((g) => (
             <button
               key={g}
               onClick={() => onSelectGenre(g)}

@@ -6,6 +6,8 @@ import {
   useMusicPlayer,
   playPlaylistFromFile,
 } from "../components/MusicFunction";
+import { auth, db } from "../firebaseConfig";
+import { doc, setDoc } from "firebase/firestore";
 
 type StationSeed =
   | { type: "video"; videoId: string }
@@ -46,10 +48,15 @@ type PlaylistJson = {
   title: string;
   thumbnail: string;
   tracks: PlaylistJsonTrack[];
+  // ---- 추가 메타 ----
+  createdAt: number;
+  createdByUid: string | null;
+  createdByName: string | null;
+  source: { kind: "station"; seed: StationSeed };
 };
 
-// Station 결과 → 재생목록 JSON
-function toPlaylistJson(result: StationResult): PlaylistJson {
+// Station 결과 → 재생목록 JSON (seed를 받아 메타에 기록)
+function toPlaylistJson(result: StationResult, seed?: StationSeed): PlaylistJson {
   const { playlist, videos } = result;
 
   const getThumb = (v?: StationVideo) =>
@@ -80,7 +87,81 @@ function toPlaylistJson(result: StationResult): PlaylistJson {
     title: playlist?.snippet?.title || "Music Station",
     thumbnail: playlistThumb,
     tracks,
+    // ---- 메타 기록 ----
+    createdAt: Date.now(),
+    createdByUid: auth.currentUser?.uid ?? null,
+    createdByName: auth.currentUser?.displayName ?? null,
+    source: { kind: "station", seed: seed! },
   };
+}
+
+// =============================
+// 서버 업로드/DB 저장 유틸들
+// =============================
+
+// 서버에 .json 업로드 (InputPost.tsx와 동일한 프로토콜: field name = "file")
+async function uploadStationPlaylistJson(json: PlaylistJson) {
+  const blob = new Blob([JSON.stringify(json)], { type: "application/json" });
+  const form = new FormData();
+  form.append("file", blob, "playlist.json");
+  form.append("userId", auth.currentUser?.uid || "");
+  form.append("playlistTitle", json.title);
+
+  const res = await fetch("https://loopmusic.o-r.kr:4001/upload/playlist", {
+    method: "POST",
+    body: form,
+    mode: "cors",
+    referrerPolicy: "no-referrer",
+  });
+
+  // 서버가 에러면 여기서 throw
+  const text = await res.text();
+  let data: any = null;
+  try { data = JSON.parse(text); } catch {/* ignore */}
+  if (!res.ok || !data?.success || !data?.data?.filename) {
+    throw new Error(`Upload failed: HTTP ${res.status} · ${text?.slice(0,200)}`);
+  }
+
+  const playlistFileUrl =
+    `https://loopmusic.o-r.kr:4001/uploads/shared_playlists/${data.data.filename}`;
+  return playlistFileUrl;
+}
+
+// Firestore(shared_playlists/{id})에 메타 저장
+async function saveStationPlaylistMeta(json: PlaylistJson, playlistFileUrl: string) {
+  const ref = doc(db, "shared_playlists", json.id);
+  await setDoc(ref, {
+    id: json.id,
+    title: json.title,
+    thumbnail: json.thumbnail,
+    tracksCount: json.tracks.length,
+    createdAt: json.createdAt,
+    createdByUid: json.createdByUid,
+    createdByName: json.createdByName,
+    playlistFileUrl,
+    source: json.source,
+  }, { merge: true });
+}
+
+// 세션의 "내 재생목록" 목록에 추가 (music 화면에서 클릭 가능하게)
+function registerPlaylistInSession(json: PlaylistJson) {
+  const key = "playlists";
+  const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
+  const exists = existing.some((p: any) => p.id === json.id);
+  if (!exists) {
+    existing.push({
+      id: json.id,
+      snippet: {
+        title: json.title,
+        thumbnails: {
+          high: { url: json.thumbnail },
+          medium: { url: json.thumbnail },
+          default: { url: json.thumbnail },
+        },
+      },
+    });
+    sessionStorage.setItem(key, JSON.stringify(existing));
+  }
 }
 
 const Container = styled.div`
@@ -247,13 +328,35 @@ export default function Station() {
     [currentVideoTitle]
   );
 
+  // buildStation → JSON 변환 (seed 전달: 메타 기록용)
   const build = useCallback(async (seed: StationSeed) => {
     const result = (await buildStation(seed, {
       targetCount: 35,
       dedupe: true,
       safeSearch: "moderate",
     })) as StationResult;
-    return toPlaylistJson(result);
+    return toPlaylistJson(result, seed);
+  }, []);
+
+  // =============================
+  // 즉시 재생 + 백그라운드 업로드/저장
+  // =============================
+  const persistAndPlay = useCallback((json: PlaylistJson) => {
+    // 1) 세션 등록 + 즉시 재생 (네트워크 실패와 무관하게 동작)
+    registerPlaylistInSession(json);
+    playPlaylistFromFile(json);
+
+    // 2) 업로드/메타 저장은 백그라운드 시도 (실패해도 UX 영향 없음)
+    (async () => {
+      try {
+        const url = await uploadStationPlaylistJson(json);
+        await saveStationPlaylistMeta(json, url);
+        console.log(`✅ 스테이션 재생목록 저장 완료: ${json.title}`);
+      } catch (e) {
+        console.warn("[Station] background upload/persist failed:", e);
+        // 필요 시: 한번만 토스트/알림센터 기록 등
+      }
+    })();
   }, []);
 
   // 즉시 재생 경로 – 내부 재생기 함수 사용 (이벤트 직접 dispatch 금지)
@@ -266,7 +369,8 @@ export default function Station() {
           alert("가져온 트랙이 없습니다. 검색어나 아티스트를 바꿔보세요.");
           return;
         }
-        playPlaylistFromFile(json); // ✅ 여기로 통일
+        // 즉시 재생 + 백그라운드 업로드
+        persistAndPlay(json);
       } catch (e) {
         console.error("[Station] build error", e);
         alert(
@@ -276,7 +380,7 @@ export default function Station() {
         setLoading(false);
       }
     },
-    [build]
+    [build, persistAndPlay]
   );
 
   // 미리보기 카드 생성
@@ -406,7 +510,8 @@ export default function Station() {
             <Meta>
               <Title>{p.title}</Title>
               <Sub>트랙 {p.tracks.length}개 · 클릭 시 즉시 재생</Sub>
-              <PlayButton type="button" onClick={() => playPlaylistFromFile(p)}>
+              {/* 즉시 재생 + 백그라운드 업로드로 변경 */}
+              <PlayButton type="button" onClick={() => persistAndPlay(p)}>
                 ▶ 이 재생목록 재생
               </PlayButton>
             </Meta>
