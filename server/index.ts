@@ -8,7 +8,6 @@ import rateLimit from "express-rate-limit";
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
 const PORT = Number(process.env.PORT ?? 5000);
-const PORT_ALT = process.env.PORT_ALT || 5001;
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
@@ -138,7 +137,4 @@ function parseTracks(text: string) {
 app.listen(PORT, () => {
   const envMsg = isProd ? "production" : "development";
   console.log(`🚀 LOOP Gemini API 서버가 포트 ${PORT}에서 실행 중입니다. (${envMsg})`);
-});
-app.listen(PORT_ALT, () => {
-  console.log(`🚀 LOOP Gemini 서버 실행 중: http://localhost:${PORT_ALT}`);
 });
