@@ -551,7 +551,7 @@ function InnerKategorieScreen() {
         </HeaderContainer>
 
         {/* AI 검색 바 추가 */}
-        <AISearchBar onAISearch={searchWithAI} loading={aiLoading} />
+        <AISearchBar onAISearch={searchWithAI} loading={aiLoading} isDarkMode={isDarkMode} />
 
         {/* AI 추천 결과 표시 */}
         {recommendations && (
@@ -593,7 +593,7 @@ function InnerKategorieScreen() {
                     alignItems: 'center'
                   }}>
                     <div style={{ flex: 1 }}>
-                      <strong>{track.title}</strong> - {track.artist}
+                      <strong style={{ color: isDarkMode ? '#1a1a1a' : '#1a1a1a' }}>{track.title}</strong> - <span style={{ color: isDarkMode ? '#1a1a1a' : '#1a1a1a' }}>{track.artist}</span>
                       {track.note && <span style={{ color: '#6c757d' }}> ({track.note})</span>}
                       {track.youtube && (
                         <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
