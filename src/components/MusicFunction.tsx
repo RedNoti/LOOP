@@ -522,6 +522,73 @@ export const playFromKategorieSearch = (query: string, index: number) => {
   }
 };
 
+// AI 검색 결과를 현재 재생목록에 추가하는 함수
+export const addTrackToPlaylist = async (
+  playlistId: string, 
+  video: any, 
+  playlistName: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    // 현재 재생목록의 비디오 목록 가져오기
+    const currentVideos = JSON.parse(sessionStorage.getItem("musicPlayerVideos") || "[]");
+    
+    // 새 비디오 추가 (YouTube API 형식에 맞게 변환)
+    const newVideo = {
+      id: { videoId: video.id },
+      snippet: {
+        title: video.title,
+        thumbnails: {
+          default: { url: video.thumbnails?.medium?.url || "" },
+          medium: { url: video.thumbnails?.medium?.url || "" },
+          high: { url: video.thumbnails?.medium?.url || "" }
+        },
+        resourceId: { videoId: video.id },
+        playlistId: playlistId
+      }
+    };
+    
+    // 기존 비디오 목록에 새 비디오 추가
+    const updatedVideos = [...currentVideos, newVideo];
+    
+    // 세션 스토리지 업데이트
+    sessionStorage.setItem("musicPlayerVideos", JSON.stringify(updatedVideos));
+
+    // music.tsx의 React 상태를 실시간으로 업데이트하기 위한 이벤트 발생
+    window.dispatchEvent(new CustomEvent("playlistUpdated", {
+      detail: { videos: updatedVideos }
+    }));
+    
+    // 재생목록 목록도 업데이트 (제목 동기화)
+    const playlists = JSON.parse(sessionStorage.getItem("playlists") || "[]");
+    const updatedPlaylists = playlists.map((p: any) => {
+      if (p.id === playlistId) {
+        return {
+          ...p,
+          snippet: {
+            ...p.snippet,
+            title: playlistName
+          }
+        };
+      }
+      return p;
+    });
+    sessionStorage.setItem("playlists", JSON.stringify(updatedPlaylists));
+    
+    // 성공 메시지 반환
+    return { 
+      success: true, 
+      message: `"${video.title}"이(가) "${playlistName}" 재생목록에 추가되었습니다!` 
+    };
+    
+  } catch (error) {
+    console.error("재생목록에 노래 추가 실패:", error);
+    return { 
+      success: false, 
+      message: "재생목록에 노래를 추가하는 중 오류가 발생했습니다." 
+    };
+  }
+};
+
 export const useMusicPlayer = () => {
   const playStation = async (seed: StationSeed) => {
     setIsLoading(true); // 로딩 상태 시작

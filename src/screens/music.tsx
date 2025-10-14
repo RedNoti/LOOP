@@ -631,6 +631,21 @@ export default function YouTubeMusicPlayer({
   };
 }, []);
 
+
+// 재생목록 업데이트 이벤트 리스너 - AI 검색에서 노래 추가 시 UI 실시간 반영
+useEffect(() => {
+  const handlePlaylistUpdate = (event: CustomEvent) => {
+    const { videos } = event.detail;
+    setVideos(videos);
+  };
+
+  window.addEventListener("playlistUpdated", handlePlaylistUpdate as EventListener);
+  
+  return () => {
+    window.removeEventListener("playlistUpdated", handlePlaylistUpdate as EventListener);
+  };
+}, [setVideos]);
+
   useEffect(() => {
     const handleSeekToTime = (event: CustomEvent) => {
       const { seconds } = event.detail;

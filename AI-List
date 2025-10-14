@@ -43,7 +43,7 @@ app.use(rateLimit({ windowMs: 60_000, max: 60 })); // 분당 60회
 app.post("/api/ai-search", async (req, res) => {
   try {
     // 환경 점검
-    if (!process.env.GEMINI_API_KEY) {
+if (!process.env.GEMINI_API_KEY) {
       console.error("❌ GEMINI_API_KEY missing");
       return res.status(500).json({ success: false, error: "server_config_error" });
     }
@@ -118,8 +118,8 @@ app.post("/api/ai-search", async (req, res) => {
 // 프롬프트 빌더
 function buildPrompt(query: string): string {
   return `당신은 LOOP 음악 앱의 AI 추천 전문가입니다. 사용자의 요청에 따라 YouTube에서 검색 가능한 구체적인 노래 제목과 아티스트를 추천해주세요.
-
-사용자 요청: ${query}
+   
+   사용자 요청: ${query}
 
 형식(중요):
 - 각 줄은 반드시 "노래 제목 - 아티스트명" 한 쌍만 포함
@@ -165,10 +165,10 @@ app.listen(PORT, () => {
 export type Track = { title: string; artist: string; note?: string };
 
 export interface GeminiResult {
-  success: boolean;
+    success: boolean;
   recommendations: string; // 원문 텍스트
   tracks?: Track[];        // 파싱된 구조화 결과
-  error?: string;
+    error?: string;
   detail?: string;
 }
 
@@ -197,25 +197,25 @@ import { callGeminiAPI, GeminiResult, Track } from "../services/geminiApi";
 
 // LOOP 프로젝트용 AI 검색 상태를 관리하는 커스텀 훅 (프록시 패턴)
 export function useAISearch() {
-  const [recommendations, setRecommendations] = useState<string>('');
+    const [recommendations, setRecommendations] = useState<string>('');
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  const searchWithAI = async (query: string) => {
-    try {
-      setLoading(true);
-      setError(null);
+    const searchWithAI = async (query: string) => {
+        try {
+            setLoading(true);
+            setError(null);
 
       const result: GeminiResult = await callGeminiAPI(query);
       setRecommendations(result.recommendations ?? '');
       setTracks(result.tracks ?? []);
-    } catch (err: any) {
+        } catch (err: any) {
       setError(err.message || "LOOP AI 검색 중 오류가 발생하였습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        } finally {
+            setLoading(false);
+        }
+    };
 
   return { recommendations, tracks, loading, error, searchWithAI };
 }
@@ -454,27 +454,27 @@ FRONTEND_URL=http://localhost:3000
 // server/index.ts에서 입력 검증 강화
 app.post("/api/ai-search", async (req, res) => {
   const { query } = req.body ?? {};
-  
-  // 입력 검증
-  if (!query || typeof query !== 'string' || query.trim().length === 0) {
+    
+    // 입력 검증
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
     return res.status(400).json({ 
       success: false, 
       error: "empty_query",
       message: "검색어를 입력해주세요." 
     });
-  }
-  
-  if (query.length > 500) {
+    }
+    
+    if (query.length > 500) {
     return res.status(400).json({ 
       success: false, 
       error: "query_too_long",
       message: "검색어가 너무 깁니다." 
     });
-  }
-  
-  // XSS 방지
-  const sanitizedQuery = query.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
+    }
+    
+    // XSS 방지
+    const sanitizedQuery = query.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    
   // API 키 확인 (서버에서만)
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -869,3 +869,55 @@ npm start
 **📅 마지막 업데이트**: 2025년 1월
 **👨‍💻 작성자**: AI Assistant
 **📋 버전**: 6.0 (LOOP 프로젝트용 - 프로덕션 레벨 백엔드 프록시)
+
+
+  // ✅ 기존 addTrackToPlaylist 함수를 MusicFunction.tsx로 이동
+  // const addTrackToPlaylist = useCallback(async (playlistId: string, video: any, playlistName: string) => {
+  //   try {
+  //     // 현재 재생목록의 비디오 목록 가져오기
+  //     const currentVideos = JSON.parse(sessionStorage.getItem("musicPlayerVideos") || "[]");
+  //     
+  //     // 새 비디오 추가
+  //     const newVideo = {
+  //       id: { videoId: video.id },
+  //       snippet: {
+  //         title: video.title,
+  //         thumbnails: {
+  //           default: { url: video.thumbnails?.medium?.url || "" },
+  //           medium: { url: video.thumbnails?.medium?.url || "" },
+  //           high: { url: video.thumbnails?.medium?.url || "" }
+  //         },
+  //         resourceId: { videoId: video.id },
+  //         playlistId: playlistId
+  //       }
+  //     };
+  //     
+  //     // 기존 비디오 목록에 새 비디오 추가
+  //     const updatedVideos = [...currentVideos, newVideo];
+  //     
+  //     // 세션 스토리지 업데이트
+  //     sessionStorage.setItem("musicPlayerVideos", JSON.stringify(updatedVideos));
+  //     
+  //     // 재생목록 목록도 업데이트
+  //     const playlists = JSON.parse(sessionStorage.getItem("playlists") || "[]");
+  //     const updatedPlaylists = playlists.map((p: any) => {
+  //       if (p.id === playlistId) {
+  //         return {
+  //           ...p,
+  //           snippet: {
+  //             ...p.snippet,
+  //             title: playlistName
+  //           }
+  //         };
+  //       }
+  //       return p;
+  //     });
+  //     sessionStorage.setItem("playlists", JSON.stringify(updatedPlaylists));
+  //     
+  //     alert(`"${video.title}"이(가) "${playlistName}" 재생목록에 추가되었습니다!`);
+  //     
+  //   } catch (error) {
+  //     console.error("재생목록에 노래 추가 실패:", error);
+  //     alert("재생목록에 노래를 추가하는 중 오류가 발생했습니다.");
+  //   }
+  // }, []);

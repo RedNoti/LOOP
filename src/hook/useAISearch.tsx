@@ -2,8 +2,6 @@
 import { useState, useCallback } from "react";
 import { callGeminiAPI, GeminiResult, Track } from "../services/geminiApi";
 import { ytSearch, ytVideosDetails } from "../components/StationEngine";
-import { playFromKategorieSearch } from "../components/MusicFunction";
-import { or } from "firebase/firestore";
 
 // YouTube 데이터가 포함된 트랙 타입
 export interface TrackWithYouTube extends Track {
@@ -64,48 +62,39 @@ export function useAISearch() {
       
       setTracks(tracksWithYouTube as TrackWithYouTube[]);
       
-      // AI 검색 결과를 세션 스토리지에 저장
-      if (tracksWithYouTube.length > 0) {
-        const searchResults = (tracksWithYouTube as TrackWithYouTube[])
-  .filter(track => track.youtube !== undefined)
-  .map(track => ({
-    id: track.youtube!.id,
-    videoId: track.youtube!.id,
-    title: track.youtube!.title,
-    thumbnails: {
-      medium: { url: track.youtube!.thumbnail },
-      default: { url: track.youtube!.thumbnail }
-    }
-  }));
-        
-        sessionStorage.setItem(`kategorieSearch:${query}`, JSON.stringify(searchResults));
-        console.log(`🔍 AI 검색 결과 저장: "${query}" - ${searchResults.length}개 비디오`);
-      }
+      // ✅ 세션 스토리지 저장 로직 제거 (더 이상 필요 없음)
+      
     } catch (err: any) {
       setError(err.message || "LOOP AI 검색 중 오류가 발생하였습니다.");
     } finally {
-      setLoading(false);
+      setLoading(false);  // ✅ 올바른 위치
     }
   };
   // 3. 재생 함수 추가
   const playTrack = useCallback((track: TrackWithYouTube) => {
     if (track.youtube) {
-      const playlistData = {
-        id: `ai:${originalQuery}:${Date.now()}`,
-        title: `AI 추천: ${originalQuery}`,
-        thumbnail: track.youtube.thumbnail,
-        tracks: tracks.filter(t => t.youtube).map(t => ({
-          videoId: t.youtube!.id,
-          title: t.youtube!.title,
-          thumbnail: t.youtube!.thumbnail,
-        })),
-        startIndex: tracks.findIndex(t => t.youtube?.id === track.youtube?.id),
-      };
-      import("../components/MusicFunction").then(({ playPlaylistFromFile }) => {
-        playPlaylistFromFile(playlistData);
-      });
+      // ✅ 1. 재생목록 이름 입력 창 생성
+      const playlistName = prompt("새 재생목록 이름을 입력하세요:");
+      
+      if (playlistName) {  // ✅ 2. 이름 지정
+        const playlistData = {
+          id: `ai:${playlistName}:${Date.now()}`,
+          title: playlistName,  // ✅ 3. 지정한 이름으로 재생목록 생성
+          thumbnail: track.youtube.thumbnail,
+          tracks: [{  // ✅ 4. 클릭한 노래 1개만 추가
+            videoId: track.youtube.id,
+            title: track.youtube.title,
+            thumbnail: track.youtube.thumbnail,
+          }],
+          startIndex: 0,
+        };
+        
+        import("../components/MusicFunction").then(({ playPlaylistFromFile }) => {
+          playPlaylistFromFile(playlistData);
+        });
+      }
     }
-  }, [tracks, originalQuery]);
+  }, [originalQuery]); // ✅ tracks 의존성 제거
 
   return { recommendations, tracks, loading, error, searchWithAI, playTrack };
 }

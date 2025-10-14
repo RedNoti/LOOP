@@ -91,21 +91,21 @@ const HeaderContainer = styled.div`
   margin-bottom: 24px;
 `;
 
-const SectionTitle = styled.h2<{ clickable?: boolean; theme: CustomTheme }>`
+const SectionTitle = styled.h2<{ $clickable?: boolean; theme: CustomTheme }>`
   color: ${({ theme }) => theme.textColor};
   font-size: 24px;
   font-weight: 700;
   margin-bottom: 24px;
   flex-grow: 1;
-  cursor: ${(props) => (props.clickable ? "pointer" : "default")};
+  cursor: ${(props) => (props.$clickable ? "pointer" : "default")};
   transition: all 0.15s ease-out;
 
   &:hover {
-    opacity: ${(props) => (props.clickable ? "0.8" : "1")};
+    opacity: ${(props) => (props.$clickable ? "0.8" : "1")};
   }
 
   &:active {
-    transform: ${(props) => (props.clickable ? "scale(0.95)" : "none")};
+    transform: ${(props) => (props.$clickable ? "scale(0.95)" : "none")};
   }
 `;
 
@@ -479,9 +479,61 @@ function InnerKategorieScreen() {
     }
   }, []);
 
-  const handleAddToCurrentPlaylist = useCallback((video: any) => {
-    // 현재 재생목록에 추가하는 로직은 나중에 구현
-    console.log("현재 재생목록에 추가:", video.title);
+  const handleAddToCurrentPlaylist = useCallback((videoOrTrack: any) => {
+    // 현재 재생목록 정보 가져오기
+    const currentPlaylistId = sessionStorage.getItem("currentPlaylistId");
+    const playlists = JSON.parse(sessionStorage.getItem("playlists") || "[]");
+    
+    if (!currentPlaylistId) {
+      alert("현재 재생 중인 재생목록이 없습니다.");
+      return;
+    }
+    
+    // 현재 재생목록 찾기
+    const currentPlaylist = playlists.find((p: any) => p.id === currentPlaylistId);
+    
+    if (!currentPlaylist) {
+      alert("현재 재생목록을 찾을 수 없습니다.");
+      return;
+    }
+    
+    const playlistName = currentPlaylist.snippet?.title || "알 수 없는 재생목록";
+    
+    // 확인 다이얼로그
+    const confirmMessage = `이 노래를 "${playlistName}" 재생목록에 넣으시겠습니까?`;
+    
+    // eslint-disable-next-line no-restricted-globals
+    if (confirm(confirmMessage)) {
+      // ✅ AI 트랙인지 일반 비디오인지 구분하여 데이터 변환
+      let videoData: {
+        id: string;
+        title: string;
+        thumbnails: {
+          medium: { url: string };
+          default: { url: string };
+        };
+      };
+      if (videoOrTrack.youtube) {
+        // AI 트랙인 경우
+        videoData = {
+          id: videoOrTrack.youtube.id,
+          title: videoOrTrack.youtube.title,
+          thumbnails: {
+            medium: { url: videoOrTrack.youtube.thumbnail },
+            default: { url: videoOrTrack.youtube.thumbnail }
+          }
+        };
+      } else {
+        // 일반 비디오인 경우 (기존 로직)
+        videoData = videoOrTrack;
+      }
+      // ✅ MusicFunction.tsx에서 addTrackToPlaylist 함수 import해서 사용
+      import("../components/MusicFunction").then(({ addTrackToPlaylist }) => {
+        addTrackToPlaylist(currentPlaylistId, videoData, playlistName).then((result) => {
+          alert(result.message);
+        });
+      });
+    }
   }, []);
 
   const styledTheme = useMemo(
@@ -493,9 +545,9 @@ function InnerKategorieScreen() {
     <PageWrapper>
       <Wrapper>
         <HeaderContainer>
-          <SectionTitle clickable onClick={handlePlaylistTitleClick}>
+        <SectionTitle $clickable onClick={handlePlaylistTitleClick}>
             Playlist 🎧
-          </SectionTitle>
+        </SectionTitle>
         </HeaderContainer>
 
         {/* AI 검색 바 추가 */}
@@ -569,26 +621,7 @@ function InnerKategorieScreen() {
                           ▶ 재생
                         </button>
                         <button 
-                          onClick={() => {
-                            const playlistName = prompt("새 재생목록 이름을 입력하세요:");
-                            if (playlistName) {
-                              const playlistData = {
-                                id: `custom:${playlistName}:${Date.now()}`,
-                                title: playlistName,
-                                thumbnail: track.youtube!.thumbnail,
-                                tracks: [{
-                                  videoId: track.youtube!.id,
-                                  title: track.youtube!.title,
-                                  thumbnail: track.youtube!.thumbnail,
-                                }],
-                                startIndex: 0,
-                              };
-                              
-                              import("../components/MusicFunction").then(({ playPlaylistFromFile }) => {
-                                playPlaylistFromFile(playlistData);
-                              });
-                            }
-                          }}
+                          onClick={() => handleAddToCurrentPlaylist(track)}
                           style={{
                             padding: '4px 8px',
                             fontSize: '11px',

@@ -10,7 +10,7 @@ export interface GeminiResult {
 }
 
 export async function callGeminiAPI(query: string): Promise<GeminiResult> {
-  const res = await fetch("/api/ai-search", {
+  const res = await fetch("http://localhost:5000/api/ai-search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query })
