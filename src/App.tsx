@@ -19,7 +19,7 @@ import LoadingScreen from "./screens/loading-screen";
 import ProtectedRouter from "./components/protected-router";
 import Layout from "./screens/layout";
 import "moment/locale/ko";
-import KategorieFunction from "./components/KategorieFunction";
+import KategorieScreen from "./screens/KategorieScreen";
 import InputPostScreen from "./screens/InputPostScreen";
 import Playlist from "./components/playlist";
 import UserProfileScreen from "./screens/user-profile";
@@ -119,7 +119,7 @@ const router = createBrowserRouter([
       { path: "profile", element: <Profile /> },
       { path: "music", element: <Playlist /> },
       { path: "station", element: <MusicStation /> },
-      { path: "KategorieFunction", element: <KategorieFunction /> },
+      { path: "KategorieScreen", element: <KategorieScreen /> },
       { path: "InputPostScreen", element: <InputPostScreen /> },
       { path: "user/:uid", element: <UserProfileScreen /> },
 

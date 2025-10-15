@@ -250,7 +250,11 @@ export default function Station() {
   }, []);
 
   // =============================
+<<<<<<< HEAD
   // D) 즉시 재생 + 백그라운드 업로드/저장
+=======
+  // 즉시 재생 + 백그라운드 업로드/저장
+>>>>>>> PARKSUNGHAN
   // =============================
   const persistAndPlay = useCallback((json: PlaylistJson) => {
     // 1) 세션 등록 + 즉시 재생 (네트워크 실패와 무관하게 동작)
@@ -262,6 +266,10 @@ export default function Station() {
       try {
         const url = await uploadStationPlaylistJson(json);
         await saveStationPlaylistMeta(json, url);
+<<<<<<< HEAD
+=======
+        console.log(`✅ 스테이션 재생목록 저장 완료: ${json.title}`);
+>>>>>>> PARKSUNGHAN
       } catch (e) {
         console.warn("[Station] background upload/persist failed:", e);
         // 필요 시: 한번만 토스트/알림센터 기록 등
@@ -363,7 +371,11 @@ export default function Station() {
             <Meta>
               <Title>{p.title}</Title>
               <Sub>트랙 {p.tracks.length}개 · 클릭 시 즉시 재생</Sub>
+<<<<<<< HEAD
               {/* D) 즉시 재생 + 백그라운드 업로드로 변경 */}
+=======
+              {/* 즉시 재생 + 백그라운드 업로드로 변경 */}
+>>>>>>> PARKSUNGHAN
               <PlayButton type="button" onClick={() => persistAndPlay(p)}>
                 ▶ 이 재생목록 재생
               </PlayButton>

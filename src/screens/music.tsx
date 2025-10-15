@@ -492,6 +492,7 @@ export default function YouTubeMusicPlayer({
     setVideos,
   } = useMusicPlayer();
   const hasRestoredRef = useRef(false);
+<<<<<<< HEAD
   const handleYTStateChange = (e: YouTubeEvent<number>) => {
     // 1) 컨텍스트에서 온 기존 핸들러 먼저 실행
     try {
@@ -511,6 +512,9 @@ export default function YouTubeMusicPlayer({
     }
   };
 
+=======
+  
+>>>>>>> PARKSUNGHAN
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
@@ -584,9 +588,17 @@ export default function YouTubeMusicPlayer({
     const savedVideoIndex = localStorage.getItem(
       STORAGE_KEYS.CURRENT_VIDEO_INDEX
     );
+    
+    // 🚨 새로 생성된 재생목록(custom:)은 복원하지 않음 // 2025 10 10 추가
+    if (savedPlaylistId && savedPlaylistId.startsWith("custom:")) {
+      console.log("🔄 custom: 재생목록은 복원 건너뜀:", savedPlaylistId);
+      return;
+    }
+    
     if (savedPlaylistId && savedVideoIndex && playlists.length > 0) {
       hasRestoredRef.current = true;
       const timer = setTimeout(() => {
+        console.log("🔄 재생목록 복원:", savedPlaylistId, "인덱스:", savedVideoIndex); // 2025 10 10 추가
         playPlaylist(savedPlaylistId, parseInt(savedVideoIndex));
       }, 500);
       return () => clearTimeout(timer);
@@ -640,6 +652,24 @@ export default function YouTubeMusicPlayer({
     window.removeEventListener("seekToTime", handleSeekToTime as EventListener);
   };
 }, []);
+<<<<<<< HEAD
+=======
+
+
+// 재생목록 업데이트 이벤트 리스너 - AI 검색에서 노래 추가 시 UI 실시간 반영
+useEffect(() => {
+  const handlePlaylistUpdate = (event: CustomEvent) => {
+    const { videos } = event.detail;
+    setVideos(videos);
+  };
+
+  window.addEventListener("playlistUpdated", handlePlaylistUpdate as EventListener);
+  
+  return () => {
+    window.removeEventListener("playlistUpdated", handlePlaylistUpdate as EventListener);
+  };
+}, [setVideos]);
+>>>>>>> PARKSUNGHAN
 
   useEffect(() => {
     const handleSeekToTime = (event: CustomEvent) => {
@@ -652,10 +682,7 @@ export default function YouTubeMusicPlayer({
 
     window.addEventListener("seekToTime", handleSeekToTime as EventListener);
     return () => {
-      window.removeEventListener(
-        "seekToTime",
-        handleSeekToTime as EventListener
-      );
+      window.removeEventListener("seekToTime", handleSeekToTime as EventListener);
     };
   }, []);
 
@@ -785,8 +812,7 @@ export default function YouTubeMusicPlayer({
   useEffect(() => {
     if (playerRef.current && playerReadyRef.current) {
       const savedTime = localStorage.getItem("youtube_player_time");
-      const wasPlaying =
-        localStorage.getItem("youtube_player_playing") === "true";
+      const wasPlaying = localStorage.getItem("youtube_player_playing") === "true";
       if (savedTime) {
       const s = parseFloat(savedTime);
       requestSeek(s);
