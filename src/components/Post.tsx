@@ -251,26 +251,6 @@ const Post = ({
   }, [id]);
 
   useEffect(() => {
-<<<<<<< HEAD
-  const fetchPlaylistFile = async () => {
-    if (!playlistFileUrl) return;
-    try {
-      // 1) 포트가 4000으로 남아있을 수 있어 4001로 포트 보정 (현재 코드 유지)
-      const fixed = playlistFileUrl.replace("4000", "4001");
-
-      // 2) 캐시 버스터를 달아 304/캐시 꼬임 방지
-      const url = fixed + (fixed.includes("?") ? "&" : "?") + "_t=" + Date.now();
-
-      // 3) CORS/JSON 명시
-      const playlistRes = await fetch(url, {
-        method: "GET",
-        headers: { "Accept": "application/json" },
-        // credentials: "include", // 필요하면 주석 해제(쿠키 기반이면)
-      });
-
-      if (!playlistRes.ok) {
-        throw new Error(`HTTP ${playlistRes.status} on ${url}`);
-=======
     const fetchPlaylistFile = async () => {
       if (!playlistFileUrl) return;
       try {
@@ -295,17 +275,10 @@ const Post = ({
         setFetchedPlaylist(data);
       } catch (err) {
         console.error("재생목록 JSON 불러오기 실패:", err);
->>>>>>> PARKSUNGHAN
       }
-
-      const data = await playlistRes.json();
-      setFetchedPlaylist(data);
-    } catch (err) {
-      console.error("재생목록 JSON 불러오기 실패:", err);
-    }
-  };
-  fetchPlaylistFile();
-}, [playlistFileUrl]);
+    };
+    fetchPlaylistFile();
+  }, [playlistFileUrl]);
 
   // === 이벤트 ===
   const handleLike = async () => {
