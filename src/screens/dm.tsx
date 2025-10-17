@@ -4,6 +4,12 @@ import styled from "styled-components";
 import { useTheme } from "../components/ThemeContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import {
+  addDoc, setDoc, getDoc, doc, collection, onSnapshot,
+  orderBy, query as fsQuery, serverTimestamp, updateDoc, increment, where
+} from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db } from "../firebaseConfig"; // 이미 쓰시는 경로
 
 /* ---------- Types ---------- */
 type DmUser = { id: string; name: string; avatar?: string; unread?: number };
@@ -740,6 +746,9 @@ const DmScreen: React.FC = () => {
   const threadKeyOf = (peerId?: string | null) =>
     !peerId ? "" : `${currentAccountId}:${peerId}`;
 
+  const makeThreadId = (a: string, b: string) => [a, b].sort().join("__");
+
+
   useEffect(() => {
     const auth = getAuth();
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -785,50 +794,35 @@ const DmScreen: React.FC = () => {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  /* ---------- 초기 데이터 로드 ---------- */
   useEffect(() => {
-    const u = localStorage.getItem(LS_USERS);
-    const m = localStorage.getItem(LS_MESSAGES);
+  if (!currentAccountId || currentAccountId === "guest") return;
 
-    if (u && m) {
-      const parsedU: DmUser[] = JSON.parse(u);
-      setUsers(parsedU);
-      setMessages(JSON.parse(m));
-      setInitialized(true);
-    } else {
-      const seedUsers: DmUser[] = [
-        { id: "u1", name: "최우혁", avatar: AVATAR_FALLBACK, unread: 1 },
-        { id: "u2", name: "김유저", avatar: AVATAR_FALLBACK, unread: 0 },
-        { id: "u3", name: "홍길동", avatar: AVATAR_FALLBACK, unread: 2 },
-      ];
-      const now = Date.now();
-      const seedMessages: Record<string, DmMessage[]> = {
-        [threadKeyOf("u1")]: [
-          { id: "m1", userId: "u1", text: "안녕하세요!", ts: now - 360000 },
-          {
-            id: "m2",
-            userId: currentAccountId,
-            text: "반가워요 🙂",
-            ts: now - 300000,
-          },
-        ],
-        [threadKeyOf("u2")]: [
-          { id: "m3", userId: "u2", text: "테스트 DM", ts: now - 900000 },
-        ],
-        [threadKeyOf("u3")]: [
-          { id: "m4", userId: "u3", text: "사진 보냈어요!", ts: now - 120000 },
-          { id: "m5", userId: "u3", text: "확인 부탁!", ts: now - 60000 },
-        ],
-      };
-      localStorage.setItem(LS_USERS, JSON.stringify(seedUsers));
-      localStorage.setItem(LS_MESSAGES, JSON.stringify(seedMessages));
-      setUsers(seedUsers);
-      setMessages(seedMessages);
-      setInitialized(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentAccountId]);
+  const q = fsQuery(
+    collection(db, "dm_threads"),
+    where("members", "array-contains", currentAccountId),
+    orderBy("updatedAt", "desc")
+  );
+
+  const unsub = onSnapshot(q, (snap) => {
+    const rows: { id: string; name: string; avatar?: string; unread?: number }[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as any;
+      const peerId = (data.members as string[]).find((u) => u !== currentAccountId) || "";
+      const meta = data.peerMeta?.[peerId] || {};
+      rows.push({
+        id: peerId,
+        name: meta.name || "사용자",
+        avatar: meta.avatar || "/default-avatar.png",
+        unread: data.unread?.[currentAccountId] || 0,
+      });
+    });
+    setUsers(rows);
+    // URL로 들어왔는데 activeId가 비어있으면 첫 스레드로
+    setActiveId((prev) => prev ?? rows[0]?.id ?? null);
+  });
+
+  return () => unsub();
+}, [currentAccountId]);
 
   /* ---------- URL 쿼리 → 스레드 활성화 / 사용자 생성 ---------- */
   useEffect(() => {
@@ -927,6 +921,43 @@ const DmScreen: React.FC = () => {
     () => getThread(activeId || undefined),
     [messages, activeId, currentAccountId]
   );
+  useEffect(() => {
+  if (!currentAccountId || !activeId) return;
+
+  const threadId = makeThreadId(currentAccountId, activeId);
+  const key = threadKeyOf(activeId)!;
+
+  const q = fsQuery(
+    collection(db, "dm_threads", threadId, "messages"),
+    orderBy("ts", "asc")
+  );
+
+  const unsub = onSnapshot(q, (snap) => {
+    const list: DmMessage[] = [];
+    snap.forEach((d) => {
+      const m = d.data() as any;
+      list.push({
+        id: d.id,
+        userId: m.userId,
+        text: m.text,
+        imageUrl: m.imageUrl,
+        ts: m.ts?.toMillis?.() || Date.now(),
+      });
+    });
+    setMessages((prev) => ({ ...prev, [key]: list }));
+  });
+
+  // 스레드를 열면 내 unread를 0으로 초기화 (Firestore)
+  (async () => {
+    try {
+      await updateDoc(doc(db, "dm_threads", threadId), {
+        [`unread.${currentAccountId}`]: 0,
+      });
+    } catch {}
+  })();
+
+  return () => unsub();
+}, [currentAccountId, activeId]);
 
   /* 좌측: 현재 계정의 스레드가 있는 유저만 노출 (단, 현재 선택 유저는 항상 표시) */
   const visibleUsers = useMemo(() => {
@@ -938,94 +969,90 @@ const DmScreen: React.FC = () => {
   }, [users, messages, currentAccountId, activeId, query]);
 
   /* ---------- Send text ---------- */
-  const send = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!activeId || !draft.trim()) return;
+  // ✅ Firestore로 텍스트 메시지 전송
+const send = async (e?: React.FormEvent) => {
+  if (e) e.preventDefault();
+  if (!activeId || !draft.trim() || !currentAccountId || currentAccountId === "guest") return;
 
-    const key = threadKeyOf(activeId)!;
-    const msg: DmMessage = {
-      id: `${Date.now()}`,
-      userId: currentAccountId,
-      text: draft.trim(),
-      ts: Date.now(),
-    };
-    const next = { ...messages, [key]: [...(messages[key] || []), msg] };
-    setMessages(next);
-    localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
+  const threadId = makeThreadId(currentAccountId, activeId);
+  const tRef = doc(db, "dm_threads", threadId);
+  const mCol = collection(db, "dm_threads", threadId, "messages");
 
-    // --- 🔽 [수정] 알림 생성 로직 추가 🔽 ---
-    const recipientId = activeId; // 메시지를 받는 사람의 ID
-    const sender = users.find((u) => u.id === currentAccountId); // 보낸 사람 정보 찾기 (실제 앱에서는 로그인 정보에서 가져와야 함)
-    const newNotif: NotifItem = {
-      id: `dm_${Date.now()}`,
-      kind: "dm",
-      title: `${sender?.name || "누군가"}로부터 새 메시지`,
-      desc: msg.text,
-      ts: Date.now(),
-      read: false,
-      avatar: sender?.avatar,
-      link: `/dm?uid=${currentAccountId}`, // 알림 클릭 시 보낸 사람과의 채팅방으로 이동
-    };
-    const recipientInbox = loadInbox(recipientId);
-    saveInbox(recipientId, [newNotif, ...recipientInbox]);
-    // --- 🔼 [수정] 알림 생성 로직 추가 🔼 ---
+  // 1) 스레드 문서 보장(없으면 생성, 있으면 병합)
+  await setDoc(
+    tRef,
+    {
+      members: [currentAccountId, activeId].sort(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 
-    setDraft("");
-    inputRef.current?.focus();
+  // 2) 메시지 문서 추가
+  const msg = {
+    userId: currentAccountId,
+    text: draft.trim(),
+    ts: serverTimestamp(),
   };
+  await addDoc(mCol, msg);
+
+  // 3) lastMessage / unread 갱신(상대방 unread +1)
+  await updateDoc(tRef, {
+    lastMessage: msg,
+    updatedAt: serverTimestamp(),
+    [`unread.${activeId}`]: increment(1),
+  });
+
+  // 4) 입력창 초기화
+  setDraft("");
+  inputRef.current?.focus();
+};
+
 
   /* ---------- Send image ---------- */
   const openGallery = () => fileRef.current?.click();
 
-  const onPickFiles: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
-    if (!activeId || !e.target.files || e.target.files.length === 0) return;
-    const files = Array.from(e.target.files).slice(0, 10);
-    const reads = await Promise.all(
-      files.map(
-        (f) =>
-          new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error("read error"));
-            reader.readAsDataURL(f);
-          })
-      )
-    );
+  // ✅ Storage에 업로드 → 이미지 URL로 Firestore 메시지 생성
+const onPickFiles: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+  if (!activeId || !e.target.files || e.target.files.length === 0 || !currentAccountId) return;
 
-    const key = threadKeyOf(activeId)!;
-    let nextList = [...(messages[key] || [])];
-    reads.forEach((dataUrl) => {
-      nextList.push({
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        userId: currentAccountId,
-        imageUrl: dataUrl,
-        ts: Date.now(),
-      });
-    });
+  const storage = getStorage();
+  const threadId = makeThreadId(currentAccountId, activeId);
+  const tRef = doc(db, "dm_threads", threadId);
+  const mCol = collection(db, "dm_threads", threadId, "messages");
 
-    const next = { ...messages, [key]: nextList };
-    setMessages(next);
-    localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
+  // 1개만 예시(여러 장도 가능하면 for..of 문으로 반복)
+  const file = e.target.files[0];
 
-    // --- 🔽 [수정] 이미지 전송 시 알림 생성 🔽 ---
-    const recipientId = activeId;
-    const sender = users.find((u) => u.id === currentAccountId);
-    const newNotif: NotifItem = {
-      id: `dm_img_${Date.now()}`,
-      kind: "dm",
-      title: `${sender?.name || "누군가"}로부터 새 메시지`,
-      desc: "[이미지]",
-      ts: Date.now(),
-      read: false,
-      avatar: sender?.avatar,
-      link: `/dm?uid=${currentAccountId}`,
-    };
-    const recipientInbox = loadInbox(recipientId);
-    saveInbox(recipientId, [newNotif, ...recipientInbox]);
-    // --- 🔼 [수정] 이미지 전송 시 알림 생성 🔼 ---
+  // 메시지 문서 id를 먼저 확보(파일명에 사용)
+  const tempMsgRef = doc(mCol);
+  const imgRef = ref(storage, `dm/${threadId}/${tempMsgRef.id}_${file.name}`);
 
-    e.target.value = "";
+  // 1) Storage 업로드
+  await uploadBytes(imgRef, file);
+
+  // 2) 다운로드 URL 획득
+  const url = await getDownloadURL(imgRef);
+
+  // 3) 메시지 문서 생성
+  const msg = {
+    userId: currentAccountId,
+    imageUrl: url,
+    ts: serverTimestamp(),
   };
+  await setDoc(tempMsgRef, msg);
+
+  // 4) 스레드 메타 갱신
+  await updateDoc(tRef, {
+    lastMessage: msg,
+    updatedAt: serverTimestamp(),
+    [`unread.${activeId}`]: increment(1),
+  });
+
+  // 5) 파일 입력 초기화
+  e.target.value = "";
+};
+
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (editingId) return;
