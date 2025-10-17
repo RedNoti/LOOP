@@ -901,7 +901,6 @@ useEffect(() => {
             }
           }}
           onStateChange={onStateChange}
-          onEnd={handleTrackEnd}
         />
       )}
 

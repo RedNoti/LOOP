@@ -56,6 +56,7 @@ export function safeLoadVideoById(videoId?: string | null) {
     // 별도 보류가 없다면 재생 보장
     playerRef.current?.playVideo?.();
   }
+  
 } catch (e) {
   console.error("safeLoadVideoById 실패:", e);
   playerReadyRef.current = false;
@@ -1151,6 +1152,35 @@ export const useMusicPlayer = () => {
       }
 
       if (event.data === PlayerState.ENDED) {
+        try {
+        // music.tsx에서 저장하는 키가 "musicPlayerRepeatMode" 라는 전제
+        const repeat = localStorage.getItem("musicPlayerRepeatMode"); // RepeatOne이 "2"로 저장되어 있음(문자열)
+        if (repeat === "2") {
+          const vids = videosRef.current;
+          const idx  = currentIndexRef.current;
+
+          // 현재 곡의 videoId를 모든 형태(id 객체/문자열/playlistItem)에서 안전하게 추출
+          const curId =
+            (typeof vids?.[idx]?.id === "object" && "videoId" in (vids?.[idx]?.id ?? {}))
+              ? (vids![idx]!.id as any).videoId
+              : (typeof vids?.[idx]?.id === "string"
+                  ? (vids![idx]!.id as string)
+                  : vids?.[idx]?.snippet?.resourceId?.videoId) ?? null;
+
+          if (curId) {
+            // 같은 곡을 처음부터 다시 재생
+            setCurrentVideoId(curId);        // 상태도 현재 곡으로 유지
+            safeLoadVideoById(curId);        // 로드 & 재생(내부에서 playerRef 사용)
+            setIsPlaying(true);
+          } else if (playerRef.current) {
+            // videoId를 못 찾으면 되감기+재생으로 폴백
+            playerRef.current.seekTo(0, true);
+            playerRef.current.playVideo?.();
+            setIsPlaying(true);
+          }
+          return; // ✅ 아래 "다음 곡으로 이동" 로직을 막는다
+        }
+      } catch {}
         const vids = videosRef.current;
         const idx = currentIndexRef.current;
 
@@ -1179,6 +1209,7 @@ export const useMusicPlayer = () => {
       console.error("상태 변경 처리 실패:", error);
     }
   };
+  
 
   const onEnd = () => {
     try {
