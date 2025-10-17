@@ -98,7 +98,7 @@ export default function AISearchBar({ onAISearch, loading, isDarkMode = false }:
 
     return (
         <SearchContainer $isDark={isDarkMode}>
-            <Title $isDark={isDarkMode}>🤖 LOOP AI로 노래 찾기</Title>
+            <Title $isDark={isDarkMode}>LOOP AI로 노래 찾기</Title>
             <form onSubmit={handleSubmit}>
                 <SearchInput
                     type="text"
@@ -113,7 +113,7 @@ export default function AISearchBar({ onAISearch, loading, isDarkMode = false }:
                     $isDark={isDarkMode}
                     $loading={loading}
                 >
-                    {loading ? "🤖 AI 검색중..." : "🚀 AI 검색"}
+                    {loading ? "AI 검색중..." : "AI 검색"}
                 </SearchButton>
             </form>
         </SearchContainer>
