@@ -627,6 +627,38 @@ const sameDay = (a: number, b: number) => {
   );
 };
 
+// --- 🔽 [수정] 알림 관련 유틸리티 함수 추가 🔽 ---
+
+// ✅ inbox 저장 키(현재 로그인 uid 기준)
+const inboxKey = (uid?: string | null) =>
+  uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
+
+// ✅ inbox 로드/저장 유틸
+type NotifItem = {
+  id: string;
+  kind: "mention" | "like" | "system" | "dm";
+  title: string;
+  desc?: string;
+  ts: number;
+  read?: boolean;
+  avatar?: string;
+  link?: string;
+};
+
+const loadInbox = (uid?: string | null): NotifItem[] => {
+  try {
+    const raw = localStorage.getItem(inboxKey(uid));
+    return raw ? (JSON.parse(raw) as NotifItem[]) : [];
+  } catch {
+    return [];
+  }
+};
+const saveInbox = (uid: string | null | undefined, list: NotifItem[]) => {
+  localStorage.setItem(inboxKey(uid), JSON.stringify(list));
+};
+
+// --- 🔼 [수정] 알림 관련 유틸리티 함수 추가 🔼 ---
+
 /* 자주 쓰는 이모지 */
 const EMOJIS = [
   "😀",
@@ -920,6 +952,24 @@ const DmScreen: React.FC = () => {
     const next = { ...messages, [key]: [...(messages[key] || []), msg] };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
+
+    // --- 🔽 [수정] 알림 생성 로직 추가 🔽 ---
+    const recipientId = activeId; // 메시지를 받는 사람의 ID
+    const sender = users.find((u) => u.id === currentAccountId); // 보낸 사람 정보 찾기 (실제 앱에서는 로그인 정보에서 가져와야 함)
+    const newNotif: NotifItem = {
+      id: `dm_${Date.now()}`,
+      kind: "dm",
+      title: `${sender?.name || "누군가"}로부터 새 메시지`,
+      desc: msg.text,
+      ts: Date.now(),
+      read: false,
+      avatar: sender?.avatar,
+      link: `/dm?uid=${currentAccountId}`, // 알림 클릭 시 보낸 사람과의 채팅방으로 이동
+    };
+    const recipientInbox = loadInbox(recipientId);
+    saveInbox(recipientId, [newNotif, ...recipientInbox]);
+    // --- 🔼 [수정] 알림 생성 로직 추가 🔼 ---
+
     setDraft("");
     inputRef.current?.focus();
   };
@@ -956,6 +1006,24 @@ const DmScreen: React.FC = () => {
     const next = { ...messages, [key]: nextList };
     setMessages(next);
     localStorage.setItem(LS_MESSAGES, JSON.stringify(next));
+
+    // --- 🔽 [수정] 이미지 전송 시 알림 생성 🔽 ---
+    const recipientId = activeId;
+    const sender = users.find((u) => u.id === currentAccountId);
+    const newNotif: NotifItem = {
+      id: `dm_img_${Date.now()}`,
+      kind: "dm",
+      title: `${sender?.name || "누군가"}로부터 새 메시지`,
+      desc: "[이미지]",
+      ts: Date.now(),
+      read: false,
+      avatar: sender?.avatar,
+      link: `/dm?uid=${currentAccountId}`,
+    };
+    const recipientInbox = loadInbox(recipientId);
+    saveInbox(recipientId, [newNotif, ...recipientInbox]);
+    // --- 🔼 [수정] 이미지 전송 시 알림 생성 🔼 ---
+
     e.target.value = "";
   };
 

@@ -11,7 +11,7 @@ import React, {
   createContext,
   useContext,
 } from "react";
-import { onAuthStateChanged } from "firebase/auth"; // ✅ 추가
+import { onAuthStateChanged } from "firebase/auth";
 
 /* ---------- Image Modal Context ---------- */
 interface ImageModalContextType {
@@ -512,25 +512,42 @@ const Layout = () => {
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/music"}>
                     <svg
-                      xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ overflow: "visible" }}
+                      xmlns="http://www.w3.org/2000/svg"
                       aria-label="음악"
+                      style={{ overflow: "visible" }}
                     >
-                      <path d="M12 4v11" />
-                      <path d="M12 4l7 2v4l-7-2" />
-                      <circle cx="8.5" cy="17.5" r="2.4" />
+                      <path
+                        d="M9 19C9 20.6569 7.65685 22 6 22C4.34315 22 3 20.6569 3 19C3 17.3431 4.34315 16 6 16C7.65685 16 9 17.3431 9 19Z"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M21 17C21 18.6569 19.6569 20 18 20C16.3431 20 15 18.6569 15 17C15 15.3431 16.3431 14 18 14C19.6569 14 21 15.3431 21 17Z"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M9 19V8"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M20.25 11.5C20.25 11.9142 20.5858 12.25 21 12.25C21.4142 12.25 21.75 11.9142 21.75 11.5H20.25ZM21.75 11.5V6H20.25V11.5H21.75Z"
+                        fill="currentColor"
+                      />
+                      <path
+                        d="M15.7351 3.75466L11.7351 5.08799C10.4151 5.52801 9.75503 5.74801 9.37752 6.27179C9 6.79556 9 7.49128 9 8.88273V11.9997L21 7.99969V7.54939C21 5.01693 21 3.7507 20.1694 3.15206C19.3388 2.55341 18.1376 2.95383 15.7351 3.75466Z"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </MenuItem>
                 </TooltipContainer>
               </Link>
-
-              {/* ✅ YouTube 검색 라우트 추가 2025.09.30 추가 */}
+                          {/* ✅ YouTube 검색 라우트 추가 2025.09.30 추가 */}
               <Link to = "/KategorieScreen" style={{ textDecoration: "none" }}> 
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/KategorieScreen"}>

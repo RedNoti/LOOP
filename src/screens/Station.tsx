@@ -2,13 +2,15 @@
 import React, { useCallback, useMemo, useState } from "react";
 import styled from "styled-components";
 import { buildStation } from "../components/StationEngine";
-import { useMusicPlayer, playPlaylistFromFile } from "../components/MusicFunction";
-import { auth, db } from "../firebaseConfig";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  useMusicPlayer,
+  playPlaylistFromFile,
+} from "../components/MusicFunction";
+import { useTheme } from "../components/ThemeContext";
 
+/* ================= Types ================= */
 type StationSeed =
   | { type: "video"; videoId: string }
-  | { type: "artist"; artist: string }
   | { type: "query"; query: string };
 
 type StationVideo = {
@@ -40,36 +42,30 @@ type PlaylistJsonTrack = {
   thumbnail: string;
 };
 
-// =============================
-// B) 재생목록 JSON에 제작자/메타 필드 추가
-// =============================
 type PlaylistJson = {
   id: string;
   title: string;
   thumbnail: string;
   tracks: PlaylistJsonTrack[];
-  // ---- 추가 메타 ----
-  createdAt: number;
-  createdByUid: string | null;
-  createdByName: string | null;
-  source: { kind: "station"; seed: StationSeed };
 };
 
-// =============================
-// Station 결과 → 재생목록 JSON
-// (seed를 받아 메타에 기록)
-// =============================
-function toPlaylistJson(result: StationResult, seed?: StationSeed): PlaylistJson {
-  const { playlist, videos } = result;
+/* ================= Utils ================= */
+const pick = (isDark: boolean, light: string, dark: string) =>
+  isDark ? dark : light;
 
+function toPlaylistJson(result: StationResult): PlaylistJson {
+  const { playlist, videos } = result;
   const getThumb = (v?: StationVideo) =>
-    v?.snippet?.thumbnails?.medium?.url ||
+    (v as any)?.snippet?.thumbnails?.maxres?.url ||
+    (v as any)?.snippet?.thumbnails?.high?.url ||
+    (v as any)?.snippet?.thumbnails?.medium?.url ||
     (v as any)?.snippet?.thumbnails?.default?.url ||
     "";
 
   const playlistThumb =
-    (playlist?.snippet as any)?.thumbnails?.medium?.url ||
+    (playlist?.snippet as any)?.thumbnails?.maxres?.url ||
     (playlist?.snippet as any)?.thumbnails?.high?.url ||
+    (playlist?.snippet as any)?.thumbnails?.medium?.url ||
     getThumb(videos?.[0]) ||
     "";
 
@@ -90,210 +86,497 @@ function toPlaylistJson(result: StationResult, seed?: StationSeed): PlaylistJson
     title: playlist?.snippet?.title || "Music Station",
     thumbnail: playlistThumb,
     tracks,
-    // ---- 메타 기록 ----
-    createdAt: Date.now(),
-    createdByUid: auth.currentUser?.uid ?? null,
-    createdByName: auth.currentUser?.displayName ?? null,
-    source: { kind: "station", seed: seed! },
   };
 }
 
-// =============================
-// C) 업로드/DB 저장 유틸들 (컴포넌트 밖)
-// =============================
-
-// 서버에 .json 업로드 (InputPost.tsx와 동일한 프로토콜: field name = "file")
-async function uploadStationPlaylistJson(json: PlaylistJson) {
-  const blob = new Blob([JSON.stringify(json)], { type: "application/json" });
-  const form = new FormData();
-  form.append("file", blob, "playlist.json");
-  form.append("userId", auth.currentUser?.uid || "");
-  form.append("playlistTitle", json.title);
-
-  const res = await fetch("https://loopmusic.o-r.kr:4001/upload/playlist", {
-    method: "POST",
-    body: form,
-    mode: "cors",
-    referrerPolicy: "no-referrer",
-  });
-
-  // 서버가 에러면 여기서 throw
-  const text = await res.text();
-  let data: any = null;
-  try { data = JSON.parse(text); } catch {/* ignore */}
-  if (!res.ok || !data?.success || !data?.data?.filename) {
-    throw new Error(`Upload failed: HTTP ${res.status} · ${text?.slice(0,200)}`);
-  }
-
-  const playlistFileUrl =
-    `https://loopmusic.o-r.kr:4001/uploads/shared_playlists/${data.data.filename}`;
-  return playlistFileUrl;
-}
-
-// Firestore(shared_playlists/{id})에 메타 저장
-async function saveStationPlaylistMeta(json: PlaylistJson, playlistFileUrl: string) {
-  const ref = doc(db, "shared_playlists", json.id);
-  await setDoc(ref, {
-    id: json.id,
-    title: json.title,
-    thumbnail: json.thumbnail,
-    tracksCount: json.tracks.length,
-    createdAt: json.createdAt,
-    createdByUid: json.createdByUid,
-    createdByName: json.createdByName,
-    playlistFileUrl,
-    source: json.source,
-  }, { merge: true });
-}
-
-// 세션의 "내 재생목록" 목록에 추가 (music 화면에서 클릭 가능하게)
-function registerPlaylistInSession(json: PlaylistJson) {
-  const key = "playlists";
-  const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
-  const exists = existing.some((p: any) => p.id === json.id);
-  if (!exists) {
-    existing.push({
-      id: json.id,
-      snippet: {
-        title: json.title,
-        thumbnails: {
-          high: { url: json.thumbnail },
-          medium: { url: json.thumbnail },
-          default: { url: json.thumbnail },
-        },
-      },
-    });
-    sessionStorage.setItem(key, JSON.stringify(existing));
-  }
-}
-
-// =============================
-// UI
-// =============================
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px;
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-`;
-const Section = styled.div`
+/* ================= Styled ================= */
+const Page = styled.div<{ $isDark: boolean }>`
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-rows: auto auto 1fr;
+  gap: 18px;
+  padding: 0 0 28px;
+  min-height: 100%;
+  background: ${({ $isDark }) =>
+    $isDark
+      ? "linear-gradient(180deg,#0b0c0e 0%, #0d0f16 35%, #0d0d0d 100%)"
+      : "linear-gradient(180deg,#f7f7fb 0%, #ffffff 40%, #fafafa 100%)"};
+  color: ${({ $isDark }) => pick($isDark, "#0b0c0e", "#f0f0f0")};
+  color-scheme: ${({ $isDark }) => ($isDark ? "dark" : "light")};
+`;
+
+const Hero = styled.div<{ $isDark: boolean }>`
+  position: relative;
+  padding: clamp(18px, 3.5vw, 28px) clamp(16px, 3.6vw, 28px) 14px;
+  color: ${({ $isDark }) => ($isDark ? "#e5e7eb" : "#0f172a")};
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 60vw;
+    aspect-ratio: 2 / 1;
+    border-radius: 999px;
+    filter: blur(60px);
+    opacity: ${({ $isDark }) => ($isDark ? 0.16 : 0.22)};
+    background: ${({ $isDark }) =>
+      $isDark
+        ? "conic-gradient(from 220deg at 50% 50%, #6e6eff, #10b981, #06b6d4, #6e6eff)"
+        : "conic-gradient(from 220deg at 50% 50%, #6366f1, #22c55e, #06b6d4, #6366f1)"};
+    pointer-events: none;
+  }
+`;
+
+const H1 = styled.h2`
+  margin: 0;
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0.2px;
+`;
+
+const HSub = styled.p<{ $isDark: boolean }>`
+  margin: 0;
+  font-size: 13px;
+  color: ${({ $isDark }) => ($isDark ? "#98a2b3" : "#475569")};
+`;
+
+const Main = styled.div`
+  display: grid;
+  gap: 14px;
+  padding: 0 clamp(16px, 3.6vw, 28px);
+`;
+
+const SearchRow = styled.div<{ $isDark: boolean }>`
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  background: ${({ $isDark }) =>
+    pick($isDark, "#ffffff", "rgba(255,255,255,.06)")};
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#e7e7ec", "#2a2f39")};
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: ${({ $isDark }) =>
+    $isDark ? "0 10px 28px rgba(0,0,0,.35)" : "0 12px 26px rgba(15,23,42,.1)"};
+`;
+
+/* === THEMED TOGGLE (현재곡 / 검색어) === */
+const SegmentedRoot = styled.div<{ $isDark: boolean }>`
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 180px;
+  height: 34px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#e5e7eb", "#2a2f39")};
+  background: ${({ $isDark }) =>
+    $isDark
+      ? "linear-gradient(180deg,#141821 0%,#10141c 100%)"
+      : "linear-gradient(180deg,#f2f5fa 0%,#e9edf5 100%)"};
+  box-shadow: ${({ $isDark }) =>
+    $isDark
+      ? "inset 0 1px 0 rgba(255,255,255,.05)"
+      : "inset 0 1px 0 rgba(255,255,255,.6)"};
+`;
+
+const SegIndicator = styled.div<{ $isDark: boolean; $pos: 0 | 1 }>`
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: ${({ $isDark }) =>
+    $isDark
+      ? "linear-gradient(135deg,#0ea5e9,#6e6eff)"
+      : "linear-gradient(135deg,#38bdf8,#6366f1)"};
+  box-shadow: ${({ $isDark }) =>
+    $isDark
+      ? "0 6px 18px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08)"
+      : "0 6px 18px rgba(15,23,42,.18), inset 0 0 0 1px rgba(255,255,255,.35)"};
+  transform: translateX(${({ $pos }) => ($pos === 0 ? "0%" : "100%")});
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+`;
+
+const SegBtn = styled.button<{ $isDark: boolean; $active?: boolean }>`
+  position: relative;
+  z-index: 1;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: ${({ $isDark, $active }) =>
+    $active
+      ? pick($isDark, "#ffffff", "#0f172a")
+      : pick($isDark, "#0f172a", "#cbd5e1")};
+  transition: color 120ms ease, transform 80ms ease;
+  &:active {
+    transform: translateY(1px);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px
+      ${({ $isDark }) =>
+        pick($isDark, "rgba(99,102,241,.22)", "rgba(99,102,241,.35)")};
+  }
+`;
+
+const InputWrap = styled.div<{ $isDark: boolean; $disabled?: boolean }>`
+  display: grid;
+  grid-template-columns: 24px 1fr;
   gap: 8px;
   align-items: center;
-  @media (max-width: 720px) {
-    grid-template-columns: 1fr auto;
+  padding: 0 6px;
+  border-left: 1px dashed
+    ${({ $isDark }) => pick($isDark, "#e5e7eb", "#30343d")};
+  opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+`;
+
+const SearchIcon = ({ dark }: { dark: boolean }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+    <circle
+      cx="11"
+      cy="11"
+      r="7"
+      stroke={dark ? "#cbd5e1" : "#475569"}
+      strokeWidth="2"
+      fill="none"
+    />
+    <path
+      d="M20 20l-3.2-3.2"
+      stroke={dark ? "#cbd5e1" : "#475569"}
+      strokeWidth="2"
+      fill="none"
+    />
+  </svg>
+);
+
+const TextInput = styled.input<{ $isDark: boolean }>`
+  width: 100%;
+  padding: 10px 6px;
+  border: none;
+  background: transparent;
+  color: ${({ $isDark }) => pick($isDark, "#0b0c0e", "#f8fafc")};
+  font-size: 14px;
+  outline: none;
+
+  &::placeholder {
+    color: ${({ $isDark }) => pick($isDark, "#9aa0a6", "#9aa3ae")};
   }
 `;
-const Input = styled.input`
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #2a2a2e;
-  background: #101013;
+
+const Primary = styled.button<{ $isDark: boolean }>`
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#6366f1", "#6e6eff")};
+  background: ${({ $isDark }) => pick($isDark, "#6366f1", "#6e6eff")};
   color: #fff;
-  &:focus { border-color: #6e6eff; }
-`;
-const Button = styled.button<{ $primary?: boolean }>`
-  padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid ${({ $primary }) => ($primary ? "#6e6eff" : "#2a2a2e")};
-  background: ${({ $primary }) => ($primary ? "#6e6eff" : "#17171a")};
-  color: #fff; font-weight: 600; cursor: pointer;
-  &:disabled { opacity: .6; cursor: not-allowed; }
+  font-weight: 800;
+  padding: 10px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+  &:active {
+    transform: translateY(1px);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
-const PreviewGrid = styled.div`
+
+const Ghost = styled.button<{ $isDark: boolean }>`
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#e4e4e7", "#323843")};
+  background: ${({ $isDark }) => pick($isDark, "#f8fafc", "#20242d")};
+  color: ${({ $isDark }) => pick($isDark, "#0b0c0e", "#e5e7eb")};
+  border-radius: 10px;
+  font-weight: 700;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    transform 0.08s ease;
+  &:hover {
+    background: ${({ $isDark }) => pick($isDark, "#eef2f7", "#242a34")};
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+/* ▶ 현재곡 모드 전용: 재생 버튼 */
+const PlayNow = styled.button<{ $isDark: boolean }>`
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#e5e7eb", "#3a4150")};
+  background: ${({ $isDark }) => pick($isDark, "#ffffff", "#262b35")};
+  color: ${({ $isDark }) => pick($isDark, "#111827", "#e5e7eb")};
+  border-radius: 10px;
+  font-weight: 800;
+  padding: 10px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease,
+    border-color 0.15s ease;
+  &:hover {
+    background: ${({ $isDark }) => pick($isDark, "#f8fafc", "#2a3140")};
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const Presets = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+const Chip = styled.button<{ $isDark: boolean }>`
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#e5e7eb", "#2a2f39")};
+  background: ${({ $isDark }) => pick($isDark, "#ffffff", "#151922")};
+  color: ${({ $isDark }) => pick($isDark, "#0f172a", "#cbd5e1")};
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease,
+    border-color 0.15s ease;
+  &:hover {
+    background: ${({ $isDark }) => pick($isDark, "#f6f7fb", "#1a1f2b")};
+  }
+  &:active {
+    transform: translateY(1px);
+  }
+`;
+
+const SectionTitle = styled.h3<{ $isDark: boolean }>`
+  margin: 6px 0 2px;
+  font-size: 15px;
+  color: ${({ $isDark }) => pick($isDark, "#0f172a", "#e5e7eb")};
+  opacity: 0.9;
+`;
+
+const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 16px;
 `;
-const Card = styled.div`
-  border: 1px solid #2a2a2e; border-radius: 12px; overflow: hidden; background: #101013; color: #fff;
+
+const Card = styled.div<{ $isDark: boolean }>`
+  position: relative;
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#ececf1", "#2a2f39")};
+  background: ${({ $isDark }) => pick($isDark, "#ffffff", "#181c25")};
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform 0.16s ease, box-shadow 0.16s ease,
+    border-color 0.16s ease;
+  box-shadow: ${({ $isDark }) =>
+    $isDark ? "0 12px 28px rgba(0,0,0,.35)" : "0 12px 26px rgba(15,23,42,.08)"};
+  &:hover {
+    transform: translateY(-2px);
+    border-color: ${({ $isDark }) => pick($isDark, "#dfe3ea", "#3a4150")};
+  }
 `;
-const Thumb = styled.img`
-  width: 100%; height: 124px; object-fit: cover; display: block; background: #070708;
+
+const Cover = styled.div<{ src: string; $isDark: boolean }>`
+  position: relative;
+  height: 140px;
+  background: url(${(p) => p.src}) center/cover no-repeat,
+    ${({ $isDark }) => pick($isDark, "#f1f5f9", "#0a0a0a")};
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 40%,
+      rgba(0, 0, 0, 0.35) 100%
+    );
+    opacity: 0.85;
+  }
 `;
-const Meta = styled.div` padding: 10px 12px; display: grid; gap: 6px; `;
-const Title = styled.div` font-weight: 700; font-size: 14px; `;
-const Sub = styled.div` font-size: 12px; opacity: .8; `;
-const PlayButton = styled.button`
-  border: 1px solid #ffffff33; background: #ffffff14; color: #fff;
-  border-radius: 8px; padding: 8px 10px; font-weight: 600; cursor: pointer;
+
+const FloatingPlay = styled.button<{ $isDark: boolean }>`
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  border: none;
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: ${({ $isDark }) =>
+    pick($isDark, "rgba(255,255,255,.92)", "rgba(20,22,30,.92)")};
+  color: ${({ $isDark }) => pick($isDark, "#0b0c0e", "#e5e7eb")};
+  box-shadow: ${({ $isDark }) =>
+    $isDark ? "0 8px 18px rgba(0,0,0,.45)" : "0 8px 18px rgba(15,23,42,.22)"};
+  transition: transform 0.12s ease, opacity 0.15s ease;
+  &:hover {
+    transform: scale(1.05);
+  }
+  &:active {
+    transform: scale(0.98);
+  }
 `;
+
+const Meta = styled.div<{ $isDark: boolean }>`
+  display: grid;
+  gap: 6px;
+  padding: 12px 12px 14px;
+  color: ${({ $isDark }) => pick($isDark, "#0f172a", "#e5e7eb")};
+`;
+
+const Title = styled.div`
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const Sub = styled.div<{ $isDark: boolean }>`
+  font-size: 12px;
+  color: ${({ $isDark }) => pick($isDark, "#6b7280", "#a8b1c7")};
+`;
+
+/* Empty / Skeleton */
+const Empty = styled.div<{ $isDark: boolean }>`
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  border: 1px dashed ${({ $isDark }) => pick($isDark, "#d7dbe3", "#344054")};
+  border-radius: 14px;
+  color: ${({ $isDark }) => pick($isDark, "#334155", "#cbd5e1")};
+  background: ${({ $isDark }) => pick($isDark, "#fbfbfe", "#11141a")};
+`;
+
+const Skeleton = styled.div<{ $isDark: boolean }>`
+  border: 1px solid ${({ $isDark }) => pick($isDark, "#ececf1", "#2a2f39")};
+  background: ${({ $isDark }) => pick($isDark, "#ffffff", "#181c25")};
+  border-radius: 14px;
+  overflow: hidden;
+  .cover {
+    height: 140px;
+    background: linear-gradient(
+      90deg,
+      ${({ $isDark }) => pick($isDark, "#f1f5f9", "#212635")} 25%,
+      ${({ $isDark }) => pick($isDark, "#e5e7eb", "#2a2f39")} 37%,
+      ${({ $isDark }) => pick($isDark, "#f1f5f9", "#212635")} 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.1s infinite;
+  }
+  .lines {
+    padding: 12px;
+  }
+  .line {
+    height: 10px;
+    margin: 8px 0;
+    border-radius: 6px;
+    background: ${({ $isDark }) => pick($isDark, "#eef2f7", "#262b37")};
+  }
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+`;
+
+/* ================= Component ================= */
+type Mode = "current" | "query";
 
 export default function Station() {
   const { currentVideoId, currentVideoTitle } = useMusicPlayer() as any;
+  const { isDarkMode } = useTheme();
 
-  const [artist, setArtist] = useState("");
-  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<Mode>("query");
+  const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [previews, setPreviews] = useState<PlaylistJson[]>([]);
 
   const canUseCurrent = !!currentVideoId;
   const seedHint = useMemo(
-    () => (currentVideoTitle ? `현재 곡: ${currentVideoTitle}` : "현재 재생 중인 곡이 있으면 바로 스테이션을 시작할 수 있어요."),
+    () =>
+      currentVideoTitle
+        ? `현재 곡: ${currentVideoTitle}`
+        : "현재 재생 중인 곡이 있으면 바로 스테이션을 시작할 수 있어요.",
     [currentVideoTitle]
   );
 
-  // buildStation → JSON 변환 (seed 전달: 메타 기록용)
   const build = useCallback(async (seed: StationSeed) => {
     const result = (await buildStation(seed, {
       targetCount: 35,
       dedupe: true,
       safeSearch: "moderate",
     })) as StationResult;
-    return toPlaylistJson(result, seed);
+    return toPlaylistJson(result);
   }, []);
 
-  // =============================
-  // 즉시 재생 + 백그라운드 업로드/저장
-  // =============================
-  const persistAndPlay = useCallback((json: PlaylistJson) => {
-    // 1) 세션 등록 + 즉시 재생 (네트워크 실패와 무관하게 동작)
-    registerPlaylistInSession(json);
-    playPlaylistFromFile(json);
-
-    // 2) 업로드/메타 저장은 백그라운드 시도 (실패해도 UX 영향 없음)
-    (async () => {
-      try {
-        const url = await uploadStationPlaylistJson(json);
-        await saveStationPlaylistMeta(json, url);
-        console.log(`✅ 스테이션 재생목록 저장 완료: ${json.title}`);
-      } catch (e) {
-        console.warn("[Station] background upload/persist failed:", e);
-        // 필요 시: 한번만 토스트/알림센터 기록 등
-      }
-    })();
-  }, []);
-
-  // 즉시 재생 경로 – 내부 재생기 함수 사용
-  const startFromSeed = useCallback(async (seed: StationSeed) => {
+  // 빠른 시작(바로 재생)
+  const handleQuickStart = useCallback(async () => {
     setLoading(true);
     try {
-      const json = await build(seed);
-      if (!json.tracks?.length) {
-        alert("가져온 트랙이 없습니다. 검색어나 아티스트를 바꿔보세요.");
+      if (mode === "current") {
+        if (!canUseCurrent) return;
+        const json = await build({
+          type: "video",
+          videoId: String(currentVideoId),
+        });
+        if (!json.tracks?.length) {
+          alert("가져온 트랙이 없습니다. 다른 키워드로 시도해보세요.");
+          return;
+        }
+        playPlaylistFromFile(json);
         return;
       }
-      // 즉시 재생 + 백그라운드 업로드
-      persistAndPlay(json);
+      if (!text.trim()) return;
+      const json = await build({ type: "query", query: text.trim() });
+      if (!json.tracks?.length) {
+        alert("가져온 트랙이 없습니다. 다른 키워드로 시도하세요.");
+        return;
+      }
+      playPlaylistFromFile(json);
     } catch (e) {
-      console.error("[Station] build error", e);
-      alert("스테이션 생성에 실패했습니다. API 키/도메인/쿼터 설정을 확인해주세요.");
+      console.error("[Station] quick start error", e);
+      alert(
+        "스테이션 생성에 실패했습니다. API 키/도메인/쿼터 설정을 확인해주세요."
+      );
     } finally {
       setLoading(false);
     }
-  }, [build, persistAndPlay]);
+  }, [mode, text, canUseCurrent, currentVideoId, build]);
 
-  // 미리보기 카드 생성
-  const buildPreview = useCallback(async (seed: StationSeed) => {
+  // 미리보기
+  const handlePreview = useCallback(async () => {
     setBuilding(true);
     try {
-      const json = await build(seed);
+      if (mode === "current") {
+        if (!canUseCurrent) return;
+        const json = await build({
+          type: "video",
+          videoId: String(currentVideoId),
+        });
+        setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
+        return;
+      }
+      if (!text.trim()) return;
+      const json = await build({ type: "query", query: text.trim() });
       setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
     } catch (e) {
       console.error("[Station] preview build error", e);
@@ -301,77 +584,207 @@ export default function Station() {
     } finally {
       setBuilding(false);
     }
-  }, [build]);
+  }, [mode, text, canUseCurrent, currentVideoId, build]);
+
+  // 프리셋 → 자동으로 query 모드
+  const applyPreset = (q: string) => {
+    setMode("query");
+    setText(q);
+    handlePreviewWith(q);
+  };
+
+  const handlePreviewWith = async (q: string) => {
+    setBuilding(true);
+    try {
+      const json = await build({ type: "query", query: q });
+      setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
+    } catch (e) {
+      console.error("[Station] preset preview error", e);
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  const placeholder =
+    mode === "query"
+      ? "검색어 예) lofi chill, pop 2024"
+      : "현재 곡에서 시작 모드";
 
   return (
-    <Container>
-      <h2 style={{ margin: 0, fontSize: 18 }}>뮤직 스테이션</h2>
-      <div style={{ fontSize: 13, opacity: 0.75, marginTop: -4 }}>{seedHint}</div>
+    <Page $isDark={isDarkMode}>
+      <Hero $isDark={isDarkMode}>
+        <H1>뮤직 스테이션</H1>
+        <HSub $isDark={isDarkMode}>
+          검색 또는 현재곡으로 스테이션을 만들어요. {seedHint}
+        </HSub>
+      </Hero>
 
-      {/* 1) 현재 곡에서 시작 */}
-      <Section>
-        <Input readOnly value={currentVideoTitle ? `현재 곡: ${currentVideoTitle}` : "현재 재생 중인 곡이 없습니다"} />
-        <Button
-          $primary
-          disabled={!canUseCurrent || loading}
-          onClick={() => startFromSeed({ type: "video", videoId: String(currentVideoId) })}
-          title={canUseCurrent ? "현재 곡에서 즉시 재생" : "재생 중인 곡 없음"}
-        >
-          빠른 시작(즉시 재생)
-        </Button>
-        <Button
-          disabled={!canUseCurrent || building}
-          onClick={() => buildPreview({ type: "video", videoId: String(currentVideoId) })}
-          title={canUseCurrent ? "현재 곡으로 미리보기 생성" : "재생 중인 곡 없음"}
-        >
-          미리보기 생성
-        </Button>
-      </Section>
-
-      {/* 2) 아티스트로 시작 */}
-      <Section>
-        <Input placeholder="아티스트명 예) NewJeans" value={artist} onChange={(e) => setArtist(e.target.value)} />
-        <Button $primary disabled={!artist || loading} onClick={() => startFromSeed({ type: "artist", artist })}>
-          빠른 시작
-        </Button>
-        <Button disabled={!artist || building} onClick={() => buildPreview({ type: "artist", artist })}>
-          미리보기
-        </Button>
-      </Section>
-
-      {/* 3) 검색어로 시작 */}
-      <Section>
-        <Input placeholder="검색어 예) lofi chill, pop 2024" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <Button $primary disabled={!query || loading} onClick={() => startFromSeed({ type: "query", query })}>
-          빠른 시작
-        </Button>
-        <Button disabled={!query || building} onClick={() => buildPreview({ type: "query", query })}>
-          미리보기
-        </Button>
-      </Section>
-
-      {previews.length > 0 && <h3 style={{ margin: "10px 0 0 0", fontSize: 16 }}>스테이션 미리보기</h3>}
-
-      <PreviewGrid>
-        {previews.map((p) => (
-          <Card key={p.id}>
-            <Thumb
-              src={p.thumbnail || "https://i.ytimg.com/img/no_thumbnail.jpg"}
-              alt=""
-              loading="lazy"
-              onError={(e) => ((e.target as HTMLImageElement).src = "https://i.ytimg.com/img/no_thumbnail.jpg")}
+      <Main>
+        <SearchRow $isDark={isDarkMode}>
+          {/* 모드 토글: 테마 연동 슬라이더 */}
+          <SegmentedRoot
+            $isDark={isDarkMode}
+            role="tablist"
+            aria-label="스테이션 시작 모드"
+          >
+            <SegIndicator
+              $isDark={isDarkMode}
+              $pos={mode === "current" ? 0 : 1}
             />
-            <Meta>
-              <Title>{p.title}</Title>
-              <Sub>트랙 {p.tracks.length}개 · 클릭 시 즉시 재생</Sub>
-              {/* 즉시 재생 + 백그라운드 업로드로 변경 */}
-              <PlayButton type="button" onClick={() => persistAndPlay(p)}>
-                ▶ 이 재생목록 재생
-              </PlayButton>
-            </Meta>
-          </Card>
-        ))}
-      </PreviewGrid>
-    </Container>
+            <SegBtn
+              $isDark={isDarkMode}
+              $active={mode === "current"}
+              onClick={() => setMode("current")}
+              role="tab"
+              aria-selected={mode === "current"}
+              aria-controls="station-search"
+              title={canUseCurrent ? "현재 곡에서 시작" : "재생 중인 곡 없음"}
+            >
+              현재곡
+            </SegBtn>
+            <SegBtn
+              $isDark={isDarkMode}
+              $active={mode === "query"}
+              onClick={() => setMode("query")}
+              role="tab"
+              aria-selected={mode === "query"}
+              aria-controls="station-search"
+            >
+              검색어
+            </SegBtn>
+          </SegmentedRoot>
+
+          {/* 단일 인풋 */}
+          <InputWrap $isDark={isDarkMode} $disabled={mode === "current"}>
+            <SearchIcon dark={isDarkMode} />
+            <TextInput
+              id="station-search"
+              $isDark={isDarkMode}
+              placeholder={placeholder}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              disabled={mode === "current"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handlePreview();
+                }
+              }}
+            />
+          </InputWrap>
+
+          {/* 현재곡 모드: [재생][빠른 시작][미리보기] / 검색어 모드: [빠른 시작][미리보기] */}
+          <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}>
+            {mode === "current" && (
+              <PlayNow
+                $isDark={isDarkMode}
+                onClick={handleQuickStart}
+                disabled={loading || !canUseCurrent}
+                title="현재 곡으로 바로 재생(스테이션 생성)"
+              >
+                ▶ 재생
+              </PlayNow>
+            )}
+            <Primary
+              $isDark={isDarkMode}
+              onClick={handleQuickStart}
+              disabled={
+                loading ||
+                (mode === "current" ? !canUseCurrent : text.trim().length === 0)
+              }
+              title="바로 재생"
+            >
+              ▶ 빠른 시작
+            </Primary>
+            <Ghost
+              $isDark={isDarkMode}
+              onClick={handlePreview}
+              disabled={
+                building ||
+                (mode === "current" ? !canUseCurrent : text.trim().length === 0)
+              }
+              title="미리보기 생성"
+            >
+              🔍 미리보기
+            </Ghost>
+          </div>
+        </SearchRow>
+
+        {/* 프리셋 */}
+        <Presets>
+          {[
+            "k-pop 2025 hits",
+            "lofi chill",
+            "piano focus",
+            "EDM festival",
+            "hiphop korean",
+            "pop remix",
+          ].map((t) => (
+            <Chip key={t} $isDark={isDarkMode} onClick={() => applyPreset(t)}>
+              #{t}
+            </Chip>
+          ))}
+        </Presets>
+
+        {/* 미리보기 */}
+        <SectionTitle $isDark={isDarkMode}>스테이션 미리보기</SectionTitle>
+
+        {(building || loading) && (
+          <Grid>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={`sk-${i}`} $isDark={isDarkMode}>
+                <div className="cover" />
+                <div className="lines">
+                  <div className="line" style={{ width: "70%" }} />
+                  <div className="line" style={{ width: "40%" }} />
+                </div>
+              </Skeleton>
+            ))}
+          </Grid>
+        )}
+
+        {!building && !loading && previews.length === 0 && (
+          <Empty $isDark={isDarkMode} aria-live="polite">
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 38, marginBottom: 8 }}>🎧</div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>
+                아직 미리보기가 없어요
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.8 }}>
+                검색어를 입력하거나, 프리셋 태그를 눌러 시작해보세요.
+              </div>
+            </div>
+          </Empty>
+        )}
+
+        {previews.length > 0 && (
+          <Grid>
+            {previews.map((p) => (
+              <Card key={p.id} $isDark={isDarkMode}>
+                <Cover
+                  $isDark={isDarkMode}
+                  src={
+                    p.thumbnail || "https://i.ytimg.com/img/no_thumbnail.jpg"
+                  }
+                >
+                  <FloatingPlay
+                    $isDark={isDarkMode}
+                    title="이 재생목록 재생"
+                    onClick={() => playPlaylistFromFile(p)}
+                  >
+                    ▶
+                  </FloatingPlay>
+                </Cover>
+                <Meta $isDark={isDarkMode}>
+                  <Title title={p.title}>{p.title}</Title>
+                  <Sub $isDark={isDarkMode}>
+                    트랙 {p.tracks.length}개 · 클릭 시 즉시 재생
+                  </Sub>
+                </Meta>
+              </Card>
+            ))}
+          </Grid>
+        )}
+      </Main>
+    </Page>
   );
 }
