@@ -1,6 +1,6 @@
 import { useImageModal } from "../screens/layout";
-import { useState, useEffect, useRef } from "react";
-import styled, { createGlobalStyle } from "styled-components";
+import { useState, useEffect,} from "react";
+import styled from "styled-components";
 import { auth, db } from "../firebaseConfig";
 import {
   doc,
@@ -11,7 +11,6 @@ import {
   arrayRemove,
   increment,
 } from "firebase/firestore";
-import { useMusicPlayer } from "../components/MusicFunction";
 import { useTheme } from "../components/ThemeContext";
 import MiniProfileHover from "./MiniProfileHover";
 import { Link } from "react-router-dom";
@@ -126,16 +125,6 @@ interface PostProps {
     createdAt: number;
     id?: string;
   }[];
-  playlist?: {
-    id: string;
-    title: string;
-    thumbnail: string;
-    tracks?: {
-      videoId: string;
-      title: string;
-      thumbnail: string;
-    }[];
-  } | null;
   playlistFileUrl?: string;
 }
 
@@ -157,7 +146,6 @@ const Post = ({
   createdAt,
   photoUrl,
   comments,
-  playlist,
   playlistFileUrl,
 }: PostProps) => {
   const { isDarkMode } = useTheme();
@@ -181,15 +169,8 @@ const Post = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedPost, setEditedPost] = useState(post);
   const [currentPost, setCurrentPost] = useState(post);
-  const { playPlaylist } = useMusicPlayer();
   const [fetchedPlaylist, setFetchedPlaylist] = useState<any>(null);
 
-  const [zoomedImage, setZoomedImage] = useState<{
-    url: string;
-    rect: DOMRect;
-  } | null>(null);
-  const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
-  const [isZooming, setIsZooming] = useState(false);
   const handleCommentAdded = (newComment: any) => {
     // FireStore에서 불러온 기존 목록(commentList)에 새 댓글을 추가합니다.
     // Comment.tsx에서는 addDoc을 통해 DB에 이미 추가했으므로, 여기서는 UI 상태만 갱신합니다.
@@ -216,7 +197,7 @@ const Post = ({
 
   // === 데이터 로딩 ===
   useEffect(() => {
-    const fetchPost = async () => {
+    const fetchAll = async () => {
       const postRef = doc(db, "posts", id);
       const docSnap = await getDoc(postRef);
       if (docSnap.exists()) {
@@ -234,21 +215,9 @@ const Post = ({
         setEditedPost(data.post);
       }
     };
-    fetchPost();
+    fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, user?.uid, nickname]);
-
-  useEffect(() => {
-    const fetchComments = async () => {
-      const postRef = doc(db, "posts", id);
-      const docSnap = await getDoc(postRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data() as any;
-        setCommentList(data.comments || []);
-      }
-    };
-    fetchComments();
-  }, [id]);
 
   useEffect(() => {
     const fetchPlaylistFile = async () => {
@@ -345,19 +314,6 @@ const Post = ({
       console.error("삭제 실패:", error);
     }
   };
-
-  const handleImageClick = (url: string, index: number) => {
-    const rect = imgRefs.current[index]?.getBoundingClientRect();
-    if (!rect) return;
-    setZoomedImage({ url, rect });
-    setTimeout(() => setIsZooming(true), 10);
-  };
-
-  const handleZoomClose = () => {
-    setIsZooming(false);
-    setTimeout(() => setZoomedImage(null), 400);
-  };
-
   // === 뮤트된 사용자 글 숨기기 (내 글은 제외) ===
   if (myUid && userId !== myUid && isMuted(userId)) {
     return null;
@@ -366,7 +322,6 @@ const Post = ({
   // === 렌더 ===
   return (
     <Container $isDark={isDarkMode}>
-      <ZoomStyle />
 
       {/* 헤더 */}
       <Header $isDark={isDarkMode}>
@@ -484,7 +439,6 @@ const Post = ({
               <StyledImage
                 src={url}
                 alt={`Post image ${index + 1}`}
-                ref={(el) => (imgRefs.current[index] = el)}
                 onClick={() => openModal(url)}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
@@ -495,53 +449,6 @@ const Post = ({
             </ImageContainer>
           ))}
         </ImageGallery>
-      )}
-
-      {/* 확대 모달 (줌 애니메이션) */}
-      {zoomedImage && (
-        <div
-          className={`zoom-overlay${isZooming ? " active" : ""}`}
-          onClick={handleZoomClose}
-          style={{
-            position: "fixed",
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1000,
-            background: isZooming ? "rgba(0,0,0,0.9)" : "rgba(0,0,0,0)",
-            transition: "background 0.4s",
-            cursor: "zoom-out",
-            overflow: "hidden",
-          }}
-        >
-          <button
-            className="zoom-close-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleZoomClose();
-            }}
-            aria-label="닫기"
-          >
-            ×
-          </button>
-          <img
-            src={zoomedImage.url}
-            alt="Zoomed"
-            className={`zoom-img${isZooming ? " active" : ""}`}
-            style={{
-              position: "fixed",
-              left: zoomedImage.rect.left,
-              top: zoomedImage.rect.top,
-              width: zoomedImage.rect.width,
-              height: zoomedImage.rect.height,
-              objectFit: "contain",
-              borderRadius: 12,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-              transition: "all 0.4s cubic-bezier(0.4,0,0.2,1)",
-            }}
-          />
-        </div>
       )}
 
       {/* 하단 액션 */}
@@ -674,40 +581,6 @@ const Post = ({
 export default Post;
 
 /* ===================== 스타일 ===================== */
-
-const ZoomStyle = createGlobalStyle`
-  .zoom-img.active {
-    left: 50% !important;
-    top: 50% !important;
-    width: 80vw !important;
-    height: 80vh !important;
-    transform: translate(-50%, -50%) !important;
-    border-radius: 16px !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.45) !important;
-  }
-  .zoom-overlay.active {
-    background: rgba(0,0,0,0.9) !important;
-  }
-  .zoom-close-btn {
-    position: fixed;
-    top: 32px;
-    right: 48px;
-    z-index: 1100;
-    background: none;
-    border: none;
-    color: #fff;
-    font-size: 3rem;
-    cursor: pointer;
-    padding: 0 10px;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-    line-height: 1;
-  }
-  .zoom-close-btn:hover {
-    opacity: 1;
-    color: #ff6262;
-  }
-`;
 
 const EditingAreaWrapper = styled.div<{ show: boolean }>`
   overflow: hidden;

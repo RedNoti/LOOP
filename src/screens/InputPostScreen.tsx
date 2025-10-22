@@ -44,7 +44,6 @@ const InputPostScreen = () => {
           photoUrl={post.photoUrl}
           photoUrls={post.photoUrls}
           comments={post.comments}
-          playlist={post.playlist}
           playlistFileUrl={post.playlistFileUrl}
         />
       ))}

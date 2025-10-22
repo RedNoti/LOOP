@@ -507,7 +507,19 @@ const Layout = () => {
                   </MenuItem>
                 </TooltipContainer>
               </Link>
-
+              <Link to="/following" style={{ textDecoration: "none" }}>
+              <TooltipContainer>
+              <MenuItem isActive={location.pathname.startsWith("/following")}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                 width="22" height="22" stroke="currentColor" fill="none" strokeWidth={2}>
+                 <path d="M16 14c2.761 0 5 2.239 5 5v1H11v-1c0-2.761 2.239-5 5-5z"/>
+                 <circle cx="16" cy="8" r="4"/>
+                 <path d="M6 14c2.761 0 5 2.239 5 5v1H1v-1c0-2.761 2.239-5 5-5z"/>
+                 <circle cx="6" cy="8" r="4"/>
+                 </svg>
+                 </MenuItem>
+               </TooltipContainer>
+              </Link>
               <Link to="/music" style={{ textDecoration: "none" }}>
                 <TooltipContainer>
                   <MenuItem isActive={location.pathname === "/music"}>

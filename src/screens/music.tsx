@@ -20,9 +20,6 @@ import {
   playerRef,
   playerReadyRef,
   requestSeek,
-  safeLoadVideoById,
-  pendingSeekSecRef,
-  queuedVideoIdRef,
 } from "../components/MusicFunction";
 
 const Container = styled.div<{ $isCollapsed: boolean }>`
@@ -304,15 +301,6 @@ const TabContent = styled.div<{ $isActive: boolean }>`
   height: 100%;
 `;
 
-const SectionTitle = styled.h3`
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 500;
-  color: white;
-  flex-shrink: 0;
-  padding: 0.5rem 1rem;
-`;
-
 const ScrollableContent = styled.div`
   flex: 1;
   height: 100%;
@@ -461,7 +449,6 @@ export default function YouTubeMusicPlayer({
   onColorExtract,
   onColorExtractSecondary,
   onColorExtractHover,
-  isFullScreenMode = false,
 }: {
   onColorExtract?: (color: string) => void;
   onColorExtractSecondary?: (color: string) => void;
@@ -763,15 +750,6 @@ useEffect(() => {
       playPlaylist(videos[nextIndex].snippet.playlistId || "", nextIndex);
     } else {
       nextTrack();
-    }
-  };
-
-  const handleTrackEnd = () => {
-    if (repeatMode === RepeatMode.REPEAT_ONE && playerRef.current) {
-      playerRef.current.seekTo(0, true);
-      playerRef.current.playVideo();
-    } else {
-      handleNextTrack();
     }
   };
 

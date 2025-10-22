@@ -528,82 +528,81 @@ export default function Station() {
     return toPlaylistJson(result);
   }, []);
 
+  const upsertPreview = useCallback((json: PlaylistJson) => {
+  setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
+}, []);
+
+// 현재 모드에 맞는 seed 생성(현재곡/검색어)
+const getSeed = useCallback((): StationSeed | null => {
+  if (mode === "current") {
+    if (!currentVideoId) return null;
+    return { type: "video", videoId: String(currentVideoId) };
+  }
+  const q = text.trim();
+  if (!q) return null;
+  return { type: "query", query: q };
+}, [mode, currentVideoId, text]);
+
+// seed로 스테이션 생성 후 PlaylistJson 반환(트랙 없는 경우 null)
+const runBuild = useCallback(async (): Promise<PlaylistJson | null> => {
+  const seed = getSeed();
+  if (!seed) return null;
+  const json = await build(seed);
+  if (!json.tracks?.length) return null;
+  return json;
+}, [getSeed, build]);
+
   // 빠른 시작(바로 재생)
   const handleQuickStart = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (mode === "current") {
-        if (!canUseCurrent) return;
-        const json = await build({
-          type: "video",
-          videoId: String(currentVideoId),
-        });
-        if (!json.tracks?.length) {
-          alert("가져온 트랙이 없습니다. 다른 키워드로 시도해보세요.");
-          return;
-        }
-        playPlaylistFromFile(json);
-        return;
-      }
-      if (!text.trim()) return;
-      const json = await build({ type: "query", query: text.trim() });
-      if (!json.tracks?.length) {
-        alert("가져온 트랙이 없습니다. 다른 키워드로 시도하세요.");
-        return;
-      }
-      playPlaylistFromFile(json);
-    } catch (e) {
-      console.error("[Station] quick start error", e);
-      alert(
-        "스테이션 생성에 실패했습니다. API 키/도메인/쿼터 설정을 확인해주세요."
-      );
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    const json = await runBuild();
+    if (!json) {
+      alert("가져온 트랙이 없습니다. 다른 키워드/현재곡으로 시도해보세요.");
+      return;
     }
-  }, [mode, text, canUseCurrent, currentVideoId, build]);
+    playPlaylistFromFile(json);
+  } catch (e) {
+    console.error("[Station] quick start error", e);
+    alert("스테이션 생성에 실패했습니다. API/도메인/쿼터 설정을 확인해주세요.");
+  } finally {
+    setLoading(false);
+  }
+}, [runBuild]);
 
   // 미리보기
   const handlePreview = useCallback(async () => {
-    setBuilding(true);
-    try {
-      if (mode === "current") {
-        if (!canUseCurrent) return;
-        const json = await build({
-          type: "video",
-          videoId: String(currentVideoId),
-        });
-        setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
-        return;
-      }
-      if (!text.trim()) return;
-      const json = await build({ type: "query", query: text.trim() });
-      setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
-    } catch (e) {
-      console.error("[Station] preview build error", e);
-      alert("스테이션 미리보기 생성에 실패했습니다.");
-    } finally {
-      setBuilding(false);
-    }
-  }, [mode, text, canUseCurrent, currentVideoId, build]);
+  setBuilding(true);
+  try {
+    const json = await runBuild();
+    if (!json) return;
+    upsertPreview(json);
+  } catch (e) {
+    console.error("[Station] preview build error", e);
+    alert("스테이션 미리보기 생성에 실패했습니다.");
+  } finally {
+    setBuilding(false);
+  }
+}, [runBuild, upsertPreview]);
+
 
   // 프리셋 → 자동으로 query 모드
-  const applyPreset = (q: string) => {
-    setMode("query");
-    setText(q);
-    handlePreviewWith(q);
-  };
+ const applyPreset = useCallback(async (q: string) => {
+  setMode("query");
+  setText(q);
+  setBuilding(true);
+  try {
+    const json = await build({ type: "query", query: q });
+    if (json) upsertPreview(json);
+  } catch (e) {
+    console.error("[Station] preset preview error", e);
+  } finally {
+    setBuilding(false);
+  }
+}, [build, upsertPreview]);
 
-  const handlePreviewWith = async (q: string) => {
-    setBuilding(true);
-    try {
-      const json = await build({ type: "query", query: q });
-      setPreviews((prev) => [json, ...prev.filter((p) => p.id !== json.id)]);
-    } catch (e) {
-      console.error("[Station] preset preview error", e);
-    } finally {
-      setBuilding(false);
-    }
-  };
+
+
 
   const placeholder =
     mode === "query"

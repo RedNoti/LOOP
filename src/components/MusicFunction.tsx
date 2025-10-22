@@ -142,6 +142,46 @@ export function normalizeJsonToVideos(json: PlaylistJson) {
   }));
   return videos;
 }
+const resolveVideoId = (v: any): string | null =>
+  v?.id?.videoId ??
+  v?.snippet?.resourceId?.videoId ??
+  (typeof v?.id === "string" ? v.id : null) ??
+  null;
+
+// ✅ 공통: 세션스토리지 동기화
+const syncSession = (params: {
+  videos?: any[]; index?: number; videoId?: string | null; playlistId?: string;
+}) => {
+  const { videos, index, videoId, playlistId } = params;
+  if (videos) sessionStorage.setItem("musicPlayerVideos", JSON.stringify(videos));
+  if (typeof index === "number") sessionStorage.setItem("currentVideoIndex", String(index));
+  if (videoId != null) sessionStorage.setItem("currentVideoId", String(videoId));
+  if (playlistId) sessionStorage.setItem("currentPlaylistId", String(playlistId));
+};
+
+// ✅ 공통: 가져온(or 생성한) 목록을 상태/세션/플레이어에 일괄 반영
+const applyFetchedVideos = (
+  playlistId: string,
+  items: any[],
+  startIndex: number,
+  setVideos: (v: any[]) => void,
+  setCurrentIndex: (i: number) => void,
+  setCurrentVideoId: (id: string | null) => void,
+  setCurrentPlaylistId: (id: string) => void
+) => {
+  if (!items.length) return;
+  const idx = Math.max(0, Math.min(startIndex, items.length - 1));
+  const nextId = resolveVideoId(items[idx]);
+
+  setVideos(items);
+  setCurrentIndex(idx);
+  setCurrentVideoId(nextId);
+  setCurrentPlaylistId(playlistId);
+
+  syncSession({ videos: items, index: idx, videoId: nextId, playlistId });
+
+  safeLoadVideoById(nextId);
+};
 //--------
 export const detectVideoLanguage = (title: string): string => {
   const text = title.toLowerCase();
@@ -718,40 +758,6 @@ export const useMusicPlayer = () => {
   console.log("▶️ currentVideoId:", currentVideoId);
   console.log("🧠 isLoading:", isLoading);
 
-  const fetchPlaylistVideos = async (playlistId: string) => {
-    const token = localStorage.getItem("ytAccessToken");
-    if (!token) return;
-
-    let nextPageToken = "";
-    const allItems: any[] = [];
-
-    try {
-      do {
-        const response = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${playlistId}&pageToken=${nextPageToken}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const data = await response.json();
-        if (data.items) {
-          allItems.push(...data.items);
-        }
-        nextPageToken = data.nextPageToken || "";
-      } while (nextPageToken);
-
-      setVideos(allItems);
-      setCurrentIndex(0);
-      setCurrentVideoId(allItems[0]?.snippet?.resourceId?.videoId || null);
-    } catch (err) {
-      console.error("영상 목록 불러오기 실패:", err);
-    }
-  };
-  
-  
-
   const playPlaylist = async (
   playlistId: string,
   startIndex: number = 0,
@@ -762,109 +768,83 @@ export const useMusicPlayer = () => {
     return;
   }
 
-  // [ADD-2] 캐시 우선 재생: playlistVideos:<playlistId>가 있으면 API 안 타고 즉시 재생
   const cached = sessionStorage.getItem(`playlistVideos:${playlistId}`);
-  if (cached) {
-    try {
-      const list = JSON.parse(cached);
-      if (Array.isArray(list) && list.length > 0) {
-        // 인덱스 보정(범위 밖이면 0으로)
-        const idx = Number.isInteger(startIndex) && startIndex >= 0 && startIndex < list.length ? startIndex : 0;
+if (cached) {
+  try {
+    const list = JSON.parse(cached);
+    if (Array.isArray(list) && list.length > 0) {
+      // 인덱스 보정
+      const idx =
+        Number.isInteger(startIndex) && startIndex >= 0 && startIndex < list.length
+          ? startIndex
+          : 0;
 
-        // 다음에 틀 영상 id 계산(객체/문자열 id 모두 허용)
-        const nextId =
-          (typeof list[idx]?.id === "object" && "videoId" in (list[idx]?.id ?? {}))
-            ? (list[idx]!.id as any).videoId
-            : (typeof list[idx]?.id === "string"
-                ? (list[idx]!.id as string)
-                : list[idx]?.snippet?.resourceId?.videoId) ?? null;
+      // ✅ 공통 유틸로 상태/세션/재생을 일괄 처리
+      applyFetchedVideos(
+        playlistId,
+        list,
+        idx,
+        setVideos,
+        setCurrentIndex,
+        setCurrentVideoId,
+        setCurrentPlaylistId
+      );
 
-        // 전역 상태 반영
-        setVideos(list);
-        setCurrentIndex(idx);
-        setCurrentVideoId(nextId);
-        setCurrentPlaylistId(playlistId);
+      // 최근 재생 메타 + Firestore(있을 때만)
+      try {
+        localStorage.setItem("last_playlist_id", playlistId);
+        localStorage.setItem("current_video_index", String(idx));
+        if (auth?.currentUser?.uid) {
+          savePlaybackStateToFirestore(auth.currentUser.uid, playlistId, idx);
+        }
+      } catch {}
 
-        // 세션 동기화
-        sessionStorage.setItem("musicPlayerVideos", JSON.stringify(list));
-        sessionStorage.setItem("currentVideoIndex", String(idx));
-        sessionStorage.setItem("currentVideoId", String(nextId || ""));
-        sessionStorage.setItem("currentPlaylistId", String(playlistId));
-
-        // 플레이
-        safeLoadVideoById(nextId);
-
-        // 최근 재생 메타 + Firestore(있을 때만)
-        try {
-          localStorage.setItem("last_playlist_id", playlistId);
-          localStorage.setItem("current_video_index", String(idx));
-          if (auth?.currentUser?.uid && typeof savePlaybackStateToFirestore === "function") {
-            savePlaybackStateToFirestore(auth.currentUser.uid, playlistId, idx);
-          }
-        } catch {}
-
-        return; // ✅ 캐시 히트 시 여기서 종료 (아래 fetch 경로로 내려가지 않음)
-      }
-    } catch {}
+      return; // ✅ 캐시 히트 시 종료
+    }
+  } catch {}
 }
+
 
     // ✅ 합성 재생목록(station:/single_)은 fetch 없이 현재 videos로 바로 처리
     if (
-      playlistId?.startsWith("station:") ||
-      playlistId?.startsWith("single_")
-    ) {
-      // 1) 현재 메모리(or 세션)에 있는 videos 확보
-      let list =
-        Array.isArray(videos) && videos.length > 0
-          ? videos
-          : (() => {
-              try {
-                const raw = sessionStorage.getItem("musicPlayerVideos");
-                return raw ? JSON.parse(raw) : [];
-              } catch {
-                return [];
-              }
-            })();
+  playlistId?.startsWith("station:") ||
+  playlistId?.startsWith("single_")
+) {
+  // 1) 현재 메모리(or 세션)에 있는 videos 확보
+  const list =
+    Array.isArray(videos) && videos.length > 0
+      ? videos
+      : (() => {
+          try {
+            const raw = sessionStorage.getItem("musicPlayerVideos");
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        })();
 
-      if (!list.length) return;
+  if (!list.length) return;
 
-      // 2) 목표 인덱스의 비디오 ID 계산(모든 형태 방어)
-      const resolveId = (v: any) =>
-        v?.id?.videoId ||
-        v?.snippet?.resourceId?.videoId ||
-        (typeof v?.id === "string" ? v.id : null);
+  // ✅ 공통 유틸로 일괄 처리
+  applyFetchedVideos(
+    playlistId,
+    list,
+    startIndex,
+    setVideos,
+    setCurrentIndex,
+    setCurrentVideoId,
+    setCurrentPlaylistId
+  );
 
-      const next = list[startIndex];
-      const nextId = resolveId(next);
-      if (!nextId) return;
+  // (선택) 최근 재생 메타 + Firestore
+  localStorage.setItem("last_playlist_id", playlistId);
+  localStorage.setItem("current_video_index", String(startIndex));
+  if (auth.currentUser?.uid) {
+    savePlaybackStateToFirestore(auth.currentUser.uid, playlistId, startIndex);
+  }
+  return; // ✅ 합성 재생목록 경로 종료
+}
 
-      // 3) 상태 세팅
-      setVideos(list);
-      setCurrentIndex(startIndex);
-      setCurrentVideoId(nextId);
-      setCurrentPlaylistId(playlistId);
-
-      // 4) 세션 동기화
-      sessionStorage.setItem("musicPlayerVideos", JSON.stringify(list));
-      sessionStorage.setItem("currentVideoIndex", String(startIndex));
-      sessionStorage.setItem("currentVideoId", String(nextId));
-      sessionStorage.setItem("currentPlaylistId", String(playlistId));
-
-      // 5) 안전 로더로 즉시 로드(이미 구현된 util 사용)
-      safeLoadVideoById(nextId);
-
-      // 6) (선택) 로컬/원격 재생 상태 저장 로직 유지
-      localStorage.setItem("last_playlist_id", playlistId);
-      localStorage.setItem("current_video_index", String(startIndex));
-      if (auth.currentUser?.uid) {
-        savePlaybackStateToFirestore(
-          auth.currentUser.uid,
-          playlistId,
-          startIndex
-        );
-      }
-      return; // ✅ 여기서 종료 → 아래 fetch 경로를 타지 않음
-    }
 
     const fetchedVideos = await fetchPlaylistVideosReturn(playlistId);
     if (!fetchedVideos.length) return;
@@ -905,90 +885,6 @@ export const useMusicPlayer = () => {
     localStorage.setItem("current_video_index", String(startIndex));
   };
 
-  const playPlaylistFromFile = (playlistData: any) => {
-    try {
-      // 1) 유효성 검사
-      if (!playlistData || !Array.isArray(playlistData.tracks)) {
-        console.warn("[playPlaylistFromFile] invalid payload:", playlistData);
-        return;
-      }
-      if (playlistData.tracks.length === 0) {
-        console.warn("[playPlaylistFromFile] empty tracks");
-        return;
-      }
-
-      // 2) tracks -> 내부 videos 포맷으로 변환
-      const videoItems = playlistData.tracks.map((track: any) => ({
-        id: { videoId: track.videoId },
-        snippet: {
-          title: track.title,
-          thumbnails: {
-            default: { url: track.thumbnail || "" },
-            medium: { url: track.thumbnail || "" },
-            high: { url: track.thumbnail || "" },
-          },
-          resourceId: { videoId: track.videoId },
-          playlistId: playlistData.id,
-        },
-      }));
-
-      // 3) 상태 세팅 (여기 세터 이름은 프로젝트 그대로 사용)
-      setVideos(videoItems);
-      setCurrentIndex(0);
-      setCurrentVideoId(
-        videoItems[0]?.id?.videoId ??
-          videoItems[0]?.snippet?.resourceId?.videoId ??
-          null
-      );
-      setCurrentPlaylistId(playlistData.id);
-
-      // 4) 재생목록 리스트에 없으면 추가
-      setPlaylists((prev: any[]) => {
-        const exists = prev.some((p) => p.id === playlistData.id);
-        if (!exists) {
-          return [
-            ...prev,
-            {
-              id: playlistData.id,
-              snippet: {
-                title: playlistData.title,
-                thumbnails: {
-                  high: { url: playlistData.thumbnail || "" },
-                  medium: { url: playlistData.thumbnail || "" },
-                  default: { url: playlistData.thumbnail || "" },
-                },
-              },
-            },
-          ];
-        }
-        return prev;
-      });
-
-      // 5) 세션 동기화
-      sessionStorage.setItem("musicPlayerVideos", JSON.stringify(videoItems));
-      sessionStorage.setItem("currentVideoIndex", "0");
-      sessionStorage.setItem(
-        "currentVideoId",
-        String(
-          videoItems[0]?.id?.videoId ??
-            videoItems[0]?.snippet?.resourceId?.videoId ??
-            ""
-        )
-      );
-      sessionStorage.setItem("currentPlaylistId", playlistData.id);
-
-      // 6) 첫 곡 로드 → 안전 로더 사용 (중요)
-      const firstId =
-        videoItems[0]?.id?.videoId ??
-        videoItems[0]?.snippet?.resourceId?.videoId ??
-        null;
-
-      safeLoadVideoById(firstId); // ✅ 여기 한 줄로 끝
-    } catch (e) {
-      console.error("playPlaylistFromFile error:", e);
-    }
-  };
-
   useEffect(() => {
     // 🔁 컴포넌트 마운트 시 실행되는 훅
     const tryRestorePlayback = async () => {
@@ -1016,7 +912,16 @@ export const useMusicPlayer = () => {
         await playPlaylist(localPlaylistId, localIndex);
       } else {
         // 3. 아무 것도 없으면 첫 플레이리스트
-        await fetchPlaylistVideos(playlists[0].id);
+        const fetched = await fetchPlaylistVideosReturn(playlists[0].id);
+applyFetchedVideos(
+  playlists[0].id,
+  fetched,
+  0,
+  setVideos,
+  setCurrentIndex,
+  setCurrentVideoId,
+  setCurrentPlaylistId
+);
       }
 
       setPlaybackRestored(true);
@@ -1152,59 +1057,45 @@ export const useMusicPlayer = () => {
       }
 
       if (event.data === PlayerState.ENDED) {
-        try {
-        // music.tsx에서 저장하는 키가 "musicPlayerRepeatMode" 라는 전제
-        const repeat = localStorage.getItem("musicPlayerRepeatMode"); // RepeatOne이 "2"로 저장되어 있음(문자열)
-        if (repeat === "2") {
-          const vids = videosRef.current;
-          const idx  = currentIndexRef.current;
+  try {
+    const repeat = localStorage.getItem("musicPlayerRepeatMode"); // "2" → 1곡 반복
+    if (repeat === "2") {
+      const vids = videosRef.current;
+      const idx  = currentIndexRef.current;
+      const curId = resolveVideoId(vids?.[idx]);
 
-          // 현재 곡의 videoId를 모든 형태(id 객체/문자열/playlistItem)에서 안전하게 추출
-          const curId =
-            (typeof vids?.[idx]?.id === "object" && "videoId" in (vids?.[idx]?.id ?? {}))
-              ? (vids![idx]!.id as any).videoId
-              : (typeof vids?.[idx]?.id === "string"
-                  ? (vids![idx]!.id as string)
-                  : vids?.[idx]?.snippet?.resourceId?.videoId) ?? null;
-
-          if (curId) {
-            // 같은 곡을 처음부터 다시 재생
-            setCurrentVideoId(curId);        // 상태도 현재 곡으로 유지
-            safeLoadVideoById(curId);        // 로드 & 재생(내부에서 playerRef 사용)
-            setIsPlaying(true);
-          } else if (playerRef.current) {
-            // videoId를 못 찾으면 되감기+재생으로 폴백
-            playerRef.current.seekTo(0, true);
-            playerRef.current.playVideo?.();
-            setIsPlaying(true);
-          }
-          return; // ✅ 아래 "다음 곡으로 이동" 로직을 막는다
-        }
-      } catch {}
-        const vids = videosRef.current;
-        const idx = currentIndexRef.current;
-
-        if (!Array.isArray(vids) || vids.length === 0) return;
-
-        const nextIdx = idx + 1;
-        if (nextIdx >= vids.length) {
-          setIsPlaying(false);
-          return;
-        }
-
-        const nxt =
-          vids[nextIdx]?.id?.videoId ??
-          vids[nextIdx]?.snippet?.resourceId?.videoId ??
-          null;
-
-        setCurrentIndex(nextIdx);
-        setCurrentVideoId(nxt);
-        sessionStorage.setItem("currentVideoIndex", String(nextIdx));
-        if (nxt) sessionStorage.setItem("currentVideoId", String(nxt));
-
-        safeLoadVideoById(nxt);
-        return;
+      if (curId) {
+        setCurrentVideoId(curId);
+        syncSession({ videoId: curId });
+        safeLoadVideoById(curId);
+        setIsPlaying(true);
+      } else if (playerRef.current) {
+        playerRef.current.seekTo(0, true);
+        playerRef.current.playVideo?.();
+        setIsPlaying(true);
       }
+      return;
+    }
+  } catch {}
+
+  const vids = videosRef.current;
+  const idx = currentIndexRef.current;
+  if (!Array.isArray(vids) || vids.length === 0) return;
+
+  const nextIdx = idx + 1;
+  if (nextIdx >= vids.length) {
+    setIsPlaying(false);
+    return;
+  }
+
+  const nxt = resolveVideoId(vids[nextIdx]);
+  setCurrentIndex(nextIdx);
+  setCurrentVideoId(nxt);
+  syncSession({ index: nextIdx, videoId: nxt });
+
+  safeLoadVideoById(nxt);
+  return;
+}
     } catch (error) {
       console.error("상태 변경 처리 실패:", error);
     }
@@ -1253,21 +1144,18 @@ export const useMusicPlayer = () => {
   };
 
   const nextTrack = () => {
-    if (!Array.isArray(videos) || !videos.length) return;
+  if (!Array.isArray(videos) || !videos.length) return;
 
-    const nextIdx = Math.min(currentIndex + 1, videos.length - 1);
-    const nextId =
-      videos[nextIdx]?.id?.videoId ??
-      videos[nextIdx]?.snippet?.resourceId?.videoId ??
-      null;
+  const nextIdx = Math.min(currentIndex + 1, videos.length - 1);
+  const nextId = resolveVideoId(videos[nextIdx]);
 
-    setCurrentIndex(nextIdx);
-    setCurrentVideoId(nextId);
-    sessionStorage.setItem("currentVideoIndex", String(nextIdx));
-    if (nextId) sessionStorage.setItem("currentVideoId", String(nextId));
+  setCurrentIndex(nextIdx);
+  setCurrentVideoId(nextId);
+  syncSession({ index: nextIdx, videoId: nextId });
 
-    safeLoadVideoById(nextId); // ✅ 중요
-  };
+  safeLoadVideoById(nextId);
+};
+
 
   const prevTrack = () => {
     if (!Array.isArray(videos) || !videos.length) return;
@@ -1287,13 +1175,13 @@ export const useMusicPlayer = () => {
   };
 
   const changeVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseInt(e.target.value);
-    setVolume(newVolume);
-    localStorage.setItem("musicPlayerVolume", String(newVolume));
-    if (playerRef.current) {
-      playerRef.current.setVolume(newVolume);
-    }
-  };
+  const newVolume = parseInt(e.target.value);
+  setVolume(newVolume);
+  sessionStorage.setItem("volume", String(newVolume)); // ← 통일
+  if (playerRef.current) {
+    playerRef.current.setVolume(newVolume);
+  }
+};
 
   const refreshAccessToken = async (): Promise<boolean> => {
     const refreshToken = localStorage.getItem("ytRefreshToken");
@@ -1472,7 +1360,7 @@ async function fetchUserPlaylists() {
     prevTrack,
     changeVolume,
     playPlaylist,
-    playPlaylistFromFile, // 추가된 항목
+    playPlaylistFromFile, 
     playerRef,
     currentPlaylistId,
     setVideos,

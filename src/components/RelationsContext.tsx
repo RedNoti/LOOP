@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useCallback,
 } from "react";
 import { auth, db } from "../firebaseConfig";
 import {
@@ -28,9 +29,6 @@ type RelationsContextValue = {
 
 const RelationsContext = createContext<RelationsContextValue | null>(null);
 
-// useMeRef 훅은 RelationsProvider 컴포넌트 최상단에서만 호출해야 합니다.
-const useMeRef = () => auth.currentUser?.uid ?? null;
-
 export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -38,13 +36,7 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [muted, setMuted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<boolean>(true);
 
-  // ⭐️ 훅을 컴포넌트 최상단에 한번만 호출하여 변수에 저장
-  const me = useMeRef();
-
-  // refForMe 함수는 훅을 호출하지 않고 me 변수를 사용하도록 수정
-  const refForMe = () => {
-    return me ? doc(db, "user_relations", me) : null;
-  };
+  const me = auth.currentUser?.uid ?? null;
 
   useEffect(() => {
     let unsubscribeRelations: (() => void) | null = null;
@@ -84,104 +76,59 @@ export const RelationsProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const isFollowing = (uid: string) => following.has(uid);
-  const isMuted = (uid: string) => muted.has(uid);
+  const isFollowing = useCallback((uid: string) => following.has(uid), [following]);
+  const isMuted = useCallback((uid: string) => muted.has(uid), [muted]);
 
-  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
-  const follow = async (targetUid: string) => {
-    if (!me || !targetUid || me === targetUid) return;
-    const ref = refForMe();
-    if (!ref) return;
-
+  const applyPatch = useCallback(async (patch: Record<string, any>) => {
+    if (!me) return;
+    const ref = doc(db, "user_relations", me);
     try {
-      await setDoc(
-        ref,
-        {
-          following: arrayUnion(targetUid),
-          muted: arrayRemove(targetUid),
-        },
-        { merge: true }
-      );
+      await setDoc(ref, patch, { merge: true });
     } catch (e) {
-      console.error("[Relations] follow 실패:", e);
-      alert("팔로우에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
-    }
-  };
+      console.error("[Relations] setDoc 실패:", e);
 
-  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
-  const unfollow = async (targetUid: string) => {
+      alert("요청 처리에 실패했습니다. 네트워크/권한을 확인하세요.");
+   }
+  }, [me]);
+
+  const follow = useCallback(async (targetUid: string) => {
     if (!me || !targetUid || me === targetUid) return;
-    const ref = refForMe();
-    if (!ref) return;
+    await applyPatch({
+      following: arrayUnion(targetUid),
+      muted: arrayRemove(targetUid),
+    });
+  }, [me, applyPatch]);
 
-    try {
-      await setDoc(
-        ref,
-        {
-          following: arrayRemove(targetUid),
-        },
-        { merge: true }
-      );
-    } catch (e) {
-      console.error("[Relations] unfollow 실패:", e);
-      alert("언팔로우에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
-    }
-  };
-
-  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
-  const mute = async (targetUid: string) => {
+  const unfollow = useCallback(async (targetUid: string) => {
     if (!me || !targetUid || me === targetUid) return;
-    const ref = refForMe();
-    if (!ref) return;
+    await applyPatch({
+      following: arrayRemove(targetUid),
+    });
+  }, [me, applyPatch]);
 
-    try {
-      await setDoc(
-        ref,
-        {
-          muted: arrayUnion(targetUid),
-          following: arrayRemove(targetUid),
-        },
-        { merge: true }
-      );
-    } catch (e) {
-      console.error("[Relations] mute 실패:", e);
-      alert("뮤트에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
-    }
-  };
-
-  // ⭐️ 훅 대신 최상위에서 선언한 me 변수 사용
-  const unmute = async (targetUid: string) => {
+  const mute = useCallback(async (targetUid: string) => {
     if (!me || !targetUid || me === targetUid) return;
-    const ref = refForMe();
-    if (!ref) return;
+    await applyPatch({
+      muted: arrayUnion(targetUid),
+      following: arrayRemove(targetUid),
+    });
+  }, [me, applyPatch]);
 
-    try {
-      await setDoc(
-        ref,
-        {
-          muted: arrayRemove(targetUid),
-        },
-        { merge: true }
-      );
-    } catch (e) {
-      console.error("[Relations] unmute 실패:", e);
-      alert("뮤트 해제에 실패했습니다. 권한/네트워크 상태를 확인하세요.");
-    }
-  };
-
-  const value = useMemo<RelationsContextValue>(
-    () => ({
-      loading,
-      isFollowing,
-      isMuted,
-      follow,
-      unfollow,
-      mute,
-      unmute,
-    }),
-    [loading, following, muted, me]
-  ); // me를 의존성 배열에 추가
-
+  const unmute = useCallback(async (targetUid: string) => {
+    if (!me || !targetUid || me === targetUid) return;
+    await applyPatch({
+      muted: arrayRemove(targetUid),
+    });
+  }, [me, applyPatch]);
+  const value = useMemo<RelationsContextValue>(() => ({
+    loading,
+    isFollowing,
+    isMuted,
+    follow,
+    unfollow,
+    mute,
+    unmute,
+  }), [loading, isFollowing, isMuted, follow, unfollow, mute, unmute]);
   return (
     <RelationsContext.Provider value={value}>
       {children}

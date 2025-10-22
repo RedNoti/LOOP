@@ -31,6 +31,8 @@ import ProfileSettings from "./screens/Settingbutton/ProfileSettings";
 import BlockSettings from "./screens/Settingbutton/BlockSettings";
 import MusicStation from "./screens/Station";
 import DmScreen from "./screens/dm";
+import FollowingFeed from "./screens/following";
+
 
 // ✅ 알림 화면(파일명 단수)
 import Notifications from "./screens/notification";
@@ -97,7 +99,6 @@ const PostPage = () => {
       photoUrl={data.photoUrl}
       photoUrls={data.photoUrls}
       comments={data.comments}
-      playlist={data.playlist}
       playlistFileUrl={data.playlistFileUrl}
     />
   );
@@ -142,7 +143,9 @@ const router = createBrowserRouter([
       { path: "settings/block", element: <BlockSettings /> },
       { path: "settings/notifications", element: <NotificationSettings /> },
       // ✅ 개인정보 설정 라우트
-      { path: "settings/privacy", element: <PrivacySettings /> }, // ← 추가
+      { path: "settings/privacy", element: <PrivacySettings /> },
+      { path: "following", element: <FollowingFeed /> },
+
     ],
   },
   { path: "/signin", element: <Signin /> },

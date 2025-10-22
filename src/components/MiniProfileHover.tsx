@@ -1,6 +1,6 @@
 // src/components/MiniProfileHover.tsx
-import React, { useEffect, useRef, useState } from "react";
-import styled from "styled-components";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import styled, { keyframes } from "styled-components";
 import { db } from "../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { useTheme } from "./ThemeContext";
@@ -29,6 +29,11 @@ const Wrapper = styled.span`
   display: inline-flex;
 `;
 
+const pop = keyframes`
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+`;
+
 const Card = styled.div<{ $isDark: boolean }>`
   position: absolute;
   top: 0;
@@ -40,15 +45,10 @@ const Card = styled.div<{ $isDark: boolean }>`
   background: ${(p) => (p.$isDark ? "#202020" : "#ffffff")};
   color: ${(p) => (p.$isDark ? "#ffffff" : "#1a1a1a")};
   border: 1px solid ${(p) => (p.$isDark ? "#404040" : "#f0f0f0")};
-  box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   padding: 14px;
   transform-origin: left top;
-  animation: pop 120ms ease-out;
-
-  @keyframes pop {
-    from { opacity: 0; transform: scale(0.96); }
-    to   { opacity: 1; transform: scale(1); }
-  }
+  animation: ${pop} 120ms ease-out;
 `;
 
 const Row = styled.div`
@@ -102,7 +102,8 @@ const Footer = styled.div<{ $isDark: boolean }>`
   justify-content: flex-end;
 `;
 
-const GhostBtn = styled.button<{ $isDark: boolean }>`
+/** 표시용 배지(동작 없음) */
+const GhostBtn = styled.span<{ $isDark: boolean }>`
   padding: 8px 12px;
   font-size: 12px;
   border-radius: 10px;
@@ -126,8 +127,6 @@ export default function MiniProfileHover({
   const { isDarkMode } = useTheme();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const openerRef = useRef<HTMLSpanElement | null>(null);
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const openTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
 
@@ -170,59 +169,55 @@ export default function MiniProfileHover({
     }, closeDelayMs);
   };
 
-  // hover 유지(카드 위에서도 열림 상태 유지)
+  // 언마운트 시 타이머 정리
   useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-    const onEnter = () => {
-      if (closeTimer.current) {
-        window.clearTimeout(closeTimer.current);
-        closeTimer.current = null;
-      }
-    };
-    const onLeave = hide;
-    card.addEventListener("mouseenter", onEnter);
-    card.addEventListener("mouseleave", onLeave);
     return () => {
-      card.removeEventListener("mouseenter", onEnter);
-      card.removeEventListener("mouseleave", onLeave);
+      if (openTimer.current) window.clearTimeout(openTimer.current);
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
     };
-    // eslint-disable-next-line
-  }, [cardRef.current]);
+  }, []);
 
-  // 위치 보정 (작은 오프셋 지원)
-  const cardStyle: React.CSSProperties = {
-    left: `calc(56px + ${offsetX}px)`,
-    top: `${offsetY}px`,
-  };
+  // 위치 보정 (작은 오프셋 지원) - 메모
+  const cardStyle = useMemo<React.CSSProperties>(
+    () => ({
+      left: `calc(56px + ${offsetX}px)`,
+      top: `${offsetY}px`,
+    }),
+    [offsetX, offsetY]
+  );
 
   return (
-    <Wrapper
-      ref={openerRef}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      onFocus={show}
-      onBlur={hide}
-    >
+    <Wrapper onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
       {children}
 
       {open && (
-        <Card ref={cardRef} $isDark={isDarkMode} style={cardStyle}>
+        <Card
+          $isDark={isDarkMode}
+          style={cardStyle}
+          onMouseEnter={() => {
+            // 카드 위로 들어오면 닫힘 예약 취소
+            if (closeTimer.current) {
+              window.clearTimeout(closeTimer.current);
+              closeTimer.current = null;
+            }
+          }}
+          onMouseLeave={hide}
+        >
           <Row>
             <Avatar
               src={
                 profile?.photoUrl ||
-                "/default_profile.png" /* 이미 프로젝트에 사용 중인 기본 이미지 경로 */
+                "/default_profile.png" /* 프로젝트 내 기본 이미지 경로 */
               }
               alt="profile"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = "/default_profile.png";
+                const img = e.target as HTMLImageElement;
+                img.onerror = null; // 무한루프 방지
+                img.src = "/default_profile.png";
               }}
             />
             <div>
-              <Name $isDark={isDarkMode}>
-                {profile?.name || "이름 미설정"}
-              </Name>
+              <Name $isDark={isDarkMode}>{profile?.name || "이름 미설정"}</Name>
               <Sub $isDark={isDarkMode}>
                 {profile?.email && <span>{profile.email}</span>}
                 {profile?.location && <span>• {profile.location}</span>}

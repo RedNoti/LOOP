@@ -217,7 +217,6 @@ export default function FollowingFeed() {
               photoUrl={s.photoUrl}
               photoUrls={s.photoUrls}
               comments={s.comments}
-              playlist={s.playlist}
               playlistFileUrl={s.playlistFileUrl}
             />
           );
