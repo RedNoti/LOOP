@@ -6,14 +6,27 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { auth, db } from "../firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
 import {
-  addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy,
-  query, serverTimestamp, setDoc, where, limit, type QuerySnapshot, type DocumentData
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  type QuerySnapshot,
+  type DocumentData,
 } from "firebase/firestore";
 
 /* ---------- Types ---------- */
-
-
-type Person = { uid: string; name?: string; avatar?: string | null; email?: string };
+type Person = {
+  uid: string;
+  name?: string;
+  avatar?: string | null;
+  email?: string;
+};
 
 type DmMessage = {
   id: string;
@@ -22,136 +35,107 @@ type DmMessage = {
   ts: number;
 };
 
+/* ---------- 상수/헬퍼 ---------- */
 const DEFAULT_PROFILE_IMG =
   "https://static-00.iconduck.com/assets.00/profile-circle-icon-2048x2048-cqe5466q.png";
-
-const AVATAR_FALLBACK = DEFAULT_PROFILE_IMG;
 
 const PROFILE_IMG_BASE_URL =
   "https://loopmusic.kro.kr:4001/uploads/profile_images/";
 
-// 파일명/절대URL 모두 안전하게 처리
+// URL 정규화: filename이면 서버 주소 붙이고, 아니면 그대로
 function normalizeProfileUrl(url?: string | null): string {
-  if (!url) return DEFAULT_PROFILE_IMG;
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (!url || typeof url !== "string" || url.trim() === "") {
+    return DEFAULT_PROFILE_IMG;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  // 서버에 저장된 filename만 있는 경우
   return `${PROFILE_IMG_BASE_URL}${url}`;
 }
-function pickName(d: any, fallbackUid: string): string {
+
+/**
+ * Firestore profiles/{uid} 문서에서 "사람 이름"으로 쓸만한 값 고르기
+ * fallbackUid는 마지막 폴백으로 uid 일부를 보여줄 때 사용
+ */
+function pickName(data: any, fallbackUid: string): string {
   const candidates = [
-    d?.nickname, d?.nickName,
-    d?.userName, d?.username,
-    d?.name,
-    d?.displayName,
-    d?.email,
-  ];
-  const found = candidates.find((v) => typeof v === "string" && v.trim().length > 0);
-  return found || fallbackUid.slice(0, 6);
+    data?.name,
+    data?.displayName,
+    data?.username,
+    data?.userName,
+    data?.nick,
+    data?.nickName,
+    data?.nickname,
+    data?.email, // 이메일을 이름 대용으로라도 보여줄지 여부
+  ].filter(
+    (v) => typeof v === "string" && v.trim().length > 0
+  ) as string[];
+
+  if (candidates.length > 0) return candidates[0];
+  return "이름 미설정";
 }
-function pickAvatar(d: any): string {
+
+/**
+ * Firestore profiles/{uid} 문서에서 "아바타 이미지 URL"로 쓸만한 값 고르기
+ * normalizeProfileUrl까지 해서 최종 안전한 문자열을 돌려준다.
+ */
+function pickAvatar(data: any): string {
   const candidates = [
-    d?.photoUrl, d?.photoURL,
-    d?.profileImage, d?.profileImg,
-    d?.avatar,
-    d?.filename,
-    d?.imageUrl,
-  ];
-  const raw = candidates.find((v) => typeof v === "string" && v.trim().length > 0);
+    data?.avatar,
+    data?.photoURL,
+    data?.photoUrl,
+    data?.profileImage,
+    data?.profileImg,
+    data?.profileImageUrl,
+    data?.imageUrl,
+    data?.filename,
+  ].filter(
+    (v) => typeof v === "string" && v.trim().length > 0
+  ) as string[];
+
+  const raw = candidates.length > 0 ? candidates[0] : null;
   return normalizeProfileUrl(raw);
 }
 
-// 프로필 한 건 로드: profiles 우선 → 없으면 users 폴백 (Post.tsx가 name/photoUrl을 쓰는 것과 같은 흐름) 
-async function loadPerson(uid: string): Promise<Person> {
-  // 1) profiles/{uid} 직행
-  const pDoc = await getDoc(doc(db, "profiles", uid));
-  if (pDoc.exists()) {
-    const d = pDoc.data() as any;
+/**
+ * Firestore profiles/{uid} → Person
+ * 이 함수가 이 파일의 "단일 진실 소스"가 된다.
+ * (= 다른 곳에서 중복으로 프로필 해석하지 말고 전부 이걸 거쳐 가게)
+ */
+async function fetchProfile(uid: string): Promise<Person> {
+  const snap = await getDoc(doc(db, "profiles", uid));
+
+  if (!snap.exists()) {
+    // 문서 없는 경우에도 Person 구조는 유지한다.
     return {
       uid,
-      name: pickName(d, uid),
-      avatar: pickAvatar(d),
-      email: d?.email ?? "",
+      name: "이름 미설정",
+      avatar: DEFAULT_PROFILE_IMG,
+      email: undefined,
     };
   }
 
-  // 2) profiles: uid/userId/ownerId 필드로 1건 찾기
-  for (const key of ["uid", "userId", "ownerId"]) {
-    const qs = await getDocs(
-      query(collection(db, "profiles"), where(key, "==", uid), limit(1))
-    );
-    if (!qs.empty) {
-      const d = qs.docs[0].data() as any;
-      return {
-        uid,
-        name: pickName(d, uid),
-        avatar: pickAvatar(d),
-        email: d?.email ?? "",
-      };
-    }
-  }
+  const data = snap.data() as any;
 
-  // 3) users/{uid} 직행
-  const uDoc = await getDoc(doc(db, "users", uid));
-  if (uDoc.exists()) {
-    const d = uDoc.data() as any;
-    return {
-      uid,
-      name: pickName(d, uid),
-      avatar: pickAvatar(d),
-      email: d?.email ?? "",
-    };
-  }
+  const name = pickName(data, uid);
+  const avatarFinal = pickAvatar(data);
+  const email =
+    data?.email || data?.userEmail || data?.mail || undefined;
 
-  // 4) users: uid/userId/ownerId 필드로 1건 찾기
-  for (const key of ["uid", "userId", "ownerId"]) {
-    const qs = await getDocs(
-      query(collection(db, "users"), where(key, "==", uid), limit(1))
-    );
-    if (!qs.empty) {
-      const d = qs.docs[0].data() as any;
-      return {
-        uid,
-        name: pickName(d, uid),
-        avatar: pickAvatar(d),
-        email: d?.email ?? "",
-      };
-    }
-  }
-
-  // 5) 최후 폴백
   return {
     uid,
-    name: uid.slice(0, 6),
-    avatar: DEFAULT_PROFILE_IMG,
-    email: "",
+    name,
+    avatar: avatarFinal || DEFAULT_PROFILE_IMG,
+    email,
   };
 }
-async function ensurePersonCached(
-  uid: string,
-  setPeople: React.Dispatch<React.SetStateAction<Record<string, Person>>>
-) {
-  try {
-    const person = await loadPerson(uid);
-    setPeople((prev) => {
-      const before = prev[uid];
-      // 같은 내용이면 상태 변경 생략(불필요 리렌더 방지)
-      if (before && before.name === person.name && before.avatar === person.avatar) {
-        return prev;
-      }
-      return { ...prev, [uid]: person };
-    });
-  } catch (e) {
-    console.warn("[DM] ensurePersonCached error:", uid, e);
-  }
-}
-// 🔽 [추가] 프로필 이미지 서버 주소
+
+/* ---------- Style ---------- */
 const LEFT_WIDTH = 260;
 const LIGHT_BORDER = "#d1d5db";
 const LIGHT_SOFT_BG = "#f3f4f6";
 
-
-
-/* ---------- Styled ---------- */
-// (스타일 코드는 이전과 동일)
 const Page = styled.div<{ $dark: boolean }>`
   height: calc(100vh - 70px);
   min-height: 0;
@@ -412,11 +396,11 @@ const EmptyState = styled.div<{ $dark: boolean }>`
   font-size: 14px;
 `;
 
-/* ---------- 이모지 피커 스타일 (동일) ---------- */
+/* 이모지 팝오버 */
 const EmojiPopover = styled.div<{ $dark: boolean }>`
   position: absolute;
   bottom: 56px;
-  left: 12px; /* DmScreen은 좌측 버튼 위치가 다름 */
+  left: 12px;
   width: 320px;
   max-height: 300px;
   border-radius: 14px;
@@ -512,7 +496,7 @@ const EmojiItem = styled.button<{ $dark: boolean }>`
   }
 `;
 
-/* ---------- Helpers ---------- */
+/* ---------- 유틸 ---------- */
 const formatTime = (ts: number) => {
   const d = new Date(ts);
   const hh = String(d.getHours()).padStart(2, "0");
@@ -529,7 +513,7 @@ const sameDay = (a: number, b: number) => {
   );
 };
 
-/* ---------- 이모지 상수 (동일) ---------- */
+/* ---------- 이모지 모음 ---------- */
 const EMOJIS = [
   "😀",
   "😄",
@@ -603,9 +587,7 @@ const DmScreen: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // (로그인 사용자, 이모지 팝오버, 스레드 목록, 프로필 캐시, activeUid, URL 파라미터 로직 등은 모두 동일)
-  // ... (이전 코드와 동일한 부분) ...
-  // 로그인 사용자
+  /* 로그인 유저 정보 */
   const [myUid, setMyUid] = useState<string | null>(
     auth.currentUser?.uid ?? null
   );
@@ -615,7 +597,6 @@ const DmScreen: React.FC = () => {
   const [myAvatar, setMyAvatar] = useState<string | null>(
     auth.currentUser?.photoURL || null
   );
-  
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -626,14 +607,7 @@ const DmScreen: React.FC = () => {
     return unsub;
   }, []);
 
-  // [추가] 이모지 팝오버 닫기용
-  useEffect(() => {
-    const closeEmoji = () => setEmojiOpen(false);
-    window.addEventListener("click", closeEmoji);
-    return () => window.removeEventListener("click", closeEmoji);
-  }, []);
-
-  // 좌측: 내가 멤버인 스레드 목록
+  /* DM 목록 (스레드) */
   const [threads, setThreads] = useState<
     Array<{
       threadId: string;
@@ -644,112 +618,169 @@ const DmScreen: React.FC = () => {
     }>
   >([]);
 
-  // uid→프로필 캐시 (좌측/우측 이름·이미지 표시용)
+  /* uid -> Person 캐시 */
   const [peopleMap, setPeopleMap] = useState<Record<string, Person>>({});
 
-  // 선택된 상대 uid
+  /* 현재 선택된 상대 uid */
   const [activeUid, setActiveUid] = useState<string | null>(null);
 
-  // URL 파라미터로 진입(프로필의 DM 버튼)
-  // --- [REPLACE] URL 파라미터로 진입했을 때 선반영 ---
-// URL 파라미터로 진입(프로필의 DM 버튼)
-// 1) 임시로 peopleMap 채움 → 2) 바로 DB에서 진짜 값 재조회하여 덮어쓰기
-useEffect(() => {
-  const uid = searchParams.get("uid");
-  const nameQ = searchParams.get("name");
-  const avatarQ = searchParams.get("avatar");
-  if (!uid) return;
+  /* 이모지 상태 */
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
-  setActiveUid(uid);
+  /* 입력 상태 */
+  const [queryText, setQueryText] = useState("");
+  const [draft, setDraft] = useState("");
 
-  // (1) 빠른 표시용 임시 값
-  setPeopleMap((prev) => ({
-    ...prev,
-    [uid]: {
-      uid,
-      name: nameQ ? decodeURIComponent(nameQ) : prev[uid]?.name || "사용자",
-      avatar: avatarQ
-        ? (avatarQ.startsWith("http")
-            ? decodeURIComponent(avatarQ)
-            : normalizeProfileUrl(decodeURIComponent(avatarQ)))
-        : prev[uid]?.avatar || DEFAULT_PROFILE_IMG,
-      email: prev[uid]?.email || "",
-    },
-  }));
+  /* 스크롤 / 입력창 ref */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // (2) 실제 DB 값으로 강제 덮어쓰기
-  ensurePersonCached(uid, setPeopleMap);
-}, [searchParams]);
+  /**
+   * 특정 uid의 프로필을 Firestore에서 읽고 peopleMap에 반영한다.
+   * (동일 uid가 이미 peopleMap에 있더라도 더 정확한 정보면 덮어쓴다.)
+   */
+  const ensurePersonCached = async (uid: string) => {
+    try {
+      const prof = await fetchProfile(uid);
 
+      setPeopleMap((prev) => {
+        const before = prev[uid];
 
+        // 이미 있고 값이 동일하면 굳이 state 갱신 안 해서 불필요 렌더 줄임
+        if (
+          before &&
+          before.name === prof.name &&
+          before.avatar === prof.avatar &&
+          before.email === prof.email
+        ) {
+          return prev;
+        }
 
-  // 스레드 목록 구독 (내 uid가 정해지면)
-  // --- [REPLACE] 스레드 구독 + 프로필 캐시 보강(Post.tsx 방식) ---
-useEffect(() => {
-  if (!myUid) return;
+        return {
+          ...prev,
+          [uid]: {
+            uid: prof.uid,
+            name: prof.name ?? "이름 미설정",
+            avatar: prof.avatar ?? DEFAULT_PROFILE_IMG,
+            email: prof.email,
+          },
+        };
+      });
 
-  const qThreads = query(
-    collection(db, "dm_threads"),
-    where("members", "array-contains", myUid)
-  );
+      return prof;
+    } catch (e) {
+      console.warn("[DM] ensurePersonCached error:", uid, e);
+    }
+  };
 
-  const off = onSnapshot(qThreads, async (snap) => {
-    const rows = snap.docs.map((d) => {
-      const x = d.data() as any;
-      const members: string[] = Array.isArray(x.members) ? x.members : [];
-      const peerUid = members.find((m) => m !== myUid) || myUid;
-      const updatedAt =
-        typeof x.updatedAt?.toMillis === "function"
-          ? x.updatedAt.toMillis()
-          : undefined;
-      return {
-        threadId: d.id,
-        peerUid,
-        lastMessage: x.lastMessage || "",
-        updatedAt,
-        lastSenderId: x.lastSenderId || "",
-      };
+  // DM 화면 진입 시 (?uid=...&name=...&avatar=...) 처리
+  useEffect(() => {
+    const uid = searchParams.get("uid");
+    const nameQ = searchParams.get("name");
+    const avatarQ = searchParams.get("avatar");
+    if (!uid) return;
+
+    setActiveUid(uid);
+
+    // URL 파라미터 기반 임시 정보 (우선 표시용)
+    const guessedName =
+      nameQ && decodeURIComponent(nameQ).trim().length > 0
+        ? decodeURIComponent(nameQ)
+        : peopleMap[uid]?.name ||
+          "이름 미설정";
+
+    const guessedAvatar = avatarQ
+      ? normalizeProfileUrl(decodeURIComponent(avatarQ))
+      : peopleMap[uid]?.avatar || DEFAULT_PROFILE_IMG;
+
+    setPeopleMap((prev) => ({
+      ...prev,
+      [uid]: {
+        uid,
+        name: guessedName,
+        avatar: guessedAvatar,
+        email: prev[uid]?.email || "",
+      },
+    }));
+
+    // 이후 진짜 Firestore 값으로 정정
+    ensurePersonCached(uid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // 내가 포함된 dm_threads 구독
+  useEffect(() => {
+    if (!myUid) return;
+
+    const qThreads = query(
+      collection(db, "dm_threads"),
+      where("members", "array-contains", myUid)
+    );
+
+    const off = onSnapshot(qThreads, async (snap) => {
+      const rows = snap.docs.map((d) => {
+        const x = d.data() as any;
+        const members: string[] = Array.isArray(x.members) ? x.members : [];
+        const peerUid = members.find((m) => m !== myUid) || myUid;
+
+        const updatedAt =
+          typeof x.updatedAt?.toMillis === "function"
+            ? x.updatedAt.toMillis()
+            : undefined;
+
+        return {
+          threadId: d.id,
+          peerUid,
+          lastMessage: x.lastMessage || "",
+          updatedAt,
+          lastSenderId: x.lastSenderId || "",
+        };
+      });
+
+      // 최신 순 정렬
+      rows.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      setThreads(rows);
+
+      // 스레드 등장 인물들 캐시 프리로드
+      await Promise.all(rows.map((r) => ensurePersonCached(r.peerUid)));
     });
 
-    rows.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-    setThreads(rows);
-    
-    await Promise.all(rows.map((r) => ensurePersonCached(r.peerUid, setPeopleMap)));
-  });
+    return off;
+  }, [myUid]);
 
-  return off;
-}, [myUid]);
+  // activeUid가 바뀔 때마다 그 프로필을 실시간 반영
+  useEffect(() => {
+    if (!activeUid) return;
 
-useEffect(() => {
-  if (!activeUid) return;
+    // Firestore 실시간 구독해서 그 유저 프로필 바뀌면 즉시 UI에 반영
+    const pRef = doc(db, "profiles", activeUid);
+    const unsub = onSnapshot(pRef, (snap) => {
+      if (snap.exists()) {
+        const d = snap.data() as any;
+        const liveName = pickName(d, activeUid);
+        const liveAvatar = pickAvatar(d);
+        const liveEmail =
+          d?.email || d?.userEmail || d?.mail || "";
 
-  const pRef = doc(db, "profiles", activeUid);
-  const unsub = onSnapshot(pRef, (snap) => {
-    if (snap.exists()) {
-      const d = snap.data() as any;
-      setPeopleMap((prev) => ({
-        ...prev,
-        [activeUid]: {
-          uid: activeUid,
-          name: pickName(d, activeUid),
-          avatar: pickAvatar(d),
-          email: d?.email ?? "",
-        },
-      }));
-    }
-  });
+        setPeopleMap((prev) => ({
+          ...prev,
+          [activeUid]: {
+            uid: activeUid,
+            name: liveName || "이름 미설정",
+            avatar: liveAvatar || DEFAULT_PROFILE_IMG,
+            email: liveEmail,
+          },
+        }));
+      }
+    });
 
-  return unsub;
-}, [activeUid]);
+    // 그리고 한 번 더 fetchProfile로 제대로 동기화(안전망)
+    ensurePersonCached(activeUid);
 
-useEffect(() => {
-  if (!activeUid) return;
-  ensurePersonCached(activeUid, setPeopleMap);
-}, [activeUid]);
- // peopleMap을 넣으면 무한루프 위험
- // 
+    return unsub;
+  }, [activeUid]);
 
-  // 스레드ID 계산
+  // threadId: 내 uid와 상대 uid를 정렬 후 이어붙인 고유키
   const threadId = useMemo(() => {
     if (!myUid || !activeUid) return null;
     return [myUid, activeUid].sort().join("__");
@@ -759,20 +790,21 @@ useEffect(() => {
   const [messages, setMessages] = useState<DmMessage[]>([]);
   useEffect(() => {
     if (!threadId) return;
-    const q = query(
+    const qMsg = query(
       collection(db, "dm_threads", threadId, "messages"),
       orderBy("ts", "asc")
     );
-    const off = onSnapshot(q, (snap: QuerySnapshot<DocumentData>) => {
+    const off = onSnapshot(qMsg, (snap: QuerySnapshot<DocumentData>) => {
       const list = snap.docs.map((d) => {
         const x = d.data() as any;
         return {
           id: d.id,
           userId: String(x.userId ?? ""),
           text: x.text ?? "",
-          // imageUrl: x.imageUrl ?? null, // 이미지 기능 제거됨
           ts:
-            typeof x.ts?.toMillis === "function" ? x.ts.toMillis() : Date.now(),
+            typeof x.ts?.toMillis === "function"
+              ? x.ts.toMillis()
+              : Date.now(),
         } as DmMessage;
       });
       setMessages(list);
@@ -780,38 +812,38 @@ useEffect(() => {
     return off;
   }, [threadId]);
 
-  // 상대 표시 정보
-  const activePerson: Person | null = activeUid
-    ? peopleMap[activeUid] || {
-        uid: activeUid,
-        name: "사용자", // 기본값
-        avatar: AVATAR_FALLBACK,
-      }
-    : null;
-
-  // 입력 상태
-  const [queryText, setQueryText] = useState("");
-  const [draft, setDraft] = useState("");
-  const [emojiOpen, setEmojiOpen] = useState(false); // [추가]
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
+  // 스크롤을 항상 최신 메시지 쪽으로
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight + 200;
   }, [messages, draft, activeUid]);
 
+  // 현재 우측 상단 헤더에 표시할 상대
+  const activePerson: Person | null = activeUid
+    ? {
+        uid: activeUid,
+        name:
+          peopleMap[activeUid]?.name ||
+          "이름 미설정",
+        avatar:
+          peopleMap[activeUid]?.avatar ||
+          DEFAULT_PROFILE_IMG,
+        email: peopleMap[activeUid]?.email || "",
+      }
+    : null;
+
+  /* 전송 가능 여부 */
   const isThreadOpen = !!threadId;
   const sendDisabled = !isThreadOpen || !draft.trim();
 
-  // 텍스트 전송
+  /* 메시지 전송 */
   const handleSend = async (e?: React.FormEvent | MouseEvent) => {
     (e as any)?.preventDefault?.();
     if (!myUid || !activeUid || !draft.trim()) return;
 
     const textToSend = draft.trim();
 
-    // 1) 부모 스레드 upsert
+    // 1) 스레드 upsert
     await setDoc(
       doc(db, "dm_threads", threadId!),
       {
@@ -830,7 +862,7 @@ useEffect(() => {
       ts: serverTimestamp(),
     });
 
-    // 3) 알림(선택)
+    // 3) 알림 (상대에게 DM 알림)
     try {
       await addDoc(collection(db, "notifications"), {
         recipientUid: activeUid,
@@ -840,13 +872,15 @@ useEffect(() => {
         desc: textToSend,
         ts: serverTimestamp(),
         read: false,
-        avatar: myAvatar || AVATAR_FALLBACK,
+        avatar: myAvatar
+          ? normalizeProfileUrl(myAvatar)
+          : DEFAULT_PROFILE_IMG,
         link: `/dm?uid=${myUid}&name=${encodeURIComponent(
           myName
         )}&avatar=${encodeURIComponent(
-          // 🔽 [수정] 알림에도 URL 대신 filename 전달 (필요시)
-          // 만약 내 아바타도 filename 기반이면 myAvatar.split('/').pop() 등이 필요
-          myAvatar || AVATAR_FALLBACK
+          myAvatar
+            ? normalizeProfileUrl(myAvatar)
+            : DEFAULT_PROFILE_IMG
         )}`,
       });
     } catch (err) {
@@ -857,16 +891,14 @@ useEffect(() => {
     inputRef.current?.focus();
   };
 
-  // [추가] 이모지 삽입
+  /* 이모지 삽입 */
   const insertEmoji = (emo: string) => {
     setDraft((t) => t + emo);
     inputRef.current?.focus();
     setEmojiOpen(false);
   };
 
-  // [제거] 이미지 전송 관련 로직 (onPickFiles, openGallery, fileRef) 모두 제거
-
-  // 엔터 전송
+  /* 엔터로 전송 */
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -874,24 +906,42 @@ useEffect(() => {
     }
   };
 
-  // 좌측 검색 필터
-  // ✅ 좌측 목록에 최신 이름/아바타 반영
+  /* 좌측 목록 (검색 필터 포함) */
   const visibleThreads = useMemo(() => {
-  const q = queryText.trim().toLowerCase();
-  const withLabel = threads.map((t) => {
-    const p = peopleMap[t.peerUid];
-    const name = p?.name || t.peerUid.slice(0, 6);
-    return { ...t, label: name, avatar: p?.avatar || DEFAULT_PROFILE_IMG };
-  });
-  return q ? withLabel.filter((r) => r.label.toLowerCase().includes(q)) : withLabel;
-}, [threads, peopleMap, queryText]);
+    const q = queryText.trim().toLowerCase();
 
+    const withLabel = threads.map((t) => {
+      const p = peopleMap[t.peerUid];
+      const labelName =
+        (p?.name && p.name.trim().length > 0
+          ? p.name
+          : "이름 미설정") || "이름 미설정";
 
+      const avatarSrc = p?.avatar
+        ? normalizeProfileUrl(p.avatar)
+        : DEFAULT_PROFILE_IMG;
+
+      return {
+        ...t,
+        label: labelName,
+        avatar: avatarSrc,
+      };
+    });
+
+    return q
+      ? withLabel.filter((r) =>
+          r.label.toLowerCase().includes(q)
+        )
+      : withLabel;
+  }, [threads, peopleMap, queryText]);
+
+  /* ---------- JSX 렌더 ---------- */
   return (
     <Page $dark={isDarkMode}>
-      {/* Left */}
+      {/* Left: DM 리스트 / 검색 */}
       <Left $dark={isDarkMode}>
         <LeftHeader $dark={isDarkMode}>메시지</LeftHeader>
+
         <SearchWrap $dark={isDarkMode}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M10 4a6 6 0 104.472 10.056l4.736 4.736 1.414-1.414-4.736-4.736A6 6 0 0010 4zm-4 6a4 4 0 118 0 4 4 0 01-8 0z" />
@@ -904,43 +954,59 @@ useEffect(() => {
         </SearchWrap>
 
         <ThreadList
-          style={{ ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1" }}
+          style={{
+            ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1",
+          }}
         >
           {visibleThreads.length === 0 ? (
-  <div className="text-gray-400 px-3 py-2">대상이 없습니다</div>
-) : (
-  visibleThreads.map((t) => {
-    const lastTime = t.updatedAt ? formatTime(t.updatedAt) : "";
-    const preview = t.lastMessage || (t.lastSenderId ? "새 메시지" : "대화 없음");
-    return (
-      <Row
-        key={t.threadId}
-        $active={t.peerUid === activeUid}
-        $dark={isDarkMode}
-        onClick={() => setActiveUid(t.peerUid)}
-      >
-          <StoryRing $dark={isDarkMode}>
-    <Avatar
-      $dark={isDarkMode}
-      src={t.avatar}
-      onError={(e) => ((e.target as HTMLImageElement).src = DEFAULT_PROFILE_IMG)}
-    />
-  </StoryRing>
-  <RowMain>
-    <Uname $dark={isDarkMode}>{t.label}</Uname>
-    <Preview $dark={isDarkMode}>{preview}</Preview>
-  </RowMain>
-        <RightMeta $dark={isDarkMode}>
-          <div>{lastTime}</div>
-        </RightMeta>
-      </Row>
-    );
-  })
-)}
+            <div className="text-gray-400 px-3 py-2">
+              대상이 없습니다
+            </div>
+          ) : (
+            visibleThreads.map((t) => {
+              const lastTime = t.updatedAt ? formatTime(t.updatedAt) : "";
+              const preview = t.lastMessage
+                ? t.lastMessage
+                : t.lastSenderId
+                ? "새 메시지"
+                : "대화 없음";
+
+              return (
+                <Row
+                  key={t.threadId}
+                  $active={t.peerUid === activeUid}
+                  $dark={isDarkMode}
+                  onClick={() => setActiveUid(t.peerUid)}
+                >
+                  <StoryRing $dark={isDarkMode}>
+                    <Avatar
+                      $dark={isDarkMode}
+                      src={t.avatar || DEFAULT_PROFILE_IMG}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          DEFAULT_PROFILE_IMG;
+                      }}
+                    />
+                  </StoryRing>
+
+                  <RowMain>
+                    <Uname $dark={isDarkMode}>{t.label}</Uname>
+                    <Preview $dark={isDarkMode}>
+                      {preview}
+                    </Preview>
+                  </RowMain>
+
+                  <RightMeta $dark={isDarkMode}>
+                    <div>{lastTime}</div>
+                  </RightMeta>
+                </Row>
+              );
+            })
+          )}
         </ThreadList>
       </Left>
 
-      {/* Right */}
+      {/* Right: 현재 선택된 DM */}
       <Right $dark={isDarkMode}>
         <ChatHeader $dark={isDarkMode}>
           {activePerson ? (
@@ -948,20 +1014,37 @@ useEffect(() => {
               <ChatUser $dark={isDarkMode}>
                 <Avatar
                   $dark={isDarkMode}
-                  src={activePerson.avatar || AVATAR_FALLBACK}
-                  onError={(e) =>
-                    ((e.target as HTMLImageElement).src = AVATAR_FALLBACK)
+                  src={
+                    activePerson.avatar
+                      ? normalizeProfileUrl(
+                          activePerson.avatar
+                        )
+                      : DEFAULT_PROFILE_IMG
                   }
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      DEFAULT_PROFILE_IMG;
+                  }}
                 />
-                <div>{activePerson.name}</div>
+                <div>
+                  {activePerson.name || "이름 미설정"}
+                </div>
               </ChatUser>
+
               <div />
+
               <div
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
               >
                 <button
                   title="프로필"
-                  onClick={() => navigate(`/user/${activePerson.uid}`)}
+                  onClick={() =>
+                    navigate(`/user/${activePerson.uid}`)
+                  }
                   style={{
                     width: 36,
                     height: 36,
@@ -979,7 +1062,9 @@ useEffect(() => {
               </div>
             </>
           ) : (
-            <div style={{ paddingLeft: 12, fontWeight: 800 }}>대화 선택</div>
+            <div style={{ paddingLeft: 12, fontWeight: 800 }}>
+              대화 선택
+            </div>
           )}
         </ChatHeader>
 
@@ -987,24 +1072,36 @@ useEffect(() => {
           messages.length > 0 ? (
             <Messages
               ref={scrollRef}
-              style={{ ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1" }}
+              style={{
+                ["--thumb" as any]: isDarkMode
+                  ? "#3a3f44"
+                  : "#cbd5e1",
+              }}
             >
               {messages.map((m, idx) => {
                 const prev = messages[idx - 1];
-                const showDivider = !prev || !sameDay(prev.ts, m.ts);
+                const showDivider =
+                  !prev || !sameDay(prev.ts, m.ts);
                 const mine = m.userId === myUid;
+
                 return (
                   <React.Fragment key={m.id}>
                     {showDivider && (
                       <DayDivider $dark={isDarkMode}>
                         <span />
-                        {new Date(m.ts).toLocaleDateString()}
+                        {new Date(
+                          m.ts
+                        ).toLocaleDateString()}
                         <span />
                       </DayDivider>
                     )}
+
                     <BubbleWrap $mine={mine}>
                       <Bubble mine={mine}>{m.text}</Bubble>
-                      <Time $dark={isDarkMode} $mine={mine}>
+                      <Time
+                        $dark={isDarkMode}
+                        $mine={mine}
+                      >
                         {formatTime(m.ts)}
                       </Time>
                     </BubbleWrap>
@@ -1019,11 +1116,12 @@ useEffect(() => {
           )
         ) : (
           <EmptyState $dark={isDarkMode}>
-            좌측에서 대화를 선택하거나 프로필에서 DM을 열어보세요.
+            좌측에서 대화를 선택하거나 프로필에서 DM을
+            열어보세요.
           </EmptyState>
         )}
 
-        {/* 입력창 및 팝오버 영역 (이미지 업로드 없음) */}
+        {/* 입력 영역 */}
         {isThreadOpen && (
           <div style={{ position: "relative" }}>
             {/* 이모지 팝오버 */}
@@ -1032,7 +1130,7 @@ useEffect(() => {
                 $dark={isDarkMode}
                 role="dialog"
                 aria-label="이모지 선택"
-                onClick={(e) => e.stopPropagation()} // 팝오버 클릭시 안 닫히게
+                onClick={(e) => e.stopPropagation()}
               >
                 <EmojiHeader $dark={isDarkMode}>
                   이모지
@@ -1045,6 +1143,7 @@ useEffect(() => {
                     ✕
                   </CloseBtn>
                 </EmojiHeader>
+
                 <EmojiBody $dark={isDarkMode}>
                   <EmojiGrid>
                     {EMOJIS.map((emo) => (
@@ -1063,7 +1162,7 @@ useEffect(() => {
               </EmojiPopover>
             )}
 
-            {/* InputBar 레이웃 */}
+            {/* 실제 입력 바 */}
             <InputBar
               $dark={isDarkMode}
               onSubmit={(e) => {
@@ -1071,7 +1170,7 @@ useEffect(() => {
                 handleSend();
               }}
             >
-              {/* 1. 이모지 버튼 */}
+              {/* 이모지 버튼 */}
               <IconBtn
                 $dark={isDarkMode}
                 type="button"
@@ -1084,7 +1183,7 @@ useEffect(() => {
                 😊
               </IconBtn>
 
-              {/* 2. 텍스트 박스 */}
+              {/* 텍스트 영역 */}
               <Textbox
                 ref={inputRef}
                 $dark={isDarkMode}
@@ -1094,7 +1193,7 @@ useEffect(() => {
                 onKeyDown={onKeyDown}
               />
 
-              {/* 3. 전송 버튼 */}
+              {/* 전송 버튼 */}
               <Send type="submit" disabled={sendDisabled}>
                 보내기
               </Send>
