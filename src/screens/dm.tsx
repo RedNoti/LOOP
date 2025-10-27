@@ -627,6 +627,31 @@ const DmScreen: React.FC = () => {
   /* 이모지 상태 */
   const [emojiOpen, setEmojiOpen] = useState(false);
 
+  const lastSeenRef = useRef<Record<string, number>>({});
+
+// helper: 저장
+function markThreadSeen(threadId: string, ts: number) {
+  if (!threadId || !myUid) return;
+  lastSeenRef.current[threadId] = ts;
+  const storageKey = `dm_seen_${myUid}_${threadId}`;
+  localStorage.setItem(storageKey, String(ts));
+}
+
+// helper: 불러오기
+function getThreadSeen(threadId: string): number {
+  if (!threadId || !myUid) return 0;
+  // 메모리에 있으면 그거
+  if (lastSeenRef.current[threadId]) {
+    return lastSeenRef.current[threadId];
+  }
+  // 없으면 localStorage에서 가져와서 ref에 적재
+  const storageKey = `dm_seen_${myUid}_${threadId}`;
+  const raw = localStorage.getItem(storageKey);
+  const parsed = raw ? parseInt(raw, 10) : 0;
+  lastSeenRef.current[threadId] = parsed || 0;
+  return parsed || 0;
+}
+
   /* 입력 상태 */
   const [queryText, setQueryText] = useState("");
   const [draft, setDraft] = useState("");
@@ -673,6 +698,55 @@ const DmScreen: React.FC = () => {
     }
   };
 
+  /* DM 수신 시 알림함(localStorage)에 항목 추가 */
+  const pushLocalInboxDM = ({
+    meUid,
+    fromUid,
+    fromName,
+    fromAvatar,
+    text,
+  }: {
+    meUid: string;
+    fromUid: string;
+    fromName: string;
+    fromAvatar: string | null | undefined;
+    text: string;
+  }) => {
+    const key = meUid ? `notif_inbox_${meUid}` : "notif_inbox_guest";
+
+    const raw = localStorage.getItem(key);
+    let inbox: any[] = [];
+    try {
+      inbox = raw ? JSON.parse(raw) : [];
+    } catch {
+      inbox = [];
+    }
+
+    const now = Date.now();
+    const avatarNormalized = fromAvatar
+      ? normalizeProfileUrl(fromAvatar)
+      : DEFAULT_PROFILE_IMG;
+
+    const newItem = {
+      id: `dm_${fromUid}_${now}`,
+      kind: "dm",
+      title: `${fromName} 님으로부터 새 메시지`,
+      desc: text,
+      ts: now,
+      read: false,
+      avatar: avatarNormalized,
+      link: `/dm?uid=${fromUid}&name=${encodeURIComponent(
+        fromName
+      )}&avatar=${encodeURIComponent(avatarNormalized)}`,
+    };
+
+    const updated = [newItem, ...inbox];
+    localStorage.setItem(key, JSON.stringify(updated));
+
+    // 선택: 알림 화면에 live 반영하고 싶으면 이벤트 dispatch
+    // window.dispatchEvent(new Event("notif_inbox_updated"));
+  };
+
   // DM 화면 진입 시 (?uid=...&name=...&avatar=...) 처리
   useEffect(() => {
     const uid = searchParams.get("uid");
@@ -686,8 +760,7 @@ const DmScreen: React.FC = () => {
     const guessedName =
       nameQ && decodeURIComponent(nameQ).trim().length > 0
         ? decodeURIComponent(nameQ)
-        : peopleMap[uid]?.name ||
-          "이름 미설정";
+        : peopleMap[uid]?.name || "이름 미설정";
 
     const guessedAvatar = avatarQ
       ? normalizeProfileUrl(decodeURIComponent(avatarQ))
@@ -759,8 +832,7 @@ const DmScreen: React.FC = () => {
         const d = snap.data() as any;
         const liveName = pickName(d, activeUid);
         const liveAvatar = pickAvatar(d);
-        const liveEmail =
-          d?.email || d?.userEmail || d?.mail || "";
+        const liveEmail = d?.email || d?.userEmail || d?.mail || "";
 
         setPeopleMap((prev) => ({
           ...prev,
@@ -786,48 +858,96 @@ const DmScreen: React.FC = () => {
     return [myUid, activeUid].sort().join("__");
   }, [myUid, activeUid]);
 
-  // 메시지 구독
+  /* 메시지 목록 + 새 메시지 감지해서 알림 push */
   const [messages, setMessages] = useState<DmMessage[]>([]);
+
   useEffect(() => {
-    if (!threadId) return;
-    const qMsg = query(
-      collection(db, "dm_threads", threadId, "messages"),
-      orderBy("ts", "asc")
-    );
-    const off = onSnapshot(qMsg, (snap: QuerySnapshot<DocumentData>) => {
-      const list = snap.docs.map((d) => {
-        const x = d.data() as any;
-        return {
-          id: d.id,
-          userId: String(x.userId ?? ""),
-          text: x.text ?? "",
-          ts:
-            typeof x.ts?.toMillis === "function"
-              ? x.ts.toMillis()
-              : Date.now(),
-        } as DmMessage;
-      });
-      setMessages(list);
+  if (!threadId) return;
+  if (!myUid) return;
+
+  const qMsg = query(
+    collection(db, "dm_threads", threadId, "messages"),
+    orderBy("ts", "asc")
+  );
+
+  const off = onSnapshot(qMsg, (snap: QuerySnapshot<DocumentData>) => {
+    const list = snap.docs.map((d) => {
+      const x = d.data() as any;
+      return {
+        id: d.id,
+        userId: String(x.userId ?? ""),
+        text: x.text ?? "",
+        ts:
+          typeof x.ts?.toMillis === "function"
+            ? x.ts.toMillis()
+            : Date.now(),
+      } as DmMessage;
     });
-    return off;
-  }, [threadId]);
+
+    setMessages(list);
+
+    // 알림判定 시작 ---------------------------------
+    if (!list.length) return;
+
+    const last = list[list.length - 1];
+
+    // 내가 보낸 메시지는 알림 대상 아님 -> 그냥 본 걸로 마킹만
+    if (last.userId === myUid) {
+      markThreadSeen(threadId, last.ts);
+      return;
+    }
+
+    // 이전에 본 마지막 ts 가져오기 (ref/localStorage에서)
+    const prevSeenTs = getThreadSeen(threadId);
+
+    // 이미 본(또는 처리한) 메시지면 알림 추가 안 함
+    if (last.ts <= prevSeenTs) {
+      return;
+    }
+
+    // 여기까지 왔으면 실제로 나에게 온 "새로운 DM"
+    // 보낸 사람 정보는 peopleMap 없이 fallback으로도 충분히 보여줄 수 있음
+    const fallbackName = last.userId.slice(0, 6);
+    pushLocalInboxDM({
+      meUid: myUid,
+      fromUid: last.userId,
+      fromName: fallbackName,
+      fromAvatar: undefined, // avatar는 없어도 됨. 안전.
+      text: last.text || "",
+    });
+
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission === "granted"
+    ) {
+      new Notification(`${fallbackName} 님의 DM`, {
+        body: last.text || "",
+        icon: DEFAULT_PROFILE_IMG,
+      });
+    }
+
+    // 이 ts를 본 것으로 기록 (ref + localStorage)
+    markThreadSeen(threadId, last.ts);
+    // ---------------------------------
+  });
+
+  return off;
+}, [threadId, myUid]);
 
   // 스크롤을 항상 최신 메시지 쪽으로
   useEffect(() => {
     if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight + 200;
+    scrollRef.current.scrollTop =
+      scrollRef.current.scrollHeight + 200;
   }, [messages, draft, activeUid]);
 
   // 현재 우측 상단 헤더에 표시할 상대
   const activePerson: Person | null = activeUid
     ? {
         uid: activeUid,
-        name:
-          peopleMap[activeUid]?.name ||
-          "이름 미설정",
+        name: peopleMap[activeUid]?.name || "이름 미설정",
         avatar:
-          peopleMap[activeUid]?.avatar ||
-          DEFAULT_PROFILE_IMG,
+          peopleMap[activeUid]?.avatar || DEFAULT_PROFILE_IMG,
         email: peopleMap[activeUid]?.email || "",
       }
     : null;
@@ -856,13 +976,16 @@ const DmScreen: React.FC = () => {
     );
 
     // 2) 메시지 추가
-    await addDoc(collection(db, "dm_threads", threadId!, "messages"), {
-      userId: myUid,
-      text: textToSend,
-      ts: serverTimestamp(),
-    });
+    await addDoc(
+      collection(db, "dm_threads", threadId!, "messages"),
+      {
+        userId: myUid,
+        text: textToSend,
+        ts: serverTimestamp(),
+      }
+    );
 
-    // 3) 알림 (상대에게 DM 알림)
+    // 3) Firestore notifications에도 기록해서 상대가 알림 볼 수 있게
     try {
       await addDoc(collection(db, "notifications"), {
         recipientUid: activeUid,
@@ -955,7 +1078,9 @@ const DmScreen: React.FC = () => {
 
         <ThreadList
           style={{
-            ["--thumb" as any]: isDarkMode ? "#3a3f44" : "#cbd5e1",
+            ["--thumb" as any]: isDarkMode
+              ? "#3a3f44"
+              : "#cbd5e1",
           }}
         >
           {visibleThreads.length === 0 ? (
@@ -964,7 +1089,9 @@ const DmScreen: React.FC = () => {
             </div>
           ) : (
             visibleThreads.map((t) => {
-              const lastTime = t.updatedAt ? formatTime(t.updatedAt) : "";
+              const lastTime = t.updatedAt
+                ? formatTime(t.updatedAt)
+                : "";
               const preview = t.lastMessage
                 ? t.lastMessage
                 : t.lastSenderId
@@ -990,7 +1117,9 @@ const DmScreen: React.FC = () => {
                   </StoryRing>
 
                   <RowMain>
-                    <Uname $dark={isDarkMode}>{t.label}</Uname>
+                    <Uname $dark={isDarkMode}>
+                      {t.label}
+                    </Uname>
                     <Preview $dark={isDarkMode}>
                       {preview}
                     </Preview>
@@ -1027,7 +1156,8 @@ const DmScreen: React.FC = () => {
                   }}
                 />
                 <div>
-                  {activePerson.name || "이름 미설정"}
+                  {activePerson.name ||
+                    "이름 미설정"}
                 </div>
               </ChatUser>
 
@@ -1050,10 +1180,14 @@ const DmScreen: React.FC = () => {
                     height: 36,
                     borderRadius: 999,
                     border: `1px solid ${
-                      isDarkMode ? "#202327" : LIGHT_BORDER
+                      isDarkMode
+                        ? "#202327"
+                        : LIGHT_BORDER
                     }`,
                     background: "transparent",
-                    color: isDarkMode ? "#e5e7eb" : "#0f172a",
+                    color: isDarkMode
+                      ? "#e5e7eb"
+                      : "#0f172a",
                     cursor: "pointer",
                   }}
                 >
@@ -1062,7 +1196,12 @@ const DmScreen: React.FC = () => {
               </div>
             </>
           ) : (
-            <div style={{ paddingLeft: 12, fontWeight: 800 }}>
+            <div
+              style={{
+                paddingLeft: 12,
+                fontWeight: 800,
+              }}
+            >
               대화 선택
             </div>
           )}
@@ -1097,7 +1236,9 @@ const DmScreen: React.FC = () => {
                     )}
 
                     <BubbleWrap $mine={mine}>
-                      <Bubble mine={mine}>{m.text}</Bubble>
+                      <Bubble mine={mine}>
+                        {m.text}
+                      </Bubble>
                       <Time
                         $dark={isDarkMode}
                         $mine={mine}
@@ -1111,13 +1252,14 @@ const DmScreen: React.FC = () => {
             </Messages>
           ) : (
             <EmptyState $dark={isDarkMode}>
-              아직 메시지가 없습니다. 첫 메시지를 보내보세요.
+              아직 메시지가 없습니다. 첫
+              메시지를 보내보세요.
             </EmptyState>
           )
         ) : (
           <EmptyState $dark={isDarkMode}>
-            좌측에서 대화를 선택하거나 프로필에서 DM을
-            열어보세요.
+            좌측에서 대화를 선택하거나
+            프로필에서 DM을 열어보세요.
           </EmptyState>
         )}
 
@@ -1138,7 +1280,9 @@ const DmScreen: React.FC = () => {
                     $dark={isDarkMode}
                     type="button"
                     aria-label="이모지 닫기"
-                    onClick={() => setEmojiOpen(false)}
+                    onClick={() =>
+                      setEmojiOpen(false)
+                    }
                   >
                     ✕
                   </CloseBtn>
@@ -1151,7 +1295,9 @@ const DmScreen: React.FC = () => {
                         key={emo}
                         $dark={isDarkMode}
                         type="button"
-                        onClick={() => insertEmoji(emo)}
+                        onClick={() =>
+                          insertEmoji(emo)
+                        }
                         aria-label={`이모지 ${emo}`}
                       >
                         {emo}
@@ -1189,12 +1335,17 @@ const DmScreen: React.FC = () => {
                 $dark={isDarkMode}
                 placeholder="메시지를 입력하세요…"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) =>
+                  setDraft(e.target.value)
+                }
                 onKeyDown={onKeyDown}
               />
 
               {/* 전송 버튼 */}
-              <Send type="submit" disabled={sendDisabled}>
+              <Send
+                type="submit"
+                disabled={sendDisabled}
+              >
                 보내기
               </Send>
             </InputBar>
