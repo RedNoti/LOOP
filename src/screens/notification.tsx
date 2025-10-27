@@ -5,7 +5,7 @@ import { useTheme } from "../components/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
-type Kind = "mention" | "like" | "system" | "dm";
+type Kind = "mention" | "like" | "system" | "dm" | "follow";
 type Item = {
   id: string;
   kind: Kind;
@@ -369,14 +369,17 @@ const NotificationsScreen: React.FC = () => {
             <Body>
               <Row>
                 <KindBadge $kind={it.kind}>
-                  {it.kind === "mention"
-                    ? "멘션"
-                    : it.kind === "like"
-                    ? "좋아요"
-                    : it.kind === "dm"
-                    ? "DM"
-                    : "시스템"}
-                </KindBadge>
+  {it.kind === "mention"
+    ? "멘션"
+    : it.kind === "like"
+    ? "좋아요"
+    : it.kind === "dm"
+    ? "DM"
+    : it.kind === "follow"
+    ? "팔로우"
+    : "시스템"}
+</KindBadge>
+
                 <Title>{it.title}</Title>
               </Row>
               {it.desc && <Desc>{it.desc}</Desc>}

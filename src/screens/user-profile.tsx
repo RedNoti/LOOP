@@ -6,6 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 import { useTheme } from "../components/ThemeContext";
 import { useRelations } from "../components/RelationsContext";
+import { notifyFollow } from "../components/NotificationUtil";
 
 const Container = styled.div<{ $isDark: boolean }>`
   background: ${(p) => (p.$isDark ? "#000000" : "#ffffff")};
@@ -193,12 +194,31 @@ export default function UserProfileScreen() {
                       </ActionBtn>
                     ) : (
                       <ActionBtn
-                        $isDark={isDarkMode}
-                        $primary
-                        onClick={() => follow(uid)}
-                      >
-                        팔로우
-                      </ActionBtn>
+  $isDark={isDarkMode}
+  $primary
+  onClick={async () => {
+    if (!uid) return; // 방어 코드
+
+    // 1) Firestore에 팔로우 적용 (기존 기능)
+    await follow(uid);
+
+    // 2) 내 로그인 정보 (알림에 표시할 사람 = 나)
+    const meUser = auth.currentUser;
+    const followerUid = meUser?.uid ?? "";
+    const followerName = meUser?.displayName ?? "익명";
+    const followerAvatar = meUser?.photoURL ?? undefined;
+
+    // 3) 팔로우 당한 상대에게 알림 추가
+    notifyFollow({
+      targetUid: uid,          // 내가 지금 보고 있는 프로필 주인
+      followerUid,             // 나
+      followerName,
+      followerAvatar,
+    });
+  }}
+>
+  팔로우
+</ActionBtn>
                     )}
 
                     {isMuted(uid) ? (
