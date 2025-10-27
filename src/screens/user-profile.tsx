@@ -6,7 +6,11 @@ import { doc, getDoc } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 import { useTheme } from "../components/ThemeContext";
 import { useRelations } from "../components/RelationsContext";
-import { notifyFollow } from "../components/NotificationUtil";
+import {
+  notifyFollow,
+  notifyFollowFirestore,
+} from "../components/NotificationUtil";
+
 
 const Container = styled.div<{ $isDark: boolean }>`
   background: ${(p) => (p.$isDark ? "#000000" : "#ffffff")};
@@ -193,32 +197,88 @@ export default function UserProfileScreen() {
                         팔로잉 취소
                       </ActionBtn>
                     ) : (
-                      <ActionBtn
+                     <ActionBtn
   $isDark={isDarkMode}
   $primary
   onClick={async () => {
-    if (!uid) return; // 방어 코드
+    if (!uid) return; // uid = 지금 보고 있는 상대 유저의 uid (팔로우 당한 쪽)
 
-    // 1) Firestore에 팔로우 적용 (기존 기능)
-    await follow(uid);
+    // 1) Firestore 관계 업데이트 (내가 uid를 팔로우)
+    try {
+      await follow(uid);
+    } catch (err) {
+      console.error("follow(uid) 실패. 그래도 알림까지는 보내서 동작 확인해볼게요:", err);
+      // 여기서 return 안 하는 이유:
+      // follow()에 권한 문제가 있어도 notifyFollow 자체는 정상적으로 도는지 확인하고 싶기 때문입니다.
+    }
 
-    // 2) 내 로그인 정보 (알림에 표시할 사람 = 나)
+    // 2) 현재 로그인한 내 계정 정보
     const meUser = auth.currentUser;
     const followerUid = meUser?.uid ?? "";
-    const followerName = meUser?.displayName ?? "익명";
-    const followerAvatar = meUser?.photoURL ?? undefined;
+    if (!followerUid) {
+      console.warn("[팔로우 알림 중단] 로그인된 사용자 UID가 없습니다.");
+      return;
+    }
 
-    // 3) 팔로우 당한 상대에게 알림 추가
+    // 3) 내 이름/아바타(팔로우 한 사람의 표시용)를 준비
+    let followerName: string | undefined = meUser?.displayName || "익명";
+    let followerAvatar: string | undefined = meUser?.photoURL || undefined;
+
+    try {
+      const snap = await getDoc(doc(db, "profiles", followerUid));
+      if (snap.exists()) {
+        const pdata = snap.data() as any;
+        followerName =
+          pdata.name ||
+          pdata.displayName ||
+          pdata.username ||
+          pdata.nickname ||
+          pdata.email ||
+          meUser?.displayName ||
+          "익명";
+
+        followerAvatar =
+          pdata.photoUrl ||
+          pdata.avatar ||
+          pdata.photoURL ||
+          meUser?.photoURL ||
+          undefined;
+      }
+    } catch (err) {
+      console.error("프로필 로드 실패(팔로우 알림용):", err);
+      // 여기서도 fallback으로 meUser 기반 값 쓰면 됨
+    }
+
+    // 4) 실제 알림 생성
     notifyFollow({
-      targetUid: uid,          // 내가 지금 보고 있는 프로필 주인
-      followerUid,             // 나
+      targetUid: uid,          // ← 팔로우 "당한" 사람 (상대방 uid)
+      followerUid,             // ← 나 (팔로우 한 사람)
       followerName,
       followerAvatar,
     });
+    notifyFollowFirestore({
+  targetUid: uid,
+  followerUid,
+  followerName,
+  followerAvatar,
+});
+
+    // 5) 디버그 출력: 이게 찍혀야 실제로 notifyFollow가 실행된 거예요.
+    console.log("[notifyFollow 호출됨]", {
+      targetUid: uid,
+      followerUid,
+      followerName,
+      followerAvatar,
+    });
+
+    // 6) 이제 localStorage 확인해볼 수 있음:
+    //    localStorage.getItem("notif_inbox_" + uid)
+    //    위 값이 이제는 null이 아니어야 정상입니다.
   }}
 >
   팔로우
 </ActionBtn>
+
                     )}
 
                     {isMuted(uid) ? (

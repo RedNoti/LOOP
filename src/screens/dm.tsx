@@ -19,6 +19,7 @@ import {
   type QuerySnapshot,
   type DocumentData,
 } from "firebase/firestore";
+import { notifyDM } from "../components/NotificationUtil"; // 새로 추가
 
 /* ---------- Types ---------- */
 type Person = {
@@ -700,52 +701,57 @@ function getThreadSeen(threadId: string): number {
 
   /* DM 수신 시 알림함(localStorage)에 항목 추가 */
   const pushLocalInboxDM = ({
-    meUid,
-    fromUid,
-    fromName,
-    fromAvatar,
-    text,
-  }: {
-    meUid: string;
-    fromUid: string;
-    fromName: string;
-    fromAvatar: string | null | undefined;
-    text: string;
-  }) => {
-    const key = meUid ? `notif_inbox_${meUid}` : "notif_inbox_guest";
+  meUid,
+  fromUid,
+  fromName,
+  fromAvatar,
+  text,
+}: {
+  meUid: string;
+  fromUid: string;
+  fromName: string;
+  fromAvatar: string | null | undefined;
+  text: string;
+}) => {
+  const key = meUid ? `notif_inbox_${meUid}` : "notif_inbox_guest";
 
+  // 현재 인박스 불러오기
+  let inbox: any[] = [];
+  try {
     const raw = localStorage.getItem(key);
-    let inbox: any[] = [];
-    try {
-      inbox = raw ? JSON.parse(raw) : [];
-    } catch {
-      inbox = [];
-    }
+    inbox = raw ? JSON.parse(raw) : [];
+  } catch {
+    inbox = [];
+  }
 
-    const now = Date.now();
-    const avatarNormalized = fromAvatar
-      ? normalizeProfileUrl(fromAvatar)
-      : DEFAULT_PROFILE_IMG;
+  const now = Date.now();
+  const avatarNormalized = fromAvatar
+    ? normalizeProfileUrl(fromAvatar)
+    : DEFAULT_PROFILE_IMG;
 
-    const newItem = {
-      id: `dm_${fromUid}_${now}`,
-      kind: "dm",
-      title: `${fromName} 님으로부터 새 메시지`,
-      desc: text,
-      ts: now,
-      read: false,
-      avatar: avatarNormalized,
-      link: `/dm?uid=${fromUid}&name=${encodeURIComponent(
-        fromName
-      )}&avatar=${encodeURIComponent(avatarNormalized)}`,
-    };
+  // 중복 알림 방지 (같은 사람이 연속으로 보냈을 때 너무 많이 안 쌓이게 하고 싶으면 여기서 검사 가능)
+  // 여기서는 일단 그냥 바로 푸시
 
-    const updated = [newItem, ...inbox];
-    localStorage.setItem(key, JSON.stringify(updated));
-
-    // 선택: 알림 화면에 live 반영하고 싶으면 이벤트 dispatch
-    // window.dispatchEvent(new Event("notif_inbox_updated"));
+  const newItem = {
+    id: `dm_${fromUid}_${now}`,
+    kind: "dm",
+    title: `${fromName} 님으로부터 새 메시지`,
+    desc: text,
+    ts: now,
+    read: false,
+    avatar: avatarNormalized,
+    link: `/dm?uid=${fromUid}&name=${encodeURIComponent(
+      fromName
+    )}&avatar=${encodeURIComponent(avatarNormalized)}`,
   };
+
+  // 가장 앞에 넣고 최대 200개 유지 (선택사항)
+  const updated = [newItem, ...inbox].slice(0, 200);
+  localStorage.setItem(key, JSON.stringify(updated));
+
+  // 🔥 알림센터 / 알림뱃지 실시간 갱신용 이벤트 브로드캐스트
+  window.dispatchEvent(new Event("notif_inbox_updated"));
+};
 
   // DM 화면 진입 시 (?uid=...&name=...&avatar=...) 처리
   useEffect(() => {
@@ -870,66 +876,94 @@ function getThreadSeen(threadId: string): number {
     orderBy("ts", "asc")
   );
 
-  const off = onSnapshot(qMsg, (snap: QuerySnapshot<DocumentData>) => {
-    const list = snap.docs.map((d) => {
-      const x = d.data() as any;
-      return {
-        id: d.id,
-        userId: String(x.userId ?? ""),
-        text: x.text ?? "",
-        ts:
-          typeof x.ts?.toMillis === "function"
-            ? x.ts.toMillis()
-            : Date.now(),
-      } as DmMessage;
-    });
-
-    setMessages(list);
-
-    // 알림判定 시작 ---------------------------------
-    if (!list.length) return;
-
-    const last = list[list.length - 1];
-
-    // 내가 보낸 메시지는 알림 대상 아님 -> 그냥 본 걸로 마킹만
-    if (last.userId === myUid) {
-      markThreadSeen(threadId, last.ts);
-      return;
-    }
-
-    // 이전에 본 마지막 ts 가져오기 (ref/localStorage에서)
-    const prevSeenTs = getThreadSeen(threadId);
-
-    // 이미 본(또는 처리한) 메시지면 알림 추가 안 함
-    if (last.ts <= prevSeenTs) {
-      return;
-    }
-
-    // 여기까지 왔으면 실제로 나에게 온 "새로운 DM"
-    // 보낸 사람 정보는 peopleMap 없이 fallback으로도 충분히 보여줄 수 있음
-    const fallbackName = last.userId.slice(0, 6);
-    pushLocalInboxDM({
-      meUid: myUid,
-      fromUid: last.userId,
-      fromName: fallbackName,
-      fromAvatar: undefined, // avatar는 없어도 됨. 안전.
-      text: last.text || "",
-    });
-
-    if (
-      typeof Notification !== "undefined" &&
-      Notification.permission === "granted"
-    ) {
-      new Notification(`${fallbackName} 님의 DM`, {
-        body: last.text || "",
-        icon: DEFAULT_PROFILE_IMG,
-      });
-    }
-
-    // 이 ts를 본 것으로 기록 (ref + localStorage)
-    markThreadSeen(threadId, last.ts);
-    // ---------------------------------
+  const off = onSnapshot(qMsg, async (snap: QuerySnapshot<DocumentData>) => {
+  const list = snap.docs.map((d) => {
+    const x = d.data() as any;
+    return {
+      id: d.id,
+      userId: String(x.userId ?? ""),
+      text: x.text ?? "",
+      ts:
+        typeof x.ts?.toMillis === "function"
+          ? x.ts.toMillis()
+          : Date.now(),
+    } as DmMessage;
   });
+
+  setMessages(list);
+
+  if (!list.length) return;
+
+  const last = list[list.length - 1];
+
+  // 내가 보낸 메시지는 알림 대상 아님
+  if (last.userId === myUid) {
+    markThreadSeen(threadId, last.ts);
+    return;
+  }
+
+  const prevSeenTs = getThreadSeen(threadId);
+  if (last.ts <= prevSeenTs) {
+    return;
+  }
+
+  // === 새로 받은 DM이므로 알림 생성 시작 ===
+
+  // 1) 상대방 프로필 캐시가 있는지 확인
+  let senderPerson = peopleMap[last.userId];
+  if (!senderPerson) {
+    // 캐시에 없으면 Firestore에서 한번 가져오고 state 갱신
+    const fetched = await fetchProfile(last.userId);
+    senderPerson = {
+      uid: fetched.uid,
+      name: fetched.name ?? "이름 미설정",
+      avatar: fetched.avatar ?? DEFAULT_PROFILE_IMG,
+      email: fetched.email,
+    };
+
+    // 캐시에도 넣어주기
+    setPeopleMap((prev) => ({
+      ...prev,
+      [last.userId]: senderPerson!,
+    }));
+  }
+
+  // 2) 알림에 들어갈 이름/아바타 결정
+  const senderNameFinal =
+    senderPerson.name && senderPerson.name.trim().length > 0
+      ? senderPerson.name
+      : last.userId.slice(0, 6); // 그래도 혹시 없으면 UID 앞 6글자
+
+  const senderAvatarFinal =
+    senderPerson.avatar && senderPerson.avatar.trim().length > 0
+      ? senderPerson.avatar
+      : undefined;
+
+  // 3) 로컬 알림 인박스에 push
+  pushLocalInboxDM({
+    meUid: myUid,
+    fromUid: last.userId,
+    fromName: senderNameFinal,
+    fromAvatar: senderAvatarFinal,
+    text: last.text || "",
+  });
+
+  // 4) 브라우저 Notification API (선택)
+  if (
+    typeof Notification !== "undefined" &&
+    Notification.permission === "granted"
+  ) {
+    new Notification(`${senderNameFinal} 님의 DM`, {
+      body: last.text || "",
+      icon: senderAvatarFinal
+        ? normalizeProfileUrl(senderAvatarFinal)
+        : DEFAULT_PROFILE_IMG,
+    });
+  }
+
+  // 5) 이 메시지는 본 걸로 기록
+  markThreadSeen(threadId, last.ts);
+});
 
   return off;
 }, [threadId, myUid]);

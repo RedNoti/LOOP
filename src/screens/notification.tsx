@@ -4,6 +4,8 @@ import styled from "styled-components";
 import { useTheme } from "../components/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { onSnapshot, query, collection, where, orderBy } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
 type Kind = "mention" | "like" | "system" | "dm" | "follow";
 type Item = {
@@ -307,6 +309,54 @@ const NotificationsScreen: React.FC = () => {
     const inbox = loadInbox(uid).sort((a, b) => b.ts - a.ts);
     setItems(inbox);
   }, [uid]);
+    useEffect(() => {
+    if (!uid) return;
+
+    const reload = () => {
+      const inbox = loadInbox(uid).sort((a, b) => b.ts - a.ts);
+      setItems(inbox);
+    };
+
+    // 최초 1회 안전 로드 (혹시 uid 바뀐 직후 딜레이 있을 경우)
+    reload();
+
+    window.addEventListener("notif_inbox_updated", reload);
+    return () => {
+      window.removeEventListener("notif_inbox_updated", reload);
+    };
+  }, [uid]);
+  useEffect(() => {
+  if (!uid) return;
+
+  // recipientUid == uid 인 알림들을 최신순으로 구독
+  const qRef = query(
+    collection(db, "notifications"),
+    where("recipientUid", "==", uid),
+    orderBy("ts", "desc")
+  );
+
+  const unsub = onSnapshot(qRef, (snap) => {
+    const serverItems: Item[] = snap.docs.map((d) => {
+      const x = d.data() as any;
+      return {
+        id: d.id,
+        kind: x.kind || "system",
+        title: x.title || "",
+        desc: x.desc || undefined,
+        ts: x.ts?.toMillis ? x.ts.toMillis() : Date.now(),
+        read: x.read ?? false,
+        avatar: x.avatar || undefined,
+        link: x.link || undefined,
+      };
+    });
+
+    // 🔄 localStorage 기반 items와 merge하고 싶으면 여기서 합칠 수도 있음.
+    // 지금은 Firestore 것이 진실(source of truth)이 되도록 그냥 갈아끼운다:
+    setItems(serverItems);
+  });
+
+  return () => unsub();
+}, [uid]);
 
   // 모두 읽음
   const markAll = () => {
