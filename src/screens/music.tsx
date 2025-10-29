@@ -21,6 +21,7 @@ import {
   playerReadyRef,
   requestSeek,
 } from "../components/MusicFunction";
+import { appendHistory } from "../components/listeningHistory";
 
 const Container = styled.div<{ $isCollapsed: boolean }>`
   color: white;
