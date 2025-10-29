@@ -992,7 +992,7 @@ function getThreadSeen(threadId: string): number {
   const sendDisabled = !isThreadOpen || !draft.trim();
 
   /* 메시지 전송 */
-  const handleSend = async (e?: React.FormEvent | MouseEvent) => {
+  const handleSend = async (e?: React.FormEvent | React.MouseEvent) => {
     (e as any)?.preventDefault?.();
     if (!myUid || !activeUid || !draft.trim()) return;
 

@@ -12,6 +12,9 @@ import React, {
   useContext,
 } from "react";
 import { onAuthStateChanged } from "firebase/auth";
+import { db } from "../firebaseConfig";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+
 
 /* ---------- Image Modal Context ---------- */
 interface ImageModalContextType {
@@ -25,6 +28,7 @@ export const useImageModal = () => {
     throw new Error("useImageModal must be used within ImageModalProvider");
   return ctx;
 };
+
 
 /* ---------- Styled ---------- */
 const LayoutWrapper = styled.div`
@@ -407,68 +411,110 @@ const Layout = () => {
     }
   }, [dominantColor, secondaryColor]);
 
-  /* ===================== 🔔 미읽음 카운트 훅 ===================== */
-  const inboxKey = (uid?: string | null) =>
-    uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
+  /* ===================== 🔔 미읽음 카운트 훅 (로컬 DM + Firestore 통합) ===================== */
+const inboxKey = (uid?: string | null) =>
+  uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
 
-  const getUnreadCount = (uid?: string | null) => {
-    try {
-      const raw = localStorage.getItem(inboxKey(uid));
-      if (!raw) return 0;
-      const list = JSON.parse(raw) as { read?: boolean }[];
-      return list.reduce((n, i) => n + (i?.read ? 0 : 1), 0);
-    } catch {
-      return 0;
-    }
+// 로컬 DM 미읽음 카운트
+const getUnreadDm = (uid?: string | null) => {
+  try {
+    const raw = localStorage.getItem(inboxKey(uid));
+    if (!raw) return 0;
+    const list = JSON.parse(raw) as { read?: boolean }[];
+    return list.reduce((n, i) => n + (i?.read ? 0 : 1), 0);
+  } catch {
+    return 0;
+  }
+};
+
+const [unread, setUnread] = useState(0);       // 최종 합산 배지 숫자
+const [unreadDm, setUnreadDm] = useState(0);   // 로컬 DM 미읽음
+const [unreadFs, setUnreadFs] = useState(0);   // Firestore 미읽음(팔로우/좋아요/댓글/DM 등)
+
+// 최종 합산
+useEffect(() => {
+  setUnread(unreadDm + unreadFs);
+}, [unreadDm, unreadFs]);
+
+// 로그인 상태 변화/탭 이벤트에 따라 로컬 DM 미읽음 갱신
+useEffect(() => {
+  let currentUid: string | null = auth.currentUser?.uid ?? null;
+
+  const refreshDm = () => setUnreadDm(getUnreadDm(currentUid));
+
+  // 초기값
+  refreshDm();
+
+  // 로그인 상태 변동
+  const unsubAuth = onAuthStateChanged(auth, (u) => {
+    currentUid = u?.uid ?? null;
+    refreshDm();
+  });
+
+  // 다른 탭에서 localStorage 변경
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key || e.key === inboxKey(currentUid)) refreshDm();
   };
+  window.addEventListener("storage", onStorage);
 
-  const [unread, setUnread] = useState(0);
+  // 같은 탭에서 우리가 쏘는 이벤트
+  const onBump = () => refreshDm();
+  window.addEventListener("notif_inbox_updated", onBump);
 
-  useEffect(() => {
-    let currentUid: string | null = auth.currentUser?.uid ?? null;
-    const refresh = () => setUnread(getUnreadCount(currentUid));
+  // 포커스/탭 전환 시 갱신
+  const onFocus = () => refreshDm();
+  window.addEventListener("visibilitychange", onFocus);
+  window.addEventListener("focus", onFocus);
 
-    // 초기값
-    refresh();
+  return () => {
+    unsubAuth();
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener("notif_inbox_updated", onBump);
+    window.removeEventListener("visibilitychange", onFocus);
+    window.removeEventListener("focus", onFocus);
+  };
+}, []);
 
-    // 로그인 상태 변동
-    const unsub = onAuthStateChanged(auth, (u) => {
-      currentUid = u?.uid ?? null;
-      refresh();
-    });
+// Firestore 미읽음 카운트 실시간 구독
+useEffect(() => {
+  // uid 없으면 0으로
+  if (!auth.currentUser?.uid) {
+    setUnreadFs(0);
+    return;
+  }
+  const me = auth.currentUser.uid;
 
-    // 다른 탭에서 변경될 때
-    const onStorage = (e: StorageEvent) => {
-      if (!e.key || e.key === inboxKey(currentUid)) refresh();
-    };
-    window.addEventListener("storage", onStorage);
+  // notifications/{uid}/inbox 에서 read == false 만 카운트
+  const q = query(
+    collection(db, "notifications", me, "inbox"),
+    where("read", "==", false)
+  );
 
-    // 같은 탭에서 변경(우리가 쏜 이벤트)
-    const onBump = () => refresh();
-    window.addEventListener("notif_inbox_updated", onBump);
-
-    // 포커스/탭 전환 시 갱신
-    const onFocus = () => refresh();
-    window.addEventListener("visibilitychange", onFocus);
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      unsub();
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("notif_inbox_updated", onBump);
-      window.removeEventListener("visibilitychange", onFocus);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, []);
-
-  // 알림 페이지 들어왔을 때도 한 번 갱신(선택)
-  useEffect(() => {
-    if (location.pathname.startsWith("/notification")) {
-      setUnread(getUnreadCount(auth.currentUser?.uid ?? null));
+  const unsub = onSnapshot(
+    q,
+    (snap) => {
+      // 단순히 개수만 세면 성능/비용 둘 다 좋음
+      setUnreadFs(snap.size || 0);
+    },
+    (err) => {
+      console.error("FS unread count listen error:", err);
+      // 에러 시 배지 0으로 폴백 (원하면 유지)
+      setUnreadFs(0);
     }
-  }, [location.pathname]);
+  );
 
-  /* ===================== /미읽음 카운트 ===================== */
+  return () => unsub();
+}, [auth.currentUser?.uid]);
+
+// 알림 페이지 진입 시에도 한 번 갱신(선택)
+useEffect(() => {
+  if (location.pathname.startsWith("/notification")) {
+    setUnreadDm(getUnreadDm(auth.currentUser?.uid ?? null));
+    // Firestore쪽은 onSnapshot이 실시간으로 반영 중이므로 별도 작업 불필요
+  }
+}, [location.pathname]);
+/* ===================== /미읽음 카운트 ===================== */
+
 
   return (
     <ImageModalContext.Provider

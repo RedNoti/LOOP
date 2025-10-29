@@ -11,10 +11,83 @@ import {
   orderBy,
   doc,
   updateDoc,
-  deleteDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+
+// === 배지 이벤트 디스패처 ===
+function dispatchBadge(unread: number) {
+  try {
+    window.dispatchEvent(
+      new CustomEvent("notif_inbox_updated", { detail: { unread } })
+    );
+    window.dispatchEvent(new Event("notif_inbox_updated")); // 구 리스너 호환
+  } catch {}
+}
+
+// === Local Inbox (DM 즉시 폴백) ===
+type LocalInboxItem = {
+  id: string; // 예: dm_{fromUid}_{ts}
+  kind: "dm";
+  title: string;
+  desc?: string;
+  ts: number;
+  read?: boolean;
+  avatar?: string;
+  link?: string;
+};
+
+function readLocalInbox(meUid: string | null): LocalInboxItem[] {
+  if (!meUid) return [];
+  try {
+    const raw = localStorage.getItem(`notif_inbox_${meUid}`);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function writeLocalInbox(meUid: string | null, items: LocalInboxItem[]) {
+  if (!meUid) return;
+  try {
+    localStorage.setItem(`notif_inbox_${meUid}`, JSON.stringify(items));
+  } catch {}
+}
+
+function markAllLocalRead(meUid: string | null) {
+  if (!meUid) return;
+  const arr = readLocalInbox(meUid).map((x) => ({ ...x, read: true }));
+  writeLocalInbox(meUid, arr);
+  dispatchBadge(0);
+}
+function clearAllLocal(meUid: string | null) {
+  if (!meUid) return;
+  try {
+    localStorage.removeItem(`notif_inbox_${meUid}`);
+  } catch {}
+  dispatchBadge(0);
+}
+function markLocalOneRead(meUid: string | null, id: string) {
+  if (!meUid) return;
+  const arr = readLocalInbox(meUid);
+  const next = arr.map((x) => (x.id === id ? { ...x, read: true } : x));
+  writeLocalInbox(meUid, next);
+  const unread = next.filter((x) => !x.read).length;
+  dispatchBadge(unread);
+}
+function removeLocalOne(meUid: string | null, id: string) {
+  if (!meUid) return;
+  const arr = readLocalInbox(meUid);
+  const next = arr.filter((x) => x.id !== id);
+  writeLocalInbox(meUid, next);
+  const unread = next.filter((x) => !x.read).length;
+  dispatchBadge(unread);
+}
+
+function dedupeById<T extends { id: string }>(arr: T[]) {
+  const seen = new Set<string>();
+  return arr.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+}
 
 type Kind = "mention" | "like" | "system" | "dm" | "follow";
 type Item = {
@@ -28,7 +101,7 @@ type Item = {
   link?: string;
 };
 
-/* ---------- styled-components 그대로 유지 ---------- */
+/* ---------- styled-components (생략 없이 그대로) ---------- */
 const Wrap = styled.div`
   max-width: 860px;
   margin: 32px auto;
@@ -257,10 +330,9 @@ const timeAgo = (ts: number) => {
 };
 
 const NotificationsScreen: React.FC = () => {
-  const { isDarkMode } = useTheme(); // (유지)
+  const { isDarkMode } = useTheme();
   const navi = useNavigate();
 
-  // 로그인한 사용자 uid 추적
   const [uid, setUid] = useState<string | null>(
     getAuth().currentUser?.uid ?? null
   );
@@ -272,34 +344,27 @@ const NotificationsScreen: React.FC = () => {
     return () => unsub();
   }, []);
 
-  // Firestore에서 불러온 알림들
   const [items, setItems] = useState<Item[]>([]);
 
-  // Firestore 실시간 구독
+  // (B) Firestore 구독 + 로컬 DM 병합
   useEffect(() => {
     if (!uid) return;
 
-    // notifications/{uid}/inbox 컬렉션을 ts 최신순으로 보기
     const qRef = query(
       collection(db, "notifications", uid, "inbox"),
       orderBy("ts", "desc")
     );
 
     const unsub = onSnapshot(qRef, (snap) => {
-      const arr: Item[] = snap.docs.map((d) => {
+      const fromFs: Item[] = snap.docs.map((d) => {
         const x = d.data() as any;
-
-        // ✅ kind 정규화: "comment" → "mention"
-        const rawKind: string =
-          typeof x?.kind === "string" ? x.kind : "system";
+        const rawKind: string = typeof x?.kind === "string" ? x.kind : "system";
         const kind = (rawKind === "comment" ? "mention" : rawKind) as Kind;
-
         return {
           id: d.id,
           kind,
           title: typeof x?.title === "string" ? x.title : "",
           desc: typeof x?.desc === "string" ? x.desc : undefined,
-          // ✅ Timestamp → number(ms), 비어있으면 임시값
           ts:
             x?.ts?.toMillis?.() ??
             (typeof x?.ts === "number" ? x.ts : Date.now()),
@@ -309,24 +374,67 @@ const NotificationsScreen: React.FC = () => {
         };
       });
 
-      // 방어적 재정렬
-      arr.sort((a, b) => b.ts - a.ts);
+      const fromLocal: Item[] = readLocalInbox(uid).map((x) => ({
+        id: x.id,
+        kind: "dm",
+        title: x.title,
+        desc: x.desc,
+        ts: x.ts,
+        read: !!x.read,
+        avatar: x.avatar,
+        link: x.link,
+      }));
 
-      setItems(arr);
+      const merged = dedupeById([...fromLocal, ...fromFs]).sort(
+        (a, b) => b.ts - a.ts
+      );
+
+      const unread = merged.filter((x) => !x.read).length;
+      dispatchBadge(unread);
+
+      setItems(merged);
     });
 
     return () => unsub();
   }, [uid]);
 
-  // 모두 읽음 처리: writeBatch + 호출 시점 리스트 캡처
+  // (C) 로컬 박스 변경 이벤트 수신 (배지 재발행 금지! 루프 방지)
+  useEffect(() => {
+    if (!uid) return;
+    const onLocalUpdated = () => {
+      setItems((prev) => {
+        const fromLocal: Item[] = readLocalInbox(uid).map((x) => ({
+          id: x.id,
+          kind: "dm",
+          title: x.title,
+          desc: x.desc,
+          ts: x.ts,
+          read: !!x.read,
+          avatar: x.avatar,
+          link: x.link,
+        }));
+        // 여기서는 **배지 이벤트를 다시 쏘지 않습니다** (무한 루프 방지)
+        return dedupeById([...fromLocal, ...prev]).sort((a, b) => b.ts - a.ts);
+      });
+    };
+    window.addEventListener("notif_inbox_updated", onLocalUpdated);
+    return () =>
+      window.removeEventListener("notif_inbox_updated", onLocalUpdated);
+  }, [uid]);
+
+  // 모두 읽음
   const markAll = async () => {
     if (!uid) return;
-
     const curr = [...items];
     if (curr.length === 0) return;
 
-    // UI 먼저 갱신
-    setItems((prev) => prev.map((p) => ({ ...p, read: true })));
+    setItems((prev) => {
+      const next = prev.map((p) => ({ ...p, read: true }));
+      dispatchBadge(0);
+      return next;
+    });
+
+    markAllLocalRead(uid);
 
     const batch = writeBatch(db);
     for (const it of curr) {
@@ -340,15 +448,18 @@ const NotificationsScreen: React.FC = () => {
     }
   };
 
-  // 모두 지우기: writeBatch + 호출 시점 리스트 캡처
+  // 모두 지우기
   const clearAll = async () => {
     if (!uid) return;
-
     const curr = [...items];
     if (curr.length === 0) return;
 
-    // UI 먼저 갱신
-    setItems([]);
+    setItems(() => {
+      dispatchBadge(0);
+      return [];
+    });
+
+    clearAllLocal(uid);
 
     const batch = writeBatch(db);
     for (const it of curr) {
@@ -362,26 +473,28 @@ const NotificationsScreen: React.FC = () => {
     }
   };
 
-  // 개별 클릭: 읽음 처리 + 링크 이동
+  // 개별 클릭
   const onClickItem = async (it: Item) => {
+    if (it.kind === "dm") {
+      markLocalOneRead(uid, it.id);
+    }
+
     if (uid) {
       try {
         await updateDoc(doc(db, "notifications", uid, "inbox", it.id), {
           read: true,
         });
-      } catch (e) {
-        console.error("read 업데이트 실패:", e);
-      }
+      } catch {}
     }
 
-    // UI에도 즉시 반영
-    setItems((prev) =>
-      prev.map((p) => (p.id === it.id ? { ...p, read: true } : p))
-    );
+    setItems((prev) => {
+      const next = prev.map((p) => (p.id === it.id ? { ...p, read: true } : p));
+      const unread = next.filter((x) => !x.read).length;
+      dispatchBadge(unread);
+      return next;
+    });
 
-    if (it.link) {
-      navi(it.link);
-    }
+    if (it.link) navi(it.link);
   };
 
   return (

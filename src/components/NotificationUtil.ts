@@ -1,147 +1,139 @@
 // src/components/NotificationUtil.ts
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
-/**
- * Firestore에 알림 문서를 하나 기록하는 공용 함수
- * notifications/{targetUid}/inbox/{autoId}
- */
-async function pushNotifToFirestore(params: {
-  targetUid: string;          // 알림을 받아야 할 사람
-  kind: "follow" | "like" | "mention" | "dm" | "system";
-  title: string;              // 카드에 큰 글씨로 나올 문장
-  desc?: string;              // 작은 보조설명(댓글 내용 일부 등)
-  avatar?: string;            // 알림에서 보여줄 프로필 썸네일
-  link?: string;              // 알림 클릭 시 이동할 경로
-  fromUid?: string;           // 누가 이 알림을 발생시켰는지
-}) {
-  if (!params.targetUid) return; // 방어 코드
+type NotifKind = "like" | "mention" | "follow" | "dm" | "system";
 
-  await addDoc(
-    collection(db, "notifications", params.targetUid, "inbox"),
-    {
-      kind: params.kind,
-      title: params.title,
-      desc: params.desc || null,
-      avatar: params.avatar || null,
-      link: params.link || null,
-      fromUid: params.fromUid || null,
-      read: false,
-      ts: serverTimestamp(), // Firestore 서버 시간이므로 신뢰 가능
-    }
-  );
-}
+type PushParams = {
+  targetUid: string;          // 알림을 받을 유저
+  kind: NotifKind;            // 알림 종류
+  title: string;              // 큰 문구
+  desc?: string;              // 부가 설명 (댓글 일부 등)
+  avatar?: string;            // 카드 썸네일 (프로필 등)
+  link?: string;              // 클릭 시 이동 경로
+  fromUid?: string;           // 알림을 유발한 주체(보낸 사람)
+};
 
-/**
- * 팔로우 알림:
- * A(팔로워)가 B를 팔로우했을 때 B에게 "A님이 당신을 팔로우하기 시작했습니다"
- */
-export async function notifyFollowFirestore(params: {
-  targetUid: string;        // B: 팔로우 당한 사람
-  followerUid: string;      // A: 팔로우 한 사람
-  followerName?: string;
-  followerAvatar?: string;
-}) {
-  if (!params.targetUid || !params.followerUid) return;
-
-  await pushNotifToFirestore({
-    targetUid: params.targetUid,
-    kind: "follow",
-    title: `${params.followerName ?? "새 사용자"} 님이 나를 팔로우하기 시작했습니다`,
-    desc: undefined,
-    avatar: params.followerAvatar,
-    link: `/user/${params.followerUid}`,
-    fromUid: params.followerUid,
+/** 공통: Firestore에 알림 쓰기 (규칙 요구 필드 충족: kind/title/read/ts) */
+export async function pushNotifToFirestore(p: PushParams) {
+  if (!p?.targetUid) return;
+  await addDoc(collection(db, "notifications", p.targetUid, "inbox"), {
+    kind: p.kind,
+    title: p.title,
+    desc: p.desc ?? null,
+    avatar: p.avatar ?? null,
+    link: p.link ?? null,
+    fromUid: p.fromUid ?? null,
+    read: false,                 // ✅ 규칙 필수
+    ts: serverTimestamp(),       // ✅ 규칙 필수
   });
 }
 
-/**
- * 좋아요 알림:
- * A가 B의 게시글에 좋아요 눌렀을 때
- */
+/** 좋아요 알림 */
 export async function notifyLikeFirestore(params: {
-  postId: string;
-  postTitle?: string;
-  ownerUid: string;     // B: 글 주인 (알림 받을 사람)
-  actorUid: string;     // A: 좋아요 누른 사람
+  targetUid: string;
+  actorUid: string;
   actorName?: string;
   actorAvatar?: string;
+  postId?: string;
 }) {
-  if (!params.ownerUid || !params.actorUid) return;
-  if (params.ownerUid === params.actorUid) return; // 자기 글에 자기 좋아요면 알림 X
-
-  const desc = params.postTitle
-    ? `「${params.postTitle.slice(0, 40)}」`
-    : undefined;
-
+  const { targetUid, actorUid, actorName, actorAvatar, postId } = params;
   await pushNotifToFirestore({
-    targetUid: params.ownerUid,
+    targetUid,
     kind: "like",
-    title: `${params.actorName ?? "익명"} 님이 내 글을 좋아합니다`,
-    desc,
-    avatar: params.actorAvatar,
-    link: `/post/${params.postId}`,
-    fromUid: params.actorUid,
+    title: `${actorName ?? "사용자"} 님이 내 글에 좋아요를 눌렀습니다`,
+    desc: undefined,
+    avatar: actorAvatar,
+    link: postId ? `/post/${postId}` : undefined,
+    fromUid: actorUid,
   });
 }
 
-/**
- * 댓글 알림:
- * A가 B의 게시글에 댓글 남겼을 때
- */
+/** 댓글(멘션) 알림 */
 export async function notifyCommentFirestore(params: {
-  postId: string;
-  postTitle?: string;
-  ownerUid: string;     // B: 글 주인
-  actorUid: string;     // A: 댓글 단 사람
+  targetUid: string;
+  actorUid: string;
   actorName?: string;
   actorAvatar?: string;
-  commentText?: string;
+  postId?: string;
+  text?: string;
 }) {
-  if (!params.ownerUid || !params.actorUid) return;
-  if (params.ownerUid === params.actorUid) return; // 자기 글에 자기 댓글이면 알림 X
-
-  let pieces: string[] = [];
-  if (params.postTitle) {
-    pieces.push(`「${params.postTitle.slice(0, 40)}」`);
-  }
-  if (params.commentText) {
-    pieces.push(params.commentText.slice(0, 60));
-  }
-  const desc = pieces.join(" · ");
-
+  const { targetUid, actorUid, actorName, actorAvatar, postId, text } = params;
   await pushNotifToFirestore({
-    targetUid: params.ownerUid,
-    kind: "mention",
-    title: `${params.actorName ?? "익명"} 님이 내 글에 댓글을 남겼습니다`,
-    desc,
-    avatar: params.actorAvatar,
-    link: `/post/${params.postId}#comments`,
-    fromUid: params.actorUid,
+    targetUid,
+    kind: "mention", // ← 화면 쪽에서 comment→mention 매핑, 여기선 바로 mention 사용
+    title: `${actorName ?? "사용자"} 님이 내 글에 댓글을 남겼습니다`,
+    desc: (text ?? "").slice(0, 80),
+    avatar: actorAvatar,
+    link: postId ? `/post/${postId}` : undefined,
+    fromUid: actorUid,
   });
 }
+
+/** 팔로우 알림 */
+export async function notifyFollowFirestore(params: {
+  targetUid: string;
+  actorUid: string;
+  actorName?: string;
+  actorAvatar?: string;
+}) {
+  const { targetUid, actorUid, actorName, actorAvatar } = params;
+  await pushNotifToFirestore({
+    targetUid,
+    kind: "follow",
+    title: `${actorName ?? "사용자"} 님이 나를 팔로우했습니다`,
+    desc: undefined,
+    avatar: actorAvatar,
+    link: `/user/${actorUid}`,
+    fromUid: actorUid,
+  });
+}
+
+/** DM 알림 */
 export async function notifyDmFirestore(params: {
-  targetUid: string;   // DM을 "받는" 사람
-  fromUid: string;     // 보낸 사람(나)
+  targetUid: string;        // DM을 받는 사람(상대)
+  fromUid: string;          // 보낸 사람(나)
   fromName?: string;
   fromAvatar?: string;
   text?: string;
 }) {
-  if (!params.targetUid || !params.fromUid) return;
-
+  const { targetUid, fromUid, fromName, fromAvatar, text } = params;
   await pushNotifToFirestore({
-    targetUid: params.targetUid,
+    targetUid,
     kind: "dm",
-    title: `${params.fromName ?? "익명"} 님으로부터 새 메시지`,
-    desc: (params.text ?? "").slice(0, 80),
-    avatar: params.fromAvatar,
-    link: `/dm?uid=${params.fromUid}&name=${encodeURIComponent(
-      params.fromName ?? "사용자"
-    )}&avatar=${encodeURIComponent(params.fromAvatar ?? "")}`,
-    fromUid: params.fromUid,
+    title: `${fromName ?? "익명"} 님으로부터 새 메시지`,
+    desc: (text ?? "").slice(0, 80),
+    avatar: fromAvatar,
+    link: `/dm?uid=${fromUid}`,
+    fromUid,
   });
+}
+export function pushLocalDmNotification(params: {
+  targetUid: string;           // 알림을 받아야 할 사람(현재 로그인 유저 uid)
+  title: string;
+  desc?: string;
+  avatar?: string;
+  link?: string;               // 예: `/dm?peer=${peerUid}`
+}) {
+  if (typeof window === "undefined") return;
+  const key = params.targetUid ? `notif_inbox_${params.targetUid}` : `notif_inbox_guest`;
+  try {
+    const raw = localStorage.getItem(key);
+    const arr = raw ? JSON.parse(raw) : [];
+    const id = `dm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    arr.unshift({
+      id,
+      kind: "dm",
+      title: params.title,
+      desc: params.desc,
+      ts: Date.now(),
+      read: false,
+      avatar: params.avatar,
+      link: params.link,
+    });
+    localStorage.setItem(key, JSON.stringify(arr));
+    // 좌측 배지 즉시 갱신
+    window.dispatchEvent(new CustomEvent("notif_inbox_updated", { detail: {} }));
+    window.dispatchEvent(new Event("notif_inbox_updated"));
+  } catch {}
 }

@@ -248,11 +248,11 @@ export default function UserProfileScreen() {
 
     // 4) Firestore에 알림 문서 남기기
     await notifyFollowFirestore({
-      targetUid: uid,       // 팔로우 "당한" 사람 (상대방 uid)
-      followerUid,          // 나 (팔로우 한 사람)
-      followerName,
-      followerAvatar,
-    });
+  targetUid: uid,                 // 팔로우 "당한" 사람
+  actorUid: followerUid,          // ✅ 호출자(나)
+  actorName: followerName,
+  actorAvatar: followerAvatar,
+});
 
     console.log("[notifyFollowFirestore OK]", {
       targetUid: uid,

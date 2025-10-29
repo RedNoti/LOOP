@@ -89,14 +89,13 @@
 
     // 글 작성자에게 Firestore 알림 보내기
     await notifyCommentFirestore({
-      postId: id,
-      postTitle: currentPost,
-      ownerUid: userId, // 글 작성자의 uid
-      actorUid: user?.uid ?? "",
-      actorName: newComment?.nickname ?? user?.displayName ?? "익명",
-      actorAvatar: user?.photoURL ?? undefined,
-      commentText: newComment?.content ?? "",
-    });
+  targetUid: userId,                                  // ✅ 글 소유자 = 알림 수신자
+  postId: id,
+  text: newComment?.content ?? "",                    // ✅ 타입에서 허용되는 텍스트 키
+  actorUid: user?.uid ?? "",
+  actorName: newComment?.nickname ?? user?.displayName ?? "익명",
+  actorAvatar: user?.photoURL ?? undefined,
+});
   };
 
     const handleCommentDeleted = (deletedCommentId: string) => {
@@ -172,13 +171,12 @@
 
     // Firestore에 알림 저장
     await notifyLikeFirestore({
-      postId: id,
-      postTitle: currentPost,
-      ownerUid: userId, // 글 작성자 uid
-      actorUid: user?.uid ?? "",
-      actorName: user?.displayName ?? "익명",
-      actorAvatar: user?.photoURL ?? undefined,
-    });
+  targetUid: userId,            // ✅ 글 소유자 = 알림 수신자
+  postId: id,
+  actorUid: user?.uid ?? "",
+  actorName: user?.displayName ?? "익명",
+  actorAvatar: user?.photoURL ?? undefined,
+});
   }
 
       setHasLiked(!hasLiked);
