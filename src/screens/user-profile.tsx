@@ -7,7 +7,6 @@ import { db, auth } from "../firebaseConfig";
 import { useTheme } from "../components/ThemeContext";
 import { useRelations } from "../components/RelationsContext";
 import {
-  notifyFollow,
   notifyFollowFirestore,
 } from "../components/NotificationUtil";
 
@@ -201,15 +200,14 @@ export default function UserProfileScreen() {
   $isDark={isDarkMode}
   $primary
   onClick={async () => {
-    if (!uid) return; // uid = 지금 보고 있는 상대 유저의 uid (팔로우 당한 쪽)
+    if (!uid) return; // uid = 지금 보고 있는 상대 유저
 
     // 1) Firestore 관계 업데이트 (내가 uid를 팔로우)
     try {
       await follow(uid);
     } catch (err) {
-      console.error("follow(uid) 실패. 그래도 알림까지는 보내서 동작 확인해볼게요:", err);
-      // 여기서 return 안 하는 이유:
-      // follow()에 권한 문제가 있어도 notifyFollow 자체는 정상적으로 도는지 확인하고 싶기 때문입니다.
+      console.error("follow(uid) 실패:", err);
+      // 그래도 아래 알림은 시도 가능하게 둘 수도 있고, 실패했으면 return 해도 된다.
     }
 
     // 2) 현재 로그인한 내 계정 정보
@@ -220,7 +218,7 @@ export default function UserProfileScreen() {
       return;
     }
 
-    // 3) 내 이름/아바타(팔로우 한 사람의 표시용)를 준비
+    // 3) Firestore에서 내 프로필 가져와서 예쁜 이름/아바타 추출
     let followerName: string | undefined = meUser?.displayName || "익명";
     let followerAvatar: string | undefined = meUser?.photoURL || undefined;
 
@@ -246,38 +244,27 @@ export default function UserProfileScreen() {
       }
     } catch (err) {
       console.error("프로필 로드 실패(팔로우 알림용):", err);
-      // 여기서도 fallback으로 meUser 기반 값 쓰면 됨
     }
 
-    // 4) 실제 알림 생성
-    notifyFollow({
-      targetUid: uid,          // ← 팔로우 "당한" 사람 (상대방 uid)
-      followerUid,             // ← 나 (팔로우 한 사람)
+    // 4) Firestore에 알림 문서 남기기
+    await notifyFollowFirestore({
+      targetUid: uid,       // 팔로우 "당한" 사람 (상대방 uid)
+      followerUid,          // 나 (팔로우 한 사람)
       followerName,
       followerAvatar,
     });
-    notifyFollowFirestore({
-  targetUid: uid,
-  followerUid,
-  followerName,
-  followerAvatar,
-});
 
-    // 5) 디버그 출력: 이게 찍혀야 실제로 notifyFollow가 실행된 거예요.
-    console.log("[notifyFollow 호출됨]", {
+    console.log("[notifyFollowFirestore OK]", {
       targetUid: uid,
       followerUid,
       followerName,
       followerAvatar,
     });
-
-    // 6) 이제 localStorage 확인해볼 수 있음:
-    //    localStorage.getItem("notif_inbox_" + uid)
-    //    위 값이 이제는 null이 아니어야 정상입니다.
   }}
 >
   팔로우
 </ActionBtn>
+
 
                     )}
 

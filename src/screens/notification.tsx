@@ -4,7 +4,15 @@ import styled from "styled-components";
 import { useTheme } from "../components/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { onSnapshot, query, collection, where, orderBy } from "firebase/firestore";
+import {
+  onSnapshot,
+  query,
+  collection,
+  orderBy,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 type Kind = "mention" | "like" | "system" | "dm" | "follow";
@@ -19,14 +27,13 @@ type Item = {
   link?: string;
 };
 
+/* ---------- styled-components는 네가 작성한 그대로 유지 ---------- */
 const Wrap = styled.div`
   max-width: 860px;
   margin: 32px auto;
   padding: 0 16px 48px;
   color: var(--text-primary);
 `;
-
-/* ===== 헤더 ===== */
 const H1 = styled.h1`
   font-size: 24px;
   line-height: 1.2;
@@ -34,8 +41,6 @@ const H1 = styled.h1`
   color: var(--text-primary);
   letter-spacing: -0.2px;
 `;
-
-/* ===== 상단 액션바 (Sticky) ===== */
 const Bar = styled.div`
   position: sticky;
   top: 0;
@@ -44,8 +49,7 @@ const Bar = styled.div`
   gap: 8px;
   padding: 10px 0 14px;
   margin-bottom: 14px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0))
-      /* light */,
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0)),
     var(--surface);
   backdrop-filter: blur(4px);
 
@@ -76,8 +80,6 @@ const Bar = styled.div`
     }
   }
 `;
-
-/* ===== 알림 카드 ===== */
 const Card = styled.button<{ $unread?: boolean }>`
   --card-bg: ${(p) =>
     p.$unread
@@ -119,13 +121,11 @@ const Card = styled.button<{ $unread?: boolean }>`
     outline-offset: 2px;
   }
 `;
-
 const Left = styled.div`
   position: relative;
   width: 40px;
   height: 40px;
 `;
-
 const Avatar = styled.img`
   width: 34px;
   height: 34px;
@@ -134,8 +134,6 @@ const Avatar = styled.img`
   border: 1px solid var(--border);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
 `;
-
-/* 아바타 없을 때 플레이스홀더 원형 */
 const AvatarFallback = styled.div`
   width: 34px;
   height: 34px;
@@ -158,8 +156,6 @@ const AvatarFallback = styled.div`
     ),
     var(--surface);
 `;
-
-/* 안 읽음 점 */
 const UnreadDot = styled.span`
   position: absolute;
   right: -2px;
@@ -170,26 +166,21 @@ const UnreadDot = styled.span`
   background: var(--accent, #3b82f6);
   box-shadow: 0 0 0 2px var(--surface);
 `;
-
-/* 본문 텍스트 */
 const Body = styled.div`
   min-width: 0;
 `;
-
 const Row = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 `;
-
 const Title = styled.div`
   font-size: 14px;
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.1px;
 `;
-
 const Desc = styled.div`
   margin-top: 4px;
   font-size: 13px;
@@ -200,8 +191,6 @@ const Desc = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
 `;
-
-/* 종류 배지 */
 const KindBadge = styled.span<{ $kind: Kind }>`
   font-size: 11px;
   font-weight: 800;
@@ -225,16 +214,12 @@ const KindBadge = styled.span<{ $kind: Kind }>`
       ? "color-mix(in oklab, var(--text-primary) 85%, #f59e0b)"
       : "var(--text-tertiary)"};
 `;
-
-/* 오른쪽 메타 (시간) */
 const Meta = styled.div`
   font-size: 12px;
   color: var(--text-tertiary);
   white-space: nowrap;
   padding-left: 8px;
 `;
-
-/* 빈 상태 */
 const Empty = styled.div`
   padding: 36px 12px 48px;
   color: var(--text-tertiary);
@@ -258,11 +243,11 @@ const Empty = styled.div`
   }
 `;
 
-/* ===== util ===== */
+/* util */
 const timeAgo = (ts: number) => {
-  const diff = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (diff < 60) return `${diff}s`;
-  const m = Math.floor(diff / 60);
+  const diffSec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  const m = Math.floor(diffSec / 60);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
@@ -270,116 +255,105 @@ const timeAgo = (ts: number) => {
   return `${d}d`;
 };
 
-// ✅ inbox 저장 키(현재 로그인 uid 기준)
-const inboxKey = (uid?: string | null) =>
-  uid ? `notif_inbox_${uid}` : `notif_inbox_guest`;
-
-// ✅ inbox 로드/저장 유틸
-const loadInbox = (uid?: string | null): Item[] => {
-  try {
-    const raw = localStorage.getItem(inboxKey(uid));
-    return raw ? (JSON.parse(raw) as Item[]) : [];
-  } catch {
-    return [];
-  }
-};
-const saveInbox = (uid: string | null | undefined, list: Item[]) => {
-  localStorage.setItem(inboxKey(uid), JSON.stringify(list));
-};
-
 const NotificationsScreen: React.FC = () => {
-  const { isDarkMode } = useTheme();
+  const { isDarkMode } = useTheme(); // 아직은 안 쓰지만 유지 OK (다크모드 변수 쓸 수 있으니까)
   const navi = useNavigate();
 
-  // 🔐 현재 로그인 uid 동기화
+  // 로그인한 사용자 uid 추적
   const [uid, setUid] = useState<string | null>(
     getAuth().currentUser?.uid ?? null
   );
   useEffect(() => {
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, (user) => setUid(user?.uid ?? null));
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setUid(user?.uid ?? null);
+    });
     return () => unsub();
   }, []);
 
-  // 📥 상태: inbox만 사용 (seed 제거)
+  // Firestore에서 불러온 알림들
   const [items, setItems] = useState<Item[]>([]);
 
-  // uid 바뀌거나 진입 시 inbox 로드
+  // Firestore 실시간 구독
   useEffect(() => {
-    const inbox = loadInbox(uid).sort((a, b) => b.ts - a.ts);
-    setItems(inbox);
-  }, [uid]);
-    useEffect(() => {
     if (!uid) return;
 
-    const reload = () => {
-      const inbox = loadInbox(uid).sort((a, b) => b.ts - a.ts);
-      setItems(inbox);
-    };
+    // notifications/{uid}/inbox 컬렉션을 ts 최신순으로 보기
+    const qRef = query(
+      collection(db, "notifications", uid, "inbox"),
+      orderBy("ts", "desc")
+    );
 
-    // 최초 1회 안전 로드 (혹시 uid 바뀐 직후 딜레이 있을 경우)
-    reload();
-
-    window.addEventListener("notif_inbox_updated", reload);
-    return () => {
-      window.removeEventListener("notif_inbox_updated", reload);
-    };
-  }, [uid]);
-  useEffect(() => {
-  if (!uid) return;
-
-  // recipientUid == uid 인 알림들을 최신순으로 구독
-  const qRef = query(
-    collection(db, "notifications"),
-    where("recipientUid", "==", uid),
-    orderBy("ts", "desc")
-  );
-
-  const unsub = onSnapshot(qRef, (snap) => {
-    const serverItems: Item[] = snap.docs.map((d) => {
-      const x = d.data() as any;
-      return {
-        id: d.id,
-        kind: x.kind || "system",
-        title: x.title || "",
-        desc: x.desc || undefined,
-        ts: x.ts?.toMillis ? x.ts.toMillis() : Date.now(),
-        read: x.read ?? false,
-        avatar: x.avatar || undefined,
-        link: x.link || undefined,
-      };
+    const unsub = onSnapshot(qRef, (snap) => {
+      const arr: Item[] = snap.docs.map((d) => {
+        const x = d.data() as any;
+        return {
+          id: d.id,
+          kind: (x.kind as Kind) || "system",
+          title: x.title || "",
+          desc: x.desc || undefined,
+          ts: x.ts?.toMillis ? x.ts.toMillis() : Date.now(),
+          read: x.read ?? false,
+          avatar: x.avatar || undefined,
+          link: x.link || undefined,
+        };
+      });
+      setItems(arr);
     });
 
-    // 🔄 localStorage 기반 items와 merge하고 싶으면 여기서 합칠 수도 있음.
-    // 지금은 Firestore 것이 진실(source of truth)이 되도록 그냥 갈아끼운다:
-    setItems(serverItems);
-  });
+    return () => unsub();
+  }, [uid]);
 
-  return () => unsub();
-}, [uid]);
+  // 모두 읽음 처리: Firestore에도 반영
+  const markAll = async () => {
+    if (!uid) return;
+    setItems((prev) => prev.map((p) => ({ ...p, read: true })));
 
-  // 모두 읽음
-  const markAll = () => {
-    const next = items.map((p) => ({ ...p, read: true }));
-    setItems(next);
-    saveInbox(
-      uid,
-      next /* system도 함께 저장(고정 알림 없으므로 필터 불필요) */
-    );
+    for (const it of items) {
+      try {
+        await updateDoc(doc(db, "notifications", uid, "inbox", it.id), {
+          read: true,
+        });
+      } catch (e) {
+        console.error("markAll 실패", e);
+      }
+    }
   };
 
-  // 모두 지우기
-  const clearAll = () => {
+  // 모두 지우기: Firestore 문서 삭제
+  const clearAll = async () => {
+    if (!uid) return;
     setItems([]);
-    saveInbox(uid, []);
+
+    for (const it of items) {
+      try {
+        await deleteDoc(doc(db, "notifications", uid, "inbox", it.id));
+      } catch (e) {
+        console.error("clearAll 실패", e);
+      }
+    }
   };
 
-  // 클릭: 읽음 처리 + 링크 이동
-  const onClickItem = (it: Item) => {
-    const next = items.map((p) => (p.id === it.id ? { ...p, read: true } : p));
-    setItems(next);
-    saveInbox(uid, next);
-    if (it.link) navi(it.link);
+  // 개별 클릭: 읽음 처리 + 링크 이동
+  const onClickItem = async (it: Item) => {
+    if (uid) {
+      try {
+        await updateDoc(doc(db, "notifications", uid, "inbox", it.id), {
+          read: true,
+        });
+      } catch (e) {
+        console.error("read 업데이트 실패:", e);
+      }
+    }
+
+    // UI에도 즉시 반영
+    setItems((prev) =>
+      prev.map((p) => (p.id === it.id ? { ...p, read: true } : p))
+    );
+
+    if (it.link) {
+      navi(it.link);
+    }
   };
 
   return (
@@ -419,16 +393,16 @@ const NotificationsScreen: React.FC = () => {
             <Body>
               <Row>
                 <KindBadge $kind={it.kind}>
-  {it.kind === "mention"
-    ? "멘션"
-    : it.kind === "like"
-    ? "좋아요"
-    : it.kind === "dm"
-    ? "DM"
-    : it.kind === "follow"
-    ? "팔로우"
-    : "시스템"}
-</KindBadge>
+                  {it.kind === "mention"
+                    ? "멘션"
+                    : it.kind === "like"
+                    ? "좋아요"
+                    : it.kind === "dm"
+                    ? "DM"
+                    : it.kind === "follow"
+                    ? "팔로우"
+                    : "시스템"}
+                </KindBadge>
 
                 <Title>{it.title}</Title>
               </Row>

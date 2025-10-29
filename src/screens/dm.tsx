@@ -19,7 +19,7 @@ import {
   type QuerySnapshot,
   type DocumentData,
 } from "firebase/firestore";
-import { notifyDM } from "../components/NotificationUtil"; // 새로 추가
+
 
 /* ---------- Types ---------- */
 type Person = {
