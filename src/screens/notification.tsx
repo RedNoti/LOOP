@@ -12,6 +12,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
@@ -27,7 +28,7 @@ type Item = {
   link?: string;
 };
 
-/* ---------- styled-components는 네가 작성한 그대로 유지 ---------- */
+/* ---------- styled-components 그대로 유지 ---------- */
 const Wrap = styled.div`
   max-width: 860px;
   margin: 32px auto;
@@ -256,7 +257,7 @@ const timeAgo = (ts: number) => {
 };
 
 const NotificationsScreen: React.FC = () => {
-  const { isDarkMode } = useTheme(); // 아직은 안 쓰지만 유지 OK (다크모드 변수 쓸 수 있으니까)
+  const { isDarkMode } = useTheme(); // (유지)
   const navi = useNavigate();
 
   // 로그인한 사용자 uid 추적
@@ -287,50 +288,77 @@ const NotificationsScreen: React.FC = () => {
     const unsub = onSnapshot(qRef, (snap) => {
       const arr: Item[] = snap.docs.map((d) => {
         const x = d.data() as any;
+
+        // ✅ kind 정규화: "comment" → "mention"
+        const rawKind: string =
+          typeof x?.kind === "string" ? x.kind : "system";
+        const kind = (rawKind === "comment" ? "mention" : rawKind) as Kind;
+
         return {
           id: d.id,
-          kind: (x.kind as Kind) || "system",
-          title: x.title || "",
-          desc: x.desc || undefined,
-          ts: x.ts?.toMillis ? x.ts.toMillis() : Date.now(),
-          read: x.read ?? false,
-          avatar: x.avatar || undefined,
-          link: x.link || undefined,
+          kind,
+          title: typeof x?.title === "string" ? x.title : "",
+          desc: typeof x?.desc === "string" ? x.desc : undefined,
+          // ✅ Timestamp → number(ms), 비어있으면 임시값
+          ts:
+            x?.ts?.toMillis?.() ??
+            (typeof x?.ts === "number" ? x.ts : Date.now()),
+          read: Boolean(x?.read),
+          avatar: typeof x?.avatar === "string" ? x.avatar : undefined,
+          link: typeof x?.link === "string" ? x.link : undefined,
         };
       });
+
+      // 방어적 재정렬
+      arr.sort((a, b) => b.ts - a.ts);
+
       setItems(arr);
     });
 
     return () => unsub();
   }, [uid]);
 
-  // 모두 읽음 처리: Firestore에도 반영
+  // 모두 읽음 처리: writeBatch + 호출 시점 리스트 캡처
   const markAll = async () => {
     if (!uid) return;
+
+    const curr = [...items];
+    if (curr.length === 0) return;
+
+    // UI 먼저 갱신
     setItems((prev) => prev.map((p) => ({ ...p, read: true })));
 
-    for (const it of items) {
-      try {
-        await updateDoc(doc(db, "notifications", uid, "inbox", it.id), {
-          read: true,
-        });
-      } catch (e) {
-        console.error("markAll 실패", e);
-      }
+    const batch = writeBatch(db);
+    for (const it of curr) {
+      const ref = doc(db, "notifications", uid, "inbox", it.id);
+      batch.update(ref, { read: true });
+    }
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.error("markAll 실패", e);
     }
   };
 
-  // 모두 지우기: Firestore 문서 삭제
+  // 모두 지우기: writeBatch + 호출 시점 리스트 캡처
   const clearAll = async () => {
     if (!uid) return;
+
+    const curr = [...items];
+    if (curr.length === 0) return;
+
+    // UI 먼저 갱신
     setItems([]);
 
-    for (const it of items) {
-      try {
-        await deleteDoc(doc(db, "notifications", uid, "inbox", it.id));
-      } catch (e) {
-        console.error("clearAll 실패", e);
-      }
+    const batch = writeBatch(db);
+    for (const it of curr) {
+      const ref = doc(db, "notifications", uid, "inbox", it.id);
+      batch.delete(ref);
+    }
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.error("clearAll 실패", e);
     }
   };
 

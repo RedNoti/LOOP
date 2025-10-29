@@ -16,5 +16,6 @@ Git : https://github.com/RedNoti/LOOP.git
 npm install colorthief styled-components react-router-dom axios react-youtube lucide-react && npm install -g typescript
 npm install react-icons
 npm install react-pull-to-refresh
+npm audit fix —force
+npm update
 두 명령어 실행 후 프로젝트 실행
-ddddd

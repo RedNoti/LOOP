@@ -19,6 +19,7 @@ import {
   type QuerySnapshot,
   type DocumentData,
 } from "firebase/firestore";
+import { notifyDmFirestore } from "../components/NotificationUtil";
 
 
 /* ---------- Types ---------- */
@@ -1021,25 +1022,13 @@ function getThreadSeen(threadId: string): number {
 
     // 3) Firestore notifications에도 기록해서 상대가 알림 볼 수 있게
     try {
-      await addDoc(collection(db, "notifications"), {
-        recipientUid: activeUid,
-        senderUid: myUid,
-        kind: "dm",
-        title: `${myName} 님으로부터 새 메시지`,
-        desc: textToSend,
-        ts: serverTimestamp(),
-        read: false,
-        avatar: myAvatar
-          ? normalizeProfileUrl(myAvatar)
-          : DEFAULT_PROFILE_IMG,
-        link: `/dm?uid=${myUid}&name=${encodeURIComponent(
-          myName
-        )}&avatar=${encodeURIComponent(
-          myAvatar
-            ? normalizeProfileUrl(myAvatar)
-            : DEFAULT_PROFILE_IMG
-        )}`,
-      });
+      await notifyDmFirestore({
+    targetUid: activeUid,
+    fromUid: myUid,
+    fromName: myName,
+    fromAvatar: myAvatar ? normalizeProfileUrl(myAvatar) : undefined,
+    text: textToSend,
+  });
     } catch (err) {
       console.warn("[DM] notification skipped:", err);
     }

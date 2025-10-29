@@ -124,3 +124,24 @@ export async function notifyCommentFirestore(params: {
     fromUid: params.actorUid,
   });
 }
+export async function notifyDmFirestore(params: {
+  targetUid: string;   // DM을 "받는" 사람
+  fromUid: string;     // 보낸 사람(나)
+  fromName?: string;
+  fromAvatar?: string;
+  text?: string;
+}) {
+  if (!params.targetUid || !params.fromUid) return;
+
+  await pushNotifToFirestore({
+    targetUid: params.targetUid,
+    kind: "dm",
+    title: `${params.fromName ?? "익명"} 님으로부터 새 메시지`,
+    desc: (params.text ?? "").slice(0, 80),
+    avatar: params.fromAvatar,
+    link: `/dm?uid=${params.fromUid}&name=${encodeURIComponent(
+      params.fromName ?? "사용자"
+    )}&avatar=${encodeURIComponent(params.fromAvatar ?? "")}`,
+    fromUid: params.fromUid,
+  });
+}
